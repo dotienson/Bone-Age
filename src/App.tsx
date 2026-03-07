@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -81,6 +81,8 @@ export default function App() {
   const [isMobile, setIsMobile] = useState(false);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
+  const [xrayImage, setXrayImage] = useState<string | null>(null);
+  const [isXrayVisible, setIsXrayVisible] = useState(true);
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [username, setUsername] = useState('');
@@ -188,7 +190,7 @@ export default function App() {
   };
 
   const t = {
-    title: lang === 'vi' ? 'BoneAge Dr.Son' : 'BoneAge Dr.Son',
+    title: lang === 'vi' ? 'BoneAge - Dr.Son' : 'BoneAge - Dr.Son',
     realAge: lang === 'vi' ? 'Tuổi thực' : 'Chronological Age',
     finalBoneAge: lang === 'vi' ? 'Tuổi xương kết luận' : 'Final Bone Age',
     years: lang === 'vi' ? 'Năm' : 'Years',
@@ -200,20 +202,37 @@ export default function App() {
     otherDoctor: lang === 'vi' ? 'BS khác' : 'Other Doctor',
     conclusion: lang === 'vi' ? 'Kết luận' : 'Conclusion',
     copy: lang === 'vi' ? 'Sao chép' : 'Copy',
-    footer: lang === 'vi' ? 'BS. Đỗ Tiến Sơn phát triển ứng dụng năm 2026' : 'App developed by Dr. Do Tien Son in 2026',
+    footer: lang === 'vi' ? 'BS. Đỗ Tiến Sơn TAHN' : 'Dr. Do Tien Son TAHN',
+    footerSub: lang === 'vi' ? 'Phát triển phục vụ thực hành lâm sàng' : 'Developed for clinical practice',
     selectBoneAge: lang === 'vi' ? 'Đối chiếu nhanh tuổi xương theo atlas mẫu (Vicente Gilsanz và Osman Ratib)' : 'Quick Bone Age Comparison via Reference Atlas (Vicente Gilsanz & Osman Ratib)',
     page: lang === 'vi' ? 'Trang' : 'Page',
     of: lang === 'vi' ? 'trên' : 'of',
     magnifier: lang === 'vi' ? 'Kính lúp' : 'Magnifier',
+    xrayTitle: lang === 'vi' ? 'X-quang của trẻ' : 'Child\'s X-ray',
+    uploadXray: lang === 'vi' ? 'Tải lên hoặc Chụp ảnh' : 'Upload or Capture',
+    xrayReminder: lang === 'vi' ? 'Hãy chụp thẳng; đủ sáng; với mũi ngón tay hướng lên trên' : 'Please capture straight; well-lit; with fingertips pointing upwards',
+    showXray: lang === 'vi' ? 'Hiện phim' : 'Show X-ray',
+    hideXray: lang === 'vi' ? 'Ẩn phim' : 'Hide X-ray',
+  };
+
+  const handleXrayUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setXrayImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-white text-zinc-900 font-sans selection:bg-emerald-500/30">
+    <div className={`min-h-screen transition-colors duration-500 font-sans selection:bg-emerald-500/30 ${gender === 'boy' ? 'bg-blue-900' : 'bg-pink-900'}`}>
       {!isAuthenticated && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 backdrop-blur-xl">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-zinc-100 max-w-md w-full mx-4 space-y-6">
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-emerald-600">BoneAge Dr.Son</h2>
+              <h2 className="text-2xl font-bold text-emerald-600">BoneAge - Dr.Son</h2>
               <p className="text-zinc-500 text-sm">Vui lòng đăng nhập để sử dụng ứng dụng</p>
             </div>
             <div className="space-y-4">
@@ -361,33 +380,33 @@ export default function App() {
         {/* Atlas Comparison Section */}
         <section className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
+            <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
               {t.selectBoneAge}
             </h2>
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setIsMagnifierActive(!isMagnifierActive)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'border-zinc-200 hover:bg-zinc-100 text-zinc-600'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
               >
                 <Search size={16} />
                 {t.magnifier}
               </button>
-              <div className="text-sm font-medium text-zinc-500">
+              <div className="text-sm font-medium text-white/70">
                 {t.page} {pageNumber} {numPages ? `${t.of} ${numPages}` : ''}
               </div>
               <div className="flex gap-2">
                 <button 
                   disabled={pageNumber <= 1}
                   onClick={() => setPageNumber(prev => prev - 1)}
-                  className="p-2 rounded-full border border-zinc-200 hover:bg-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
                 >
                   <ChevronLeft size={24} />
                 </button>
                 <button 
                   disabled={numPages ? pageNumber >= numPages : false}
                   onClick={() => setPageNumber(prev => prev + 1)}
-                  className="p-2 rounded-full border border-zinc-200 hover:bg-zinc-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
                 >
                   <ChevronRight size={24} />
                 </button>
@@ -471,11 +490,95 @@ export default function App() {
           </div>
         </section>
 
+        {/* X-ray Section */}
+        <section className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
+              <Camera size={20} className="text-emerald-400" />
+              {t.xrayTitle}
+            </h2>
+            <button
+              onClick={() => setIsXrayVisible(!isXrayVisible)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors text-sm font-medium border border-white/20"
+            >
+              {isXrayVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+              {isXrayVisible ? t.hideXray : t.showXray}
+            </button>
+          </div>
+
+          <AnimatePresence>
+            {isXrayVisible && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="bg-zinc-900/50 backdrop-blur-sm border border-white/10 rounded-2xl p-6 space-y-6">
+                  {!xrayImage ? (
+                    <div className="flex flex-col items-center justify-center py-12 border-2 border-dashed border-white/20 rounded-xl space-y-4">
+                      <div className="p-4 bg-emerald-500/10 rounded-full">
+                        <Upload size={32} className="text-emerald-500" />
+                      </div>
+                      <div className="text-center space-y-1 px-4">
+                        <p className="text-white font-medium">{t.uploadXray}</p>
+                        <p className="text-zinc-400 text-sm max-w-xs">{t.xrayReminder}</p>
+                      </div>
+                      <label className="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl transition-colors font-semibold shadow-lg shadow-emerald-900/20">
+                        {t.uploadXray}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          onChange={handleXrayUpload}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="relative group">
+                      <img
+                        src={xrayImage}
+                        alt="Patient X-ray"
+                        className="w-full max-h-[800px] object-contain rounded-xl border border-white/10 bg-black"
+                      />
+                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <label className="cursor-pointer p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg transition-colors">
+                          <Camera size={20} />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleXrayUpload}
+                            className="hidden"
+                          />
+                        </label>
+                        <button
+                          onClick={() => setXrayImage(null)}
+                          className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg shadow-lg transition-colors"
+                        >
+                          <X size={20} />
+                        </button>
+                      </div>
+                      <div className="absolute bottom-4 left-4 right-4 p-4 bg-black/60 backdrop-blur-md rounded-lg border border-white/10">
+                        <p className="text-white/90 text-sm flex items-center gap-2">
+                          <Info size={16} className="text-emerald-400" />
+                          {t.xrayReminder}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </section>
+
         {/* Conclusion Section */}
         {finalAgeYears !== '' && finalAgeMonths !== '' && (
           <section className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{t.conclusion}</h2>
+              <h2 className="text-lg font-semibold text-white">{t.conclusion}</h2>
               <button 
                 onClick={copyToClipboard}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
@@ -494,15 +597,23 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-200 py-12 mt-12 bg-zinc-50">
-        <div className="max-w-7xl mx-auto px-4 text-center space-y-4">
-          <p className="text-zinc-500 text-sm font-medium tracking-wide uppercase">
+      <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-1">
+          <p className="text-white/50 text-xs font-medium tracking-wide uppercase">
             {t.footer}
           </p>
-          <p className="text-zinc-400 text-xs max-w-2xl mx-auto leading-relaxed">
-            {lang === 'vi' 
-              ? 'Liên hệ quản trị viên: bs.dotienson@gmail.com'
-              : 'Contact administrator: bs.dotienson@gmail.com'}
+          <p className="text-white/30 text-[10px] italic">
+            {t.footerSub}
+          </p>
+          <p className="text-white/40 text-[11px] leading-relaxed pt-1">
+            <a 
+              href="https://dotienson.com/app" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-emerald-400 transition-colors underline underline-offset-4"
+            >
+              dotienson.com/app
+            </a>
           </p>
         </div>
       </footer>
