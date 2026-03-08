@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -66,6 +66,48 @@ const MagnifiablePage = ({ pageNumber, width, isActive }: { pageNumber: number, 
   );
 };
 
+const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean }) => {
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const [show, setShow] = useState(false);
+  const ZOOM_LEVEL = 2;
+  const LOUPE_SIZE = 200;
+  const imgRef = useRef<HTMLImageElement>(null);
+
+  return (
+    <div 
+      className="relative inline-block max-w-full max-h-[800px]"
+      onMouseEnter={() => isActive && setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      onMouseMove={(e) => {
+        if (!isActive || !imgRef.current) return;
+        const rect = imgRef.current.getBoundingClientRect();
+        setPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      }}
+    >
+      <img
+        ref={imgRef}
+        src={src}
+        alt="Patient X-ray"
+        className="max-w-full max-h-[800px] object-contain rounded-xl border border-white/10 bg-black"
+      />
+      {isActive && show && imgRef.current && (
+        <div
+          className="absolute pointer-events-none border-4 border-emerald-500 rounded-full shadow-2xl z-50 bg-no-repeat bg-black"
+          style={{
+            width: LOUPE_SIZE,
+            height: LOUPE_SIZE,
+            left: pos.x - LOUPE_SIZE / 2,
+            top: pos.y - LOUPE_SIZE / 2,
+            backgroundImage: `url(${src})`,
+            backgroundSize: `${imgRef.current.width * ZOOM_LEVEL}px ${imgRef.current.height * ZOOM_LEVEL}px`,
+            backgroundPosition: `-${pos.x * ZOOM_LEVEL - LOUPE_SIZE / 2}px -${pos.y * ZOOM_LEVEL - LOUPE_SIZE / 2}px`,
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
 type Language = 'vi' | 'en';
 
 export default function App() {
@@ -78,6 +120,7 @@ export default function App() {
   const [finalAgeYears, setFinalAgeYears] = useState<number | ''>('');
   const [finalAgeMonths, setFinalAgeMonths] = useState<number | ''>('');
   const [isMagnifierActive, setIsMagnifierActive] = useState(false);
+  const [isXrayMagnifierActive, setIsXrayMagnifierActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
@@ -492,18 +535,29 @@ export default function App() {
 
         {/* X-ray Section */}
         <section className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <Camera size={20} className="text-emerald-400" />
               {t.xrayTitle}
             </h2>
-            <button
-              onClick={() => setIsXrayVisible(!isXrayVisible)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors text-sm font-medium border border-white/20"
-            >
-              {isXrayVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-              {isXrayVisible ? t.hideXray : t.showXray}
-            </button>
+            <div className="flex items-center gap-4">
+              {xrayImage && (
+                <button
+                  onClick={() => setIsXrayMagnifierActive(!isXrayMagnifierActive)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isXrayMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                >
+                  <Search size={16} />
+                  {t.magnifier}
+                </button>
+              )}
+              <button
+                onClick={() => setIsXrayVisible(!isXrayVisible)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors text-sm font-medium border border-white/20"
+              >
+                {isXrayVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                {isXrayVisible ? t.hideXray : t.showXray}
+              </button>
+            </div>
           </div>
 
           <AnimatePresence>
@@ -522,33 +576,26 @@ export default function App() {
                       </div>
                       <div className="text-center space-y-1 px-4">
                         <p className="text-white font-medium">{t.uploadXray}</p>
-                        <p className="text-zinc-400 text-sm max-w-xs">{t.xrayReminder}</p>
                       </div>
                       <label className="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl transition-colors font-semibold shadow-lg shadow-emerald-900/20">
                         {t.uploadXray}
                         <input
                           type="file"
                           accept="image/*"
-                          capture="environment"
                           onChange={handleXrayUpload}
                           className="hidden"
                         />
                       </label>
                     </div>
                   ) : (
-                    <div className="relative group">
-                      <img
-                        src={xrayImage}
-                        alt="Patient X-ray"
-                        className="w-full max-h-[800px] object-contain rounded-xl border border-white/10 bg-black"
-                      />
-                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="relative group flex justify-center items-center bg-black rounded-xl border border-white/10 overflow-hidden">
+                      <MagnifiableImage src={xrayImage} isActive={isXrayMagnifierActive} />
+                      <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <label className="cursor-pointer p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg transition-colors">
                           <Camera size={20} />
                           <input
                             type="file"
                             accept="image/*"
-                            capture="environment"
                             onChange={handleXrayUpload}
                             className="hidden"
                           />
@@ -559,12 +606,6 @@ export default function App() {
                         >
                           <X size={20} />
                         </button>
-                      </div>
-                      <div className="absolute bottom-4 left-4 right-4 p-4 bg-black/60 backdrop-blur-md rounded-lg border border-white/10">
-                        <p className="text-white/90 text-sm flex items-center gap-2">
-                          <Info size={16} className="text-emerald-400" />
-                          {t.xrayReminder}
-                        </p>
                       </div>
                     </div>
                   )}
