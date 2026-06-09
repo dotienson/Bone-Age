@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType } from 'lucide-react';
+import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom } from 'docx';
+import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -109,6 +111,13 @@ const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean })
   );
 };
 
+const capitalizeNameWords = (str: string) => {
+  return str.split(/\s+/).map(word => {
+    if (!word) return '';
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }).join(' ');
+};
+
 export default function App() {
   const [realAgeYears, setRealAgeYears] = useState<number>(8);
   const [realAgeMonths, setRealAgeMonths] = useState<number>(0);
@@ -123,6 +132,14 @@ export default function App() {
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [xrayImage, setXrayImage] = useState<string | null>(null);
   const [isXrayVisible, setIsXrayVisible] = useState(true);
+
+  const [patientName, setPatientName] = useState('');
+  const [patientId, setPatientId] = useState('');
+  const [examDate, setExamDate] = useState(() => {
+    const d = new Date();
+    return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+  });
+  const [showRef, setShowRef] = useState(false);
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isExpertMode, setIsExpertMode] = useState(false);
@@ -149,7 +166,10 @@ export default function App() {
   }, []);
   
   const [expertBoneAge, setExpertBoneAge] = useState<string>('');
-  const [xrayDate, setXrayDate] = useState<string>('');
+  const [xrayDate, setXrayDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+  });
   const [xrayLocation, setXrayLocation] = useState<string>('BVĐK Tâm Anh');
   const [xrayQuality, setXrayQuality] = useState<string>('Tốt');
   
@@ -181,6 +201,172 @@ export default function App() {
     }
   };
 
+  const handleExportWord = async () => {
+    if (!isExpertMode) return;
+    
+    // Parse findings
+    const yesFeatures: string[] = [];
+    const noFeatures: string[] = [];
+    if (dbacBoneAge) {
+      Object.entries(dbacSelections).forEach(([key, val]) => {
+        const [mIdx, fIdx] = key.split('-').map(Number);
+        const milestone = DBAC_DATA_BOY[mIdx];
+        const feature = milestone.features[fIdx];
+        const str = `${capitalizeWords(feature)} (mốc ${milestone.label})`;
+        if (val === 'yes') yesFeatures.push(str);
+        if (val === 'no') noFeatures.push(str);
+      });
+    }
+
+    const doc = new DocxDocument({
+      sections: [{
+        properties: {
+          type: SectionType.CONTINUOUS,
+          page: {
+            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+            borders: {
+              pageBorders: {
+                display: PageBorderDisplay.ALL_PAGES,
+                offsetFrom: PageBorderOffsetFrom.PAGE,
+              },
+              pageBorderTop: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
+              pageBorderRight: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
+              pageBorderBottom: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
+              pageBorderLeft: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
+            }
+          }
+        },
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: "KẾT QUẢ PHÂN TÍCH CHUYÊN SÂU TUỔI XƯƠNG", bold: true, size: 36, font: "Arial" })
+            ],
+            spacing: { after: 200 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: "Bằng phương pháp Greulich & Pyle với 2 Atlas", size: 24, font: "Arial" })
+            ],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: "Gilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)", size: 24, font: "Arial", italics: true })
+            ],
+            spacing: { after: 400 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `Tên khách hàng: ${patientName || '........................................'}`, size: 24, font: "Arial", bold: true }),
+            ],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `Mã khách hàng: ${patientId || '........................................'}`, size: 24, font: "Arial" }),
+            ],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `Ngày khám: ${examDate || '........................................'}`, size: 24, font: "Arial" }),
+            ],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `Chất lượng phim: ${xrayQuality || 'Tốt'}`, size: 24, font: "Arial" }),
+            ],
+            spacing: { after: 400 }
+          }),
+          
+          // Inject exact conclusion
+          ...getExpertConclusion()
+            .substring(getExpertConclusion().indexOf('* Bằng phương pháp'))
+            .split('\n')
+            .map(line => {
+              if (line.trim() === "Bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:") {
+                return new Paragraph({
+                  children: [new TextRun({ text: line, size: 24, font: "Arial", bold: true })],
+                  spacing: { after: 100 }
+                });
+              }
+              if (line.trim() === "Bác sĩ chưa thấy rõ các dấu hiệu sau:") {
+                return new Paragraph({
+                  children: [
+                    new TextRun({ text: "Bác sĩ ", size: 24, font: "Arial", bold: true }),
+                    new TextRun({ text: "chưa thấy rõ", size: 24, font: "Arial", bold: true, underline: { type: "single", color: "000000" } }),
+                    new TextRun({ text: " các dấu hiệu sau:", size: 24, font: "Arial", bold: true })
+                  ],
+                  spacing: { after: 100 }
+                });
+              }
+              return new Paragraph({
+                children: [new TextRun({ text: line, size: 24, font: "Arial" })],
+                spacing: { after: 100 }
+              });
+            }),
+
+          new Paragraph({ text: "", spacing: { after: 200 } }),
+
+          new Paragraph({
+             alignment: AlignmentType.RIGHT,
+             children: [
+                new TextRun({ text: "Bác sĩ chuyên khoa đánh giá", size: 24, font: "Arial", italics: true })
+             ],
+             spacing: { after: 1200 }
+          }),
+          new Paragraph({
+             alignment: AlignmentType.RIGHT,
+             children: [
+                new TextRun({ text: "ThS.BS. Đỗ Tiến Sơn", size: 24, font: "Arial", bold: true })
+             ],
+             spacing: { after: 100 }
+          }),
+          new Paragraph({
+             alignment: AlignmentType.RIGHT,
+             children: [
+                new TextRun({ text: `Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}`, size: 24, font: "Arial" })
+             ],
+             spacing: { after: 400 }
+          }),
+
+          // References
+          new Paragraph({
+             children: [
+                new TextRun({ text: "Tài liệu tham khảo (References):", size: 22, font: "Arial", bold: true, color: "000000" })
+             ],
+             spacing: { after: 200 }
+          }),
+          new Paragraph({
+             children: [
+                new TextRun({ text: "[1] Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.", size: 18, font: "Arial", color: "444444" })
+             ],
+             spacing: { after: 100 }
+          }),
+          new Paragraph({
+             children: [
+                new TextRun({ text: "[2] Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition;", size: 18, font: "Arial", color: "444444" })
+             ],
+             spacing: { after: 100 }
+          }),
+          new Paragraph({
+             children: [
+                new TextRun({ text: "[3] Martin, D. D., et al. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9.", size: 18, font: "Arial", color: "444444" })
+             ]
+          })
+        ]
+      }]
+    });
+
+    Packer.toBlob(doc).then(blob => {
+      saveAs(blob, `TuoiXuong_${patientName || 'BenhNhan'}.docx`);
+    });
+  };
+
   const handleLogout = () => {
     setIsAuthenticated(false);
     setIsExpertMode(false);
@@ -204,6 +390,9 @@ export default function App() {
     setDbacBoneAge('');
     setDbacPageNumber(1);
     setCopied(false);
+    setPatientName('');
+    setPatientId('');
+    setExamDate('');
   };
 
   const capitalizeWords = (str: string) => {
@@ -316,7 +505,7 @@ export default function App() {
     const formattedBoneAge = expertBoneAge.replace(',', '.');
     
     // G-P
-    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\nBằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi (ISBN-13: 978-3642237621, Springer, 2011)`;
+    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\n\n* Bằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi (ISBN-13: 978-3642237621, Springer, 2011)`;
 
     if (dbacBoneAge) {
       const yesFeatures: string[] = [];
@@ -484,46 +673,68 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
         {/* Input Section */}
-        <section className="bg-zinc-50 p-3 sm:p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4 sm:space-y-6">
-          <div className={`flex flex-col md:grid md:grid-cols-2 ${isExpertMode ? '' : 'lg:grid-cols-3'} gap-4 md:gap-6`}>
-            <div className="space-y-2">
-              <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi thực'}</label>
-              <div className="flex gap-3 md:gap-4">
+        <section className="bg-zinc-50 p-3 sm:p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
+          {isExpertMode && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Tên khách hàng'}</label>
+                <input type="text" value={patientName} onChange={e => setPatientName(e.target.value)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Mã khách hàng'}</label>
+                <input type="text" value={patientId} onChange={e => setPatientId(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Ngày khám'}</label>
+                <input type="text" value={examDate} onChange={e => {
+                  let val = e.target.value.replace(/\D/g, '');
+                  if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
+                  if (val.length > 5) val = val.substring(0, 5) + '/' + val.substring(5, 9);
+                  setExamDate(val);
+                }} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm" maxLength={10} />
+              </div>
+            </div>
+          )}
+
+          <div className={`flex flex-col md:grid md:grid-cols-2 ${isExpertMode ? '' : 'lg:grid-cols-3'} gap-3 md:gap-4`}>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi thực'}</label>
+              <div className="flex gap-2">
                 <div className="flex-1">
                   <input 
                     type="number" 
                     value={realAgeYears} 
                     onChange={(e) => setRealAgeYears(Number(e.target.value))}
-                    className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                    className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
                     
                   />
-                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
+                  <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Năm'}</span>
                 </div>
                 <div className="flex-1">
                   <input 
                     type="number" 
                     value={realAgeMonths} 
                     onChange={(e) => setRealAgeMonths(Number(e.target.value))}
-                    className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                    className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
                     
                   />
-                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
+                  <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Tháng'}</span>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Giới tính'}</label>
-              <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200 h-[calc(100%-24px)] min-h-[44px] md:min-h-[48px]">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Giới tính'}</label>
+              <div className="flex p-1 bg-zinc-100 rounded-lg border border-zinc-200 h-[42px]">
                 <button 
                   onClick={() => setGender('boy')}
-                  className={`flex-1 rounded-lg text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
                 >
                   {'Nam'}
                 </button>
                 <button 
                   onClick={() => setGender('girl')}
-                  className={`flex-1 rounded-lg text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
                 >
                   {'Nữ'}
                 </button>
@@ -531,28 +742,28 @@ export default function App() {
             </div>
 
             {!isExpertMode && (
-              <div className="space-y-2">
-                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi xương kết luận'}</label>
-                <div className="flex gap-3 md:gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi xương kết luận'}</label>
+                <div className="flex gap-2">
                   <div className="flex-1">
                     <input 
                       type="number" 
                       value={finalAgeYears} 
                       onChange={(e) => setFinalAgeYears(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                      className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
                       
                     />
-                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
+                    <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Năm'}</span>
                   </div>
                   <div className="flex-1">
                     <input 
                       type="number" 
                       value={finalAgeMonths} 
                       onChange={(e) => setFinalAgeMonths(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                      className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
                       
                     />
-                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
+                    <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Tháng'}</span>
                   </div>
                 </div>
               </div>
@@ -560,18 +771,18 @@ export default function App() {
           </div>
 
           {isExpertMode && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 pt-4 md:pt-6 border-t border-zinc-200">
-              <div className="space-y-2">
-                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Ngày chụp phim'}</label>
-                <input type="text" value={xrayDate} onChange={handleDateChange} className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  maxLength={10} />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Ngày chụp phim'}</label>
+                <input type="text" value={xrayDate} onChange={handleDateChange} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  maxLength={10} />
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Nơi chụp'}</label>
-                <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  />
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Nơi chụp'}</label>
+                <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  />
               </div>
-              <div className="space-y-2">
-                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Chất lượng'}</label>
-                <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-sm">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Chất lượng'}</label>
+                <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-sm">
                   {qualityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
@@ -583,8 +794,9 @@ export default function App() {
         <section className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              {isExpertMode ? 'Đối chiếu tuổi xương theo Atlas kĩ thuật số của Vicente Gilsanz và Osman Ratib' : 'Đối chiếu nhanh tuổi xương theo atlas mẫu (Vicente Gilsanz và Osman Ratib)'}
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+              <span className="hidden sm:inline">{isExpertMode ? 'Đối chiếu tuổi xương theo Atlas kĩ thuật số của Vicente Gilsanz và Osman Ratib' : 'Đối chiếu nhanh tuổi xương theo atlas mẫu (Vicente Gilsanz và Osman Ratib)'}</span>
+              <span className="sm:hidden">So Atlas Vincente & Ratib</span>
             </h2>
             <div className="flex items-center gap-4">
               <button
@@ -697,7 +909,7 @@ export default function App() {
           {isExpertMode && (
             <div className="mt-6 bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
               <div className="flex flex-col gap-1">
-                <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente):'}</label>
+                <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman):'}</label>
                 <span className="text-[10px] md:text-xs text-zinc-400">{'Nhập kết quả đánh giá để xuất báo cáo'}</span>
               </div>
               <input 
@@ -723,8 +935,9 @@ export default function App() {
           <section className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
-                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                Phương pháp DBAC (Oxford, 2011)
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shrink-0" />
+                <span className="hidden sm:inline">Phương pháp DBAC (Oxford, 2011)</span>
+                <span className="sm:hidden">So Atlas Gaskin et al.</span>
               </h2>
               <div className="flex items-center gap-4">
                 <button
@@ -773,7 +986,8 @@ export default function App() {
               </div>
             </div>
 
-            <div className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center min-h-[600px] p-4 md:p-8" style={{ perspective: 1200 }}>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center min-h-[500px] p-4 lg:p-8" style={{ perspective: 1200 }}>
               <Document
                 file={gender === 'boy' ? '/Male.pdf' : '/Female.pdf'}
                   onLoadSuccess={onDbacDocumentLoadSuccess}
@@ -813,86 +1027,89 @@ export default function App() {
                 </Document>
               </div>
 
-            <div className="bg-zinc-800 p-4 rounded-2xl border border-white/10">
-              <ul className="space-y-1.5">
-                {DBAC_DATA_BOY[dbacIndex].features.map((feature, idx) => {
-                  const sKey = `${dbacIndex}-${idx}`;
-                  const val = dbacSelections[sKey];
-                  return (
-                    <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-zinc-900/50 rounded-xl border border-white/5">
-                      <span className="text-zinc-300 text-[11px] sm:text-xs leading-snug flex-1">{feature}</span>
-                      <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0">
-                        <button
-                          onClick={() => setDbacSelections(prev => {
-                            if (prev[sKey] === 'yes') {
-                              const next = { ...prev };
-                              delete next[sKey];
-                              return next;
-                            }
-                            return { ...prev, [sKey]: 'yes' };
-                          })}
-                          className={`w-12 sm:w-16 py-1 rounded-md text-[10px] sm:text-xs font-medium transition-all ${val === 'yes' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                        >
-                          Có
-                        </button>
-                        <button
-                          onClick={() => setDbacSelections(prev => {
-                            if (prev[sKey] === 'no') {
-                              const next = { ...prev };
-                              delete next[sKey];
-                              return next;
-                            }
-                            return { ...prev, [sKey]: 'no' };
-                          })}
-                          className={`w-12 sm:w-16 py-1 rounded-md text-[10px] sm:text-xs font-medium transition-all ${val === 'no' ? 'bg-red-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                        >
-                          Không
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 flex flex-col h-full overflow-hidden">
+                <ul className="space-y-2 overflow-y-auto pr-2">
+                  {DBAC_DATA_BOY[dbacIndex].features.map((feature, idx) => {
+                    const sKey = `${dbacIndex}-${idx}`;
+                    const val = dbacSelections[sKey];
+                    return (
+                      <li key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border border-white/5">
+                        <span className="text-zinc-200 text-xs leading-relaxed flex-1">{feature}</span>
+                        <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 self-end sm:self-auto gap-1">
+                          <button
+                            onClick={() => setDbacSelections(prev => {
+                              if (prev[sKey] === 'yes') {
+                                const next = { ...prev };
+                                delete next[sKey];
+                                return next;
+                              }
+                              return { ...prev, [sKey]: 'yes' };
+                            })}
+                            className={`flex items-center justify-center w-10 py-1.5 rounded-md transition-all ${val === 'yes' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800'}`}
+                          >
+                            <Check size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDbacSelections(prev => {
+                              if (prev[sKey] === 'no') {
+                                const next = { ...prev };
+                                delete next[sKey];
+                                return next;
+                              }
+                              return { ...prev, [sKey]: 'no' };
+                            })}
+                            className={`flex items-center justify-center w-10 py-1.5 rounded-md transition-all ${val === 'no' ? 'bg-red-600 text-white shadow-sm' : 'text-zinc-400 hover:text-red-400 hover:bg-zinc-800'}`}
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             </div>
 
-            <div className="bg-zinc-800 p-4 rounded-2xl border border-white/10 space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">Danh sách dấu hiệu ghi nhận:</label>
-                <div className="p-3 bg-zinc-900 rounded-xl border border-white/10 min-h-[80px]">
-                  {Object.entries(dbacSelections).length > 0 ? Object.entries(dbacSelections).map(([key, val]) => {
-                    const [mIdx, fIdx] = key.split('-').map(Number);
-                    const milestone = DBAC_DATA_BOY[mIdx];
-                    const feature = milestone.features[fIdx];
-                    return (
-                      <div key={key} className="text-[10px] sm:text-xs text-zinc-300 mb-1 flex gap-2">
-                        <span className="shrink-0 text-zinc-500">-</span>
-                        <span>{feature} (mốc {milestone.label}): <span className={val === 'yes' ? 'text-emerald-400 font-medium' : 'text-red-400 font-medium'}>{val === 'yes' ? 'Có' : 'Không'}</span></span>
-                      </div>
-                    );
-                  }) : <span className="text-zinc-500 text-[10px] sm:text-xs italic">Chưa ghi nhận đặc điểm nào...</span>}
+            <div className="flex flex-col gap-6 mt-6">
+              <div className="bg-zinc-800 p-4 rounded-2xl border border-white/10 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">Danh sách dấu hiệu ghi nhận:</label>
+                  <div className="p-3 bg-zinc-900 rounded-xl border border-white/10 min-h-[80px]">
+                    {Object.entries(dbacSelections).length > 0 ? Object.entries(dbacSelections).map(([key, val]) => {
+                      const [mIdx, fIdx] = key.split('-').map(Number);
+                      const milestone = DBAC_DATA_BOY[mIdx];
+                      const feature = milestone.features[fIdx];
+                      return (
+                        <div key={key} className="text-[10px] sm:text-xs text-zinc-300 mb-1 flex gap-2">
+                          <span className="shrink-0 text-zinc-500">-</span>
+                          <span>{feature} (mốc {milestone.label}): <span className={val === 'yes' ? 'text-emerald-400 font-medium' : 'text-red-400 font-medium'}>{val === 'yes' ? 'Có' : 'Không'}</span></span>
+                        </div>
+                      );
+                    }) : <span className="text-zinc-500 text-[10px] sm:text-xs italic">Chưa ghi nhận đặc điểm nào...</span>}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="bg-zinc-800/80 backdrop-blur-sm p-4 md:p-5 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-4 shadow-xl">
-              <div className="flex flex-col gap-1">
-                <label className="text-[11px] md:text-sm font-semibold text-white tracking-wide uppercase">{'Kết luận mốc tuổi xương DBAC:'}</label>
-                <span className="text-[10px] md:text-xs text-zinc-400">{'Nhập kết quả đánh giá để xuất báo cáo'}</span>
+              <div className="bg-zinc-800/80 backdrop-blur-sm p-4 md:p-5 rounded-2xl border border-white/10 flex flex-col justify-between gap-4 shadow-xl flex-1">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[11px] md:text-sm font-semibold text-white tracking-wide uppercase">{'Kết luận DBAC:'}</label>
+                  <span className="text-[10px] md:text-xs text-zinc-400">{'Nhập kết quả đánh giá để xuất báo cáo'}</span>
+                </div>
+                <input 
+                  type="text" 
+                  inputMode="decimal"
+                  pattern="[0-9.,]*"
+                  value={dbacBoneAge} 
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (/^[0-9.,]*$/.test(val)) {
+                      setDbacBoneAge(val);
+                    }
+                  }} 
+                  className="w-full bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center placeholder:text-zinc-600 shadow-inner text-sm" 
+                  placeholder="VD: 8.5"
+                />
               </div>
-              <input 
-                type="text" 
-                inputMode="decimal"
-                pattern="[0-9.,]*"
-                value={dbacBoneAge} 
-                onChange={e => {
-                  const val = e.target.value;
-                  if (/^[0-9.,]*$/.test(val)) {
-                    setDbacBoneAge(val);
-                  }
-                }} 
-                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center placeholder:text-zinc-600 shadow-inner text-sm" 
-                
-              />
             </div>
           </section>
         )}
@@ -987,13 +1204,21 @@ export default function App() {
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
-                <button 
-                  onClick={copyToClipboard}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
-                >
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
-                  {copied ? ('Đã chép') : 'Sao chép'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={handleExportWord}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-blue-900/10"
+                  >
+                    <FileType size={16} /> Xuất báo cáo
+                  </button>
+                  <button 
+                    onClick={copyToClipboard}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
+                  >
+                    {copied ? <Check size={16} /> : <Copy size={16} />}
+                    {copied ? ('Đã chép') : 'Sao chép'}
+                  </button>
+                </div>
               </div>
               <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
                 <p className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
@@ -1025,25 +1250,41 @@ export default function App() {
         )}
       </main>
 
+      {/* Reference Section */}
+      <section className="max-w-7xl mx-auto mt-8 border-t border-white/10 pt-6 px-4">
+        <button 
+          onClick={() => setShowRef(!showRef)}
+          className="flex items-center gap-2 text-zinc-400 hover:text-zinc-200 transition-colors text-sm font-medium"
+        >
+          <ChevronDown size={16} className={`transition-transform ${showRef ? 'rotate-180' : ''}`} />
+          References
+        </button>
+        
+        <AnimatePresence>
+          {showRef && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-4 p-4 bg-zinc-900/50 rounded-xl border border-white/5 space-y-3 text-xs md:text-sm text-zinc-400">
+                <p>1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</p>
+                <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
+                <p>3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 text-center space-y-1">
           <p className="text-white/50 text-xs font-medium tracking-wide uppercase">
-            {'BS. Đỗ Tiến Sơn TAHN'}
+            Bản quyền phần mềm thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors underline underline-offset-2">BS. Đỗ Tiến Sơn</a>
           </p>
-          <p className="text-white/30 text-[10px] italic">
-            {'Phát triển phục vụ thực hành lâm sàng'}
-          </p>
-          <p className="text-white/40 text-[11px] leading-relaxed pt-1">
-            <a 
-              href="https://dotienson.com/app" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="hover:text-emerald-400 transition-colors underline underline-offset-4"
-            >
-              dotienson.com/app
-            </a>
-          </p>
+          
         </div>
       </footer>
     </div>
