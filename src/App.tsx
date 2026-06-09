@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut } from 'lucide-react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { ATLAS_DATA, AtlasEntry } from './data';
+import { DBAC_DATA_BOY } from './dbac_data';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -108,15 +109,11 @@ const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean })
   );
 };
 
-type Language = 'vi' | 'en';
-
 export default function App() {
-  const [lang, setLang] = useState<Language>('vi');
   const [realAgeYears, setRealAgeYears] = useState<number>(8);
   const [realAgeMonths, setRealAgeMonths] = useState<number>(0);
   const [gender, setGender] = useState<'boy' | 'girl'>('girl');
   const [copied, setCopied] = useState(false);
-  const [doctorName, setDoctorName] = useState<string>('Đỗ Tiến Sơn');
   const [finalAgeYears, setFinalAgeYears] = useState<number | ''>('');
   const [finalAgeMonths, setFinalAgeMonths] = useState<number | ''>('');
   const [isMagnifierActive, setIsMagnifierActive] = useState(false);
@@ -128,15 +125,85 @@ export default function App() {
   const [isXrayVisible, setIsXrayVisible] = useState(true);
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isExpertMode, setIsExpertMode] = useState(false);
   const [username, setUsername] = useState('');
   const [passcode, setPasscode] = useState('');
+  const [loginTab, setLoginTab] = useState<'premium' | 'expert'>('premium');
+  
+  const [dbacIndex, setDbacIndex] = useState(0);
+  const [dbacSelections, setDbacSelections] = useState<Record<string, 'yes' | 'no'>>({});
+  const [dbacBoneAge, setDbacBoneAge] = useState<string>('');
+  const [dbacNumPages, setDbacNumPages] = useState<number | null>(null);
+  const [dbacPageNumber, setDbacPageNumber] = useState<number>(1);
+  const [isDbacMagnifierActive, setIsDbacMagnifierActive] = useState(false);
+  
+  useEffect(() => {
+    const savedAuth = localStorage.getItem('boneAgeAuth');
+    if (savedAuth === 'premium') {
+      setIsAuthenticated(true);
+      setIsExpertMode(false);
+    } else if (savedAuth === 'expert') {
+      setIsAuthenticated(true);
+      setIsExpertMode(true);
+    }
+  }, []);
+  
+  const [expertBoneAge, setExpertBoneAge] = useState<string>('');
+  const [xrayDate, setXrayDate] = useState<string>('');
+  const [xrayLocation, setXrayLocation] = useState<string>('BVĐK Tâm Anh');
+  const [xrayQuality, setXrayQuality] = useState<string>('Tốt');
+  
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let val = e.target.value.replace(/\D/g, '');
+    if (val.length > 8) val = val.slice(0, 8);
+    let formattedDate = val;
+    if (val.length > 4) {
+      formattedDate = `${val.slice(0, 2)}/${val.slice(2, 4)}/${val.slice(4)}`;
+    } else if (val.length > 2) {
+      formattedDate = `${val.slice(0, 2)}/${val.slice(2)}`;
+    }
+    setXrayDate(formattedDate);
+  };
+  
+  const qualityOptions = ['Tốt', 'Đạt', 'Kém', 'Ảnh chụp', 'Tư thế không tối ưu'];
 
   const handlePasscodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setPasscode(val);
-    if (val === '6868') {
+    if (loginTab === 'premium' && val === '6868') {
       setIsAuthenticated(true);
+      setIsExpertMode(false);
+      localStorage.setItem('boneAgeAuth', 'premium');
+    } else if (loginTab === 'expert' && username.toLowerCase() === 'admin' && val === '0984144492') {
+      setIsAuthenticated(true);
+      setIsExpertMode(true);
+      localStorage.setItem('boneAgeAuth', 'expert');
     }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setIsExpertMode(false);
+    setUsername('');
+    setPasscode('');
+    localStorage.removeItem('boneAgeAuth');
+  };
+
+  const handleReset = () => {
+    setRealAgeYears(8);
+    setRealAgeMonths(0);
+    setGender('boy');
+    setFinalAgeYears('');
+    setFinalAgeMonths('');
+    setExpertBoneAge('');
+    setXrayDate('');
+    setXrayLocation('BVĐK Tâm Anh');
+    setXrayQuality('Tốt');
+    setDbacIndex(0);
+    setDbacSelections({});
+    setDbacBoneAge('');
+    setDbacPageNumber(1);
+    setCopied(false);
   };
 
   const capitalizeWords = (str: string) => {
@@ -152,6 +219,10 @@ export default function App() {
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
+  }
+
+  function onDbacDocumentLoadSuccess({ numPages }: { numPages: number }) {
+    setDbacNumPages(numPages);
   }
 
   // Total real age in months
@@ -171,6 +242,20 @@ export default function App() {
       }
     }
     setPageNumber(closestPage);
+    
+    if (gender === 'boy') {
+      let cIndex = 0;
+      let minD = Math.abs(DBAC_DATA_BOY[0].ageMonths - totalRealAgeMonths);
+      for (let i = 1; i < DBAC_DATA_BOY.length; i++) {
+        const d = Math.abs(DBAC_DATA_BOY[i].ageMonths - totalRealAgeMonths);
+        if (d < minD) {
+          minD = d;
+          cIndex = i;
+        }
+      }
+      setDbacIndex(cIndex);
+      setDbacPageNumber(cIndex + 1);
+    }
   }, [totalRealAgeMonths, gender]);
 
   const selectedEntry = useMemo(() => {
@@ -214,48 +299,85 @@ export default function App() {
       diffTextEn = `(${directionEn} ${partsEn.join(' ')} compared to chronological age)`;
     }
 
-    const doctorText = lang === 'vi' ? ` - Bác sĩ phiên giải: BS. ${doctorName}` : ` - Interpreting Doctor: Dr. ${doctorName}`;
-    
     const finalAgeTextVi = `${finalAgeYears} năm ${finalAgeMonths} tháng +/- 0,5 năm`;
     const finalAgeTextEn = `${finalAgeYears} years ${finalAgeMonths} months +/- 0.5 years`;
 
-    if (lang === 'vi') {
-      return `Bằng phương pháp Greulich - Pyle, khi so với atlas của Vicente Gilsanz và Osman Ratib: Hand Bone Age - A Digital Atlas of Skeletal Maturity - Ấn bản thứ 2, NXB Springer cho thấy Tuổi xương hiện tại của trẻ tương đương ${finalAgeTextVi} ${diffTextVi}${doctorText}`;
-    } else {
-      return `Using the Greulich-Pyle method, compared to the atlas by Vicente Gilsanz and Osman Ratib: Hand Bone Age - A Digital Atlas of Skeletal Maturity - 2nd Edition, Springer Publishing shows the child's current bone age is equivalent to ${finalAgeTextEn} ${diffTextEn}${doctorText}`;
+    const disclaimerVi = '\n\n* Lưu ý: Kết quả tuổi xương được BS. Đỗ Tiến Sơn đánh giá trực tiếp, chỉ có ý nghĩa khi được bác sĩ lâm sàng ứng dụng trong đánh giá, theo dõi trên từng trường hợp cụ thể.';
+    
+    return `Bằng phương pháp Greulich - Pyle, khi so với atlas của Vicente Gilsanz và Osman Ratib: Hand Bone Age - A Digital Atlas of Skeletal Maturity - Ấn bản thứ 2, NXB Springer cho thấy Tuổi xương hiện tại của trẻ tương đương ${finalAgeTextVi} ${diffTextVi}${disclaimerVi}`;
+  };
+
+  const getExpertConclusion = () => {
+    if (expertBoneAge === '') return '';
+    const dateText = xrayDate ? xrayDate : '....';
+    const locationText = xrayLocation ? xrayLocation : '....';
+    const qualityText = xrayQuality ? xrayQuality : '...';
+    
+    const formattedBoneAge = expertBoneAge.replace(',', '.');
+    
+    // G-P
+    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\nBằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi (ISBN-13: 978-3642237621, Springer, 2011)`;
+
+    if (dbacBoneAge) {
+      const yesFeatures: string[] = [];
+      const noFeatures: string[] = [];
+      Object.entries(dbacSelections).forEach(([key, val]) => {
+        const [mIdx, fIdx] = key.split('-').map(Number);
+        const milestone = DBAC_DATA_BOY[mIdx];
+        const feature = milestone.features[fIdx];
+        const str = `${feature} [${milestone.label}]`;
+        if (val === 'yes') yesFeatures.push(str);
+        if (val === 'no') noFeatures.push(str);
+      });
+      const yesStr = yesFeatures.length > 0 ? yesFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
+      const noStr = noFeatures.length > 0 ? noFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
+      
+      const dbacFormatted = dbacBoneAge.replace(',', '.');
+      const vDbac = `\n\n* Bằng phương pháp Greulich - Pyle cải tiến với DBAC, dựa trên Atlas thực tế số hoá của PGS. Cree M. Gaskin và cộng sự: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${dbacFormatted} +/- 0.5 tuổi (ISBN-10: 0199782059, Oxford Univ. Press, 2011).\nBác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesStr}\nBác sĩ chưa thấy rõ các dấu hiệu sau:\n${noStr}`;
+      
+      vText += vDbac;
     }
+
+    const disclaimerVi = '\n\n* Lưu ý: Kết quả tuổi xương được BS. Đỗ Tiến Sơn đánh giá trực tiếp, chỉ có ý nghĩa khi được bác sĩ lâm sàng ứng dụng trong đánh giá, theo dõi trên từng trường hợp cụ thể.';
+
+    return vText + disclaimerVi;
   };
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(getConclusion());
+    navigator.clipboard.writeText(isExpertMode ? getExpertConclusion() : getConclusion());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const t = {
-    title: lang === 'vi' ? 'BoneAge - Dr.Son' : 'BoneAge - Dr.Son',
-    realAge: lang === 'vi' ? 'Tuổi thực' : 'Chronological Age',
-    finalBoneAge: lang === 'vi' ? 'Tuổi xương kết luận' : 'Final Bone Age',
-    years: lang === 'vi' ? 'Năm' : 'Years',
-    months: lang === 'vi' ? 'Tháng' : 'Months',
-    gender: lang === 'vi' ? 'Giới tính' : 'Gender',
-    boy: lang === 'vi' ? 'Nam' : 'Boy',
-    girl: lang === 'vi' ? 'Nữ' : 'Girl',
-    interpretingDoctor: lang === 'vi' ? 'Bác sĩ phiên giải' : 'Interpreting Doctor',
-    otherDoctor: lang === 'vi' ? 'BS khác' : 'Other Doctor',
-    conclusion: lang === 'vi' ? 'Kết luận' : 'Conclusion',
-    copy: lang === 'vi' ? 'Sao chép' : 'Copy',
-    footer: lang === 'vi' ? 'BS. Đỗ Tiến Sơn TAHN' : 'Dr. Do Tien Son TAHN',
-    footerSub: lang === 'vi' ? 'Phát triển phục vụ thực hành lâm sàng' : 'Developed for clinical practice',
-    selectBoneAge: lang === 'vi' ? 'Đối chiếu nhanh tuổi xương theo atlas mẫu (Vicente Gilsanz và Osman Ratib)' : 'Quick Bone Age Comparison via Reference Atlas (Vicente Gilsanz & Osman Ratib)',
-    page: lang === 'vi' ? 'Trang' : 'Page',
-    of: lang === 'vi' ? 'trên' : 'of',
-    magnifier: lang === 'vi' ? 'Kính lúp' : 'Magnifier',
-    xrayTitle: lang === 'vi' ? 'X-quang của trẻ' : 'Child\'s X-ray',
-    uploadXray: lang === 'vi' ? 'Tải lên hoặc Chụp ảnh' : 'Upload or Capture',
-    xrayReminder: lang === 'vi' ? 'Hãy chụp thẳng; đủ sáng; với mũi ngón tay hướng lên trên' : 'Please capture straight; well-lit; with fingertips pointing upwards',
-    showXray: lang === 'vi' ? 'Hiện phim' : 'Show X-ray',
-    hideXray: lang === 'vi' ? 'Ẩn phim' : 'Hide X-ray',
+    title: 'DualGP Dr. Son 2.0',
+    realAge: 'Tuổi thực',
+    finalBoneAge: 'Tuổi xương kết luận',
+    years: 'Năm',
+    months: 'Tháng',
+    gender: 'Giới tính',
+    boy: 'Nam',
+    girl: 'Nữ',
+    interpretingDoctor: 'Bác sĩ phiên giải',
+    otherDoctor: 'BS khác',
+    conclusion: 'Kết luận',
+    copy: 'Sao chép',
+    footer: 'BS. Đỗ Tiến Sơn TAHN',
+    footerSub: 'Phát triển phục vụ thực hành lâm sàng',
+    selectBoneAge: 'Đối chiếu nhanh tuổi xương theo atlas mẫu (Vicente Gilsanz và Osman Ratib)',
+    expertAtlasTitle: 'Đối chiếu tuổi xương theo Atlas kĩ thuật số của Vicente Gilsanz và Osman Ratib',
+    expertBoneAgeLabel: 'Tuổi xương:',
+    xrayDateLabel: 'Ngày chụp phim',
+    xrayLocationLabel: 'Nơi chụp',
+    xrayQualityLabel: 'Chất lượng',
+    page: 'Trang',
+    of: 'trên',
+    magnifier: 'Kính lúp',
+    xrayTitle: 'X-quang của trẻ',
+    uploadXray: 'Tải lên hoặc Chụp ảnh',
+    xrayReminder: 'Hãy chụp thẳng; đủ sáng; với mũi ngón tay hướng lên trên',
+    showXray: 'Hiện phim',
+    hideXray: 'Ẩn phim',
   };
 
   const handleXrayUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -275,9 +397,25 @@ export default function App() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 backdrop-blur-xl">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-zinc-100 max-w-md w-full mx-4 space-y-6">
             <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-emerald-600">BoneAge - Dr.Son</h2>
+              <h2 className="text-2xl font-bold text-emerald-600">DualGP Dr. Son 2.0</h2>
               <p className="text-zinc-500 text-sm">Vui lòng đăng nhập để sử dụng ứng dụng</p>
             </div>
+            
+            <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200 mb-6">
+              <button 
+                onClick={() => { setLoginTab('premium'); setPasscode(''); }}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginTab === 'premium' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+              >
+                Premium
+              </button>
+              <button 
+                onClick={() => { setLoginTab('expert'); setPasscode(''); }}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginTab === 'expert' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+              >
+                Expert
+              </button>
+            </div>
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Username</label>
@@ -286,7 +424,7 @@ export default function App() {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors"
-                  placeholder="Nhập tên người dùng..."
+                  
                 />
               </div>
               <div className="space-y-2">
@@ -300,8 +438,8 @@ export default function App() {
                     value={passcode}
                     onChange={handlePasscodeChange}
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors tracking-widest"
-                    placeholder="••••"
-                    maxLength={4}
+                    
+                    maxLength={loginTab === 'expert' ? 10 : 4}
                   />
                 </div>
               </div>
@@ -318,106 +456,127 @@ export default function App() {
       {/* Header */}
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-xl font-bold tracking-tight text-emerald-600">{t.title}</h1>
-          <button 
-            onClick={() => setLang(lang === 'vi' ? 'en' : 'vi')}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-zinc-200 hover:bg-zinc-100 transition-colors text-sm font-medium"
-          >
-            <Languages size={16} />
-            {lang === 'vi' ? 'English' : 'Tiếng Việt'}
-          </button>
+          <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
+            {t.title}
+          </h1>
+          <div className="flex gap-2">
+            {isAuthenticated && (
+              <>
+                <button 
+                  onClick={handleReset}
+                  title="Tạo mới"
+                  className="p-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors"
+                >
+                  <RotateCcw size={18} />
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  title="Đăng xuất"
+                  className="p-1.5 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                >
+                  <LogOut size={18} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
         {/* Input Section */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 bg-zinc-50 p-6 rounded-2xl border border-zinc-200 shadow-sm">
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t.realAge}</label>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <input 
-                  type="number" 
-                  value={realAgeYears} 
-                  onChange={(e) => setRealAgeYears(Number(e.target.value))}
-                  className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors"
-                  placeholder={t.years}
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 block">{t.years}</span>
-              </div>
-              <div className="flex-1">
-                <input 
-                  type="number" 
-                  value={realAgeMonths} 
-                  onChange={(e) => setRealAgeMonths(Number(e.target.value))}
-                  className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors"
-                  placeholder={t.months}
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 block">{t.months}</span>
+        <section className="bg-zinc-50 p-3 sm:p-6 rounded-2xl border border-zinc-200 shadow-sm space-y-4 sm:space-y-6">
+          <div className={`flex flex-col md:grid md:grid-cols-2 ${isExpertMode ? '' : 'lg:grid-cols-3'} gap-4 md:gap-6`}>
+            <div className="space-y-2">
+              <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi thực'}</label>
+              <div className="flex gap-3 md:gap-4">
+                <div className="flex-1">
+                  <input 
+                    type="number" 
+                    value={realAgeYears} 
+                    onChange={(e) => setRealAgeYears(Number(e.target.value))}
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                    
+                  />
+                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
+                </div>
+                <div className="flex-1">
+                  <input 
+                    type="number" 
+                    value={realAgeMonths} 
+                    onChange={(e) => setRealAgeMonths(Number(e.target.value))}
+                    className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                    
+                  />
+                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
+                </div>
               </div>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Giới tính'}</label>
+              <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200 h-[calc(100%-24px)] min-h-[44px] md:min-h-[48px]">
+                <button 
+                  onClick={() => setGender('boy')}
+                  className={`flex-1 rounded-lg text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+                >
+                  {'Nam'}
+                </button>
+                <button 
+                  onClick={() => setGender('girl')}
+                  className={`flex-1 rounded-lg text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
+                >
+                  {'Nữ'}
+                </button>
+              </div>
+            </div>
+
+            {!isExpertMode && (
+              <div className="space-y-2">
+                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi xương kết luận'}</label>
+                <div className="flex gap-3 md:gap-4">
+                  <div className="flex-1">
+                    <input 
+                      type="number" 
+                      value={finalAgeYears} 
+                      onChange={(e) => setFinalAgeYears(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                      
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
+                  </div>
+                  <div className="flex-1">
+                    <input 
+                      type="number" 
+                      value={finalAgeMonths} 
+                      onChange={(e) => setFinalAgeMonths(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
+                      
+                    />
+                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t.gender}</label>
-            <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200">
-              <button 
-                onClick={() => setGender('boy')}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
-              >
-                {t.boy}
-              </button>
-              <button 
-                onClick={() => setGender('girl')}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
-              >
-                {t.girl}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t.finalBoneAge}</label>
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <input 
-                  type="number" 
-                  value={finalAgeYears} 
-                  onChange={(e) => setFinalAgeYears(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors"
-                  placeholder={t.years}
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 block">{t.years}</span>
+          {isExpertMode && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 pt-4 md:pt-6 border-t border-zinc-200">
+              <div className="space-y-2">
+                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Ngày chụp phim'}</label>
+                <input type="text" value={xrayDate} onChange={handleDateChange} className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  maxLength={10} />
               </div>
-              <div className="flex-1">
-                <input 
-                  type="number" 
-                  value={finalAgeMonths} 
-                  onChange={(e) => setFinalAgeMonths(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors"
-                  placeholder={t.months}
-                />
-                <span className="text-[10px] text-zinc-500 mt-1 block">{t.months}</span>
+              <div className="space-y-2">
+                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Nơi chụp'}</label>
+                <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  />
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] md:text-xs font-semibold uppercase tracking-wider text-zinc-500">{'Chất lượng'}</label>
+                <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-sm">
+                  {qualityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
               </div>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{t.interpretingDoctor}</label>
-            <div className="flex items-center bg-white border border-zinc-200 rounded-xl overflow-hidden focus-within:border-emerald-500 transition-colors">
-              <div className="pl-3 pr-2 py-3 bg-zinc-50 border-r border-zinc-200 text-zinc-500 font-medium text-sm flex items-center gap-2">
-                <User size={16} />
-                <span>BS.</span>
-              </div>
-              <input
-                type="text"
-                value={doctorName}
-                onChange={(e) => setDoctorName(capitalizeWords(e.target.value))}
-                className="w-full px-3 py-3 focus:outline-none text-sm font-medium text-zinc-700"
-                placeholder="Tên bác sĩ..."
-              />
-            </div>
-          </div>
+          )}
         </section>
 
         {/* Atlas Comparison Section */}
@@ -425,7 +584,7 @@ export default function App() {
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              {t.selectBoneAge}
+              {isExpertMode ? 'Đối chiếu tuổi xương theo Atlas kĩ thuật số của Vicente Gilsanz và Osman Ratib' : 'Đối chiếu nhanh tuổi xương theo atlas mẫu (Vicente Gilsanz và Osman Ratib)'}
             </h2>
             <div className="flex items-center gap-4">
               <button
@@ -433,10 +592,13 @@ export default function App() {
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
               >
                 <Search size={16} />
-                {t.magnifier}
+                {'Kính lúp'}
               </button>
-              <div className="text-sm font-medium text-white/70">
-                {t.page} {pageNumber} {numPages ? `${t.of} ${numPages}` : ''}
+              <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                {selectedEntry && (
+                  <span className="bg-white/10 px-2 py-1 rounded-md">{selectedEntry.labelVi}</span>
+                )}
+                <span>{'Trang'} {pageNumber} {numPages ? `${'trên'} ${numPages}` : ''}</span>
               </div>
               <div className="flex gap-2">
                 <button 
@@ -471,74 +633,277 @@ export default function App() {
                 <div className="flex flex-col items-center gap-2 text-zinc-400 p-8 text-center">
                   <FileText size={48} className="opacity-20" />
                   <p className="text-sm">
-                    {lang === 'vi' 
-                      ? 'Không tìm thấy file atlas.pdf. Vui lòng đặt file atlas.pdf vào thư mục public của dự án.' 
-                      : 'atlas.pdf not found. Please place atlas.pdf in the public folder of the project.'}
+                    {'Không tìm thấy file atlas.pdf. Vui lòng đặt file atlas.pdf vào thư mục public của dự án.'}
                   </p>
                 </div>
               }
             >
               <AnimatePresence mode="wait">
-                <motion.div
-                  key={pageNumber}
-                  initial={isMobile ? { opacity: 0 } : { opacity: 0, rotateY: 15, scale: 0.95 }}
-                  animate={isMobile ? { opacity: 1 } : { opacity: 1, rotateY: 0, scale: 1 }}
-                  exit={isMobile ? { opacity: 0 } : { opacity: 0, rotateY: -15, scale: 0.95 }}
-                  transition={{ duration: 0.4, ease: "easeInOut" }}
-                  className="flex shadow-2xl bg-white origin-center"
-                  style={{ transformStyle: isMobile ? 'flat' : 'preserve-3d' }}
-                >
-                  {isMobile ? (
-                    <div className="relative">
-                      <MagnifiablePage 
-                        pageNumber={pageNumber} 
-                        width={window.innerWidth - 64} 
-                        isActive={isMagnifierActive} 
-                      />
-                    </div>
-                  ) : (
-                    <>
-                      {/* Left Page */}
-                      {(pageNumber % 2 === 0 ? pageNumber : pageNumber - 1) > 0 ? (
-                        <div className="border-r border-zinc-300 relative">
-                          <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/10 to-transparent z-10 pointer-events-none" />
-                          <MagnifiablePage 
-                            pageNumber={pageNumber % 2 === 0 ? pageNumber : pageNumber - 1} 
-                            width={400}
-                            isActive={isMagnifierActive}
-                          />
-                        </div>
-                      ) : (
-                        <div style={{ width: 400 }} className="bg-zinc-100" />
-                      )}
-                      
-                      {/* Right Page */}
-                      {(pageNumber % 2 === 0 ? pageNumber + 1 : pageNumber) <= (numPages || 1000) ? (
-                        <div className="relative">
-                          <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/10 to-transparent z-10 pointer-events-none" />
-                          <MagnifiablePage 
-                            pageNumber={pageNumber % 2 === 0 ? pageNumber + 1 : pageNumber} 
-                            width={400}
-                            isActive={isMagnifierActive}
-                          />
-                        </div>
-                      ) : (
-                        <div style={{ width: 400 }} className="bg-zinc-100" />
-                      )}
-                    </>
-                  )}
-                </motion.div>
+                {numPages && (
+                  <motion.div
+                    key={Math.min(pageNumber, numPages)}
+                    initial={isMobile ? { opacity: 0 } : { opacity: 0, rotateY: 15, scale: 0.95 }}
+                    animate={isMobile ? { opacity: 1 } : { opacity: 1, rotateY: 0, scale: 1 }}
+                    exit={isMobile ? { opacity: 0 } : { opacity: 0, rotateY: -15, scale: 0.95 }}
+                    transition={{ duration: 0.4, ease: "easeInOut" }}
+                    className="flex shadow-2xl bg-white origin-center"
+                    style={{ transformStyle: isMobile && !isExpertMode ? 'flat' : 'preserve-3d' }}
+                  >
+                    {isMobile || isExpertMode ? (
+                      <div className="relative">
+                        <MagnifiablePage 
+                          pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
+                          width={isMobile ? window.innerWidth - 64 : 600} 
+                          isActive={isMagnifierActive} 
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        {/* Left Page */}
+                        {(pageNumber % 2 === 0 ? pageNumber : pageNumber - 1) > 0 && (pageNumber % 2 === 0 ? pageNumber : pageNumber - 1) <= numPages ? (
+                          <div className="border-r border-zinc-300 relative bg-white">
+                            <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/10 to-transparent z-10 pointer-events-none" />
+                            <MagnifiablePage 
+                              pageNumber={pageNumber % 2 === 0 ? pageNumber : pageNumber - 1} 
+                              width={400}
+                              isActive={isMagnifierActive}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ width: 400 }} className="bg-zinc-100" />
+                        )}
+                        
+                        {/* Right Page */}
+                        {(pageNumber % 2 === 0 ? pageNumber + 1 : pageNumber) <= numPages ? (
+                          <div className="relative bg-white">
+                            <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/10 to-transparent z-10 pointer-events-none" />
+                            <MagnifiablePage 
+                              pageNumber={pageNumber % 2 === 0 ? pageNumber + 1 : pageNumber} 
+                              width={400}
+                              isActive={isMagnifierActive}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{ width: 400 }} className="bg-zinc-100" />
+                        )}
+                      </>
+                    )}
+                  </motion.div>
+                )}
               </AnimatePresence>
             </Document>
           </div>
+
+          {isExpertMode && (
+            <div className="mt-6 bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente):'}</label>
+                <span className="text-[10px] md:text-xs text-zinc-400">{'Nhập kết quả đánh giá để xuất báo cáo'}</span>
+              </div>
+              <input 
+                type="text" 
+                inputMode="decimal"
+                pattern="[0-9.,]*"
+                value={expertBoneAge} 
+                onChange={e => {
+                  const val = e.target.value;
+                  if (/^[0-9.,]*$/.test(val)) {
+                    setExpertBoneAge(val);
+                  }
+                }} 
+                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center placeholder:text-zinc-600 shadow-inner" 
+                
+              />
+            </div>
+          )}
         </section>
 
+        {/* DBAC Section */}
+        {isExpertMode && gender === 'boy' && DBAC_DATA_BOY.length > 0 && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
+                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+                Phương pháp DBAC (Oxford, 2011)
+              </h2>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setIsDbacMagnifierActive(!isDbacMagnifierActive)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                >
+                  <Search size={16} />
+                  {'Kính lúp'}
+                </button>
+                <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                  <span className="bg-white/10 px-2 py-1 rounded-md">{DBAC_DATA_BOY[dbacIndex]?.label || ''}</span>
+                  <span>{'Trang'} {dbacPageNumber} {dbacNumPages ? `${'trên'} ${dbacNumPages}` : ''}</span>
+                </div>
+                <div className="flex gap-2">
+                  <button 
+                    disabled={dbacPageNumber <= 1}
+                    onClick={() => {
+                      setDbacPageNumber(prev => {
+                        const next = prev - 1;
+                        if (next > 0 && next <= DBAC_DATA_BOY.length) {
+                          setDbacIndex(next - 1);
+                        }
+                        return next;
+                      });
+                    }}
+                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <button 
+                    disabled={dbacNumPages ? dbacPageNumber >= dbacNumPages : false}
+                    onClick={() => {
+                      setDbacPageNumber(prev => {
+                        const next = prev + 1;
+                        if (next > 0 && next <= DBAC_DATA_BOY.length) {
+                          setDbacIndex(next - 1);
+                        }
+                        return next;
+                      });
+                    }}
+                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center min-h-[600px] p-4 md:p-8" style={{ perspective: 1200 }}>
+              <Document
+                file={gender === 'boy' ? '/Male.pdf' : '/Female.pdf'}
+                  onLoadSuccess={onDbacDocumentLoadSuccess}
+                  loading={
+                    <div className="flex flex-col items-center gap-2 text-zinc-400">
+                      <div className="w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-sm">Loading PDF...</span>
+                    </div>
+                  }
+                  error={
+                    <div className="flex flex-col items-center gap-2 text-zinc-400 p-8 text-center">
+                      <FileText size={48} className="opacity-20" />
+                      <p className="text-sm">
+                        {`Không tìm thấy file ${gender === 'boy' ? 'Male.pdf' : 'Female.pdf'}. Vui lòng đặt file vào thư mục public của dự án.`}
+                      </p>
+                    </div>
+                  }
+                >
+                  <AnimatePresence mode="wait">
+                    {dbacNumPages && (
+                      <motion.div
+                        key={Math.min(dbacPageNumber, dbacNumPages)}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="flex shadow-2xl bg-white"
+                      >
+                        <MagnifiablePage 
+                          pageNumber={Math.max(1, Math.min(dbacPageNumber, dbacNumPages))} 
+                          width={isMobile ? window.innerWidth - 64 : 500} 
+                          isActive={isDbacMagnifierActive} 
+                        />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </Document>
+              </div>
+
+            <div className="bg-zinc-800 p-4 rounded-2xl border border-white/10">
+              <ul className="space-y-1.5">
+                {DBAC_DATA_BOY[dbacIndex].features.map((feature, idx) => {
+                  const sKey = `${dbacIndex}-${idx}`;
+                  const val = dbacSelections[sKey];
+                  return (
+                    <li key={idx} className="flex items-center justify-between gap-2 p-2 bg-zinc-900/50 rounded-xl border border-white/5">
+                      <span className="text-zinc-300 text-[11px] sm:text-xs leading-snug flex-1">{feature}</span>
+                      <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0">
+                        <button
+                          onClick={() => setDbacSelections(prev => {
+                            if (prev[sKey] === 'yes') {
+                              const next = { ...prev };
+                              delete next[sKey];
+                              return next;
+                            }
+                            return { ...prev, [sKey]: 'yes' };
+                          })}
+                          className={`w-12 sm:w-16 py-1 rounded-md text-[10px] sm:text-xs font-medium transition-all ${val === 'yes' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'}`}
+                        >
+                          Có
+                        </button>
+                        <button
+                          onClick={() => setDbacSelections(prev => {
+                            if (prev[sKey] === 'no') {
+                              const next = { ...prev };
+                              delete next[sKey];
+                              return next;
+                            }
+                            return { ...prev, [sKey]: 'no' };
+                          })}
+                          className={`w-12 sm:w-16 py-1 rounded-md text-[10px] sm:text-xs font-medium transition-all ${val === 'no' ? 'bg-red-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800'}`}
+                        >
+                          Không
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            <div className="bg-zinc-800 p-4 rounded-2xl border border-white/10 space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">Danh sách dấu hiệu ghi nhận:</label>
+                <div className="p-3 bg-zinc-900 rounded-xl border border-white/10 min-h-[80px]">
+                  {Object.entries(dbacSelections).length > 0 ? Object.entries(dbacSelections).map(([key, val]) => {
+                    const [mIdx, fIdx] = key.split('-').map(Number);
+                    const milestone = DBAC_DATA_BOY[mIdx];
+                    const feature = milestone.features[fIdx];
+                    return (
+                      <div key={key} className="text-[10px] sm:text-xs text-zinc-300 mb-1 flex gap-2">
+                        <span className="shrink-0 text-zinc-500">-</span>
+                        <span>{feature} (mốc {milestone.label}): <span className={val === 'yes' ? 'text-emerald-400 font-medium' : 'text-red-400 font-medium'}>{val === 'yes' ? 'Có' : 'Không'}</span></span>
+                      </div>
+                    );
+                  }) : <span className="text-zinc-500 text-[10px] sm:text-xs italic">Chưa ghi nhận đặc điểm nào...</span>}
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-800/80 backdrop-blur-sm p-4 md:p-5 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mt-4 shadow-xl">
+              <div className="flex flex-col gap-1">
+                <label className="text-[11px] md:text-sm font-semibold text-white tracking-wide uppercase">{'Kết luận mốc tuổi xương DBAC:'}</label>
+                <span className="text-[10px] md:text-xs text-zinc-400">{'Nhập kết quả đánh giá để xuất báo cáo'}</span>
+              </div>
+              <input 
+                type="text" 
+                inputMode="decimal"
+                pattern="[0-9.,]*"
+                value={dbacBoneAge} 
+                onChange={e => {
+                  const val = e.target.value;
+                  if (/^[0-9.,]*$/.test(val)) {
+                    setDbacBoneAge(val);
+                  }
+                }} 
+                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center placeholder:text-zinc-600 shadow-inner text-sm" 
+                
+              />
+            </div>
+          </section>
+        )}
+
         {/* X-ray Section */}
-        <section className="space-y-6">
+        {!isExpertMode && (
+          <section className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <Camera size={20} className="text-emerald-400" />
-              {t.xrayTitle}
+              {'X-quang của trẻ'}
             </h2>
             <div className="flex items-center gap-4">
               {xrayImage && (
@@ -547,7 +912,7 @@ export default function App() {
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isXrayMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
                 >
                   <Search size={16} />
-                  {t.magnifier}
+                  {'Kính lúp'}
                 </button>
               )}
               <button
@@ -555,7 +920,7 @@ export default function App() {
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors text-sm font-medium border border-white/20"
               >
                 {isXrayVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-                {isXrayVisible ? t.hideXray : t.showXray}
+                {isXrayVisible ? 'Ẩn phim' : 'Hiện phim'}
               </button>
             </div>
           </div>
@@ -575,10 +940,10 @@ export default function App() {
                         <Upload size={32} className="text-emerald-500" />
                       </div>
                       <div className="text-center space-y-1 px-4">
-                        <p className="text-white font-medium">{t.uploadXray}</p>
+                        <p className="text-white font-medium">{'Tải lên hoặc Chụp ảnh'}</p>
                       </div>
                       <label className="cursor-pointer bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-xl transition-colors font-semibold shadow-lg shadow-emerald-900/20">
-                        {t.uploadXray}
+                        {'Tải lên hoặc Chụp ảnh'}
                         <input
                           type="file"
                           accept="image/*"
@@ -614,26 +979,49 @@ export default function App() {
             )}
           </AnimatePresence>
         </section>
+        )}
 
         {/* Conclusion Section */}
-        {finalAgeYears !== '' && finalAgeMonths !== '' && (
-          <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">{t.conclusion}</h2>
-              <button 
-                onClick={copyToClipboard}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
-              >
-                {copied ? <Check size={16} /> : <Copy size={16} />}
-                {copied ? (lang === 'vi' ? 'Đã chép' : 'Copied') : t.copy}
-              </button>
-            </div>
-            <div className="p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
-              <p className="text-zinc-800 leading-relaxed font-sans text-lg whitespace-pre-wrap">
-                {getConclusion()}
-              </p>
-            </div>
-          </section>
+        {isExpertMode ? (
+          expertBoneAge !== '' && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
+                <button 
+                  onClick={copyToClipboard}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? ('Đã chép') : 'Sao chép'}
+                </button>
+              </div>
+              <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
+                <p className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
+                  {getExpertConclusion()}
+                </p>
+              </div>
+            </section>
+          )
+        ) : (
+          finalAgeYears !== '' && finalAgeMonths !== '' && (
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
+                <button 
+                  onClick={copyToClipboard}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
+                >
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? ('Đã chép') : 'Sao chép'}
+                </button>
+              </div>
+              <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
+                <p className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
+                  {getConclusion()}
+                </p>
+              </div>
+            </section>
+          )
         )}
       </main>
 
@@ -641,10 +1029,10 @@ export default function App() {
       <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 text-center space-y-1">
           <p className="text-white/50 text-xs font-medium tracking-wide uppercase">
-            {t.footer}
+            {'BS. Đỗ Tiến Sơn TAHN'}
           </p>
           <p className="text-white/30 text-[10px] italic">
-            {t.footerSub}
+            {'Phát triển phục vụ thực hành lâm sàng'}
           </p>
           <p className="text-white/40 text-[11px] leading-relaxed pt-1">
             <a 
