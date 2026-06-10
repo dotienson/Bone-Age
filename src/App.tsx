@@ -332,31 +332,6 @@ export default function App() {
                 new TextRun({ text: `Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}`, size: 24, font: "Arial" })
              ],
              spacing: { after: 400 }
-          }),
-
-          // References
-          new Paragraph({
-             children: [
-                new TextRun({ text: "Tài liệu tham khảo:", size: 22, font: "Arial", bold: true, color: "000000" })
-             ],
-             spacing: { after: 200 }
-          }),
-          new Paragraph({
-             children: [
-                new TextRun({ text: "[1] Bunch et al. Skeletal radiology, 46(6), 785–793.", size: 18, font: "Arial", color: "444444" })
-             ],
-             spacing: { after: 100 }
-          }),
-          new Paragraph({
-             children: [
-                new TextRun({ text: "[2] Gilsanz V, Ratib O; 2011;", size: 18, font: "Arial", color: "444444" })
-             ],
-             spacing: { after: 100 }
-          }),
-          new Paragraph({
-             children: [
-                new TextRun({ text: "[3] Martin et al. (2011). HRP, 76(1), 1–9.", size: 18, font: "Arial", color: "444444" })
-             ]
           })
         ]
       }]
