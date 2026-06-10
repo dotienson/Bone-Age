@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen } from 'lucide-react';
 import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom } from 'docx';
 import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -176,6 +176,7 @@ export default function App() {
   const atlas1Ref = useRef<HTMLDivElement>(null);
   const atlas2Ref = useRef<HTMLDivElement>(null);
   const [activeAtlasView, setActiveAtlasView] = useState<1 | 2 | null>(null);
+  const [vicenteViewMode, setVicenteViewMode] = useState<'single' | 'duet'>('single');
 
   const [patientRecords, setPatientRecords] = useState<PatientRecord[]>(() => {
     const saved = localStorage.getItem('dualGP_patients');
@@ -212,9 +213,16 @@ export default function App() {
 
   const handleExportRecords = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(patientRecords, null, 2));
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    const day = now.getDate().toString().padStart(2, '0');
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const year = now.getFullYear();
+    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} DualGP Dr.Son.json`;
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
-    downloadAnchorNode.setAttribute("download", `patients_backup_${new Date().toISOString().split('T')[0]}.json`);
+    downloadAnchorNode.setAttribute("download", fileName);
     document.body.appendChild(downloadAnchorNode);
     downloadAnchorNode.click();
     downloadAnchorNode.remove();
@@ -789,11 +797,12 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
-              <Dog size={24} className="mr-2" />
-              {t.title}
+              <Dog size={24} className="mr-2 hidden sm:block" />
+              <span className="hidden sm:inline">{t.title}</span>
+              <span className="sm:hidden">DualGP Dr.Son</span>
             </h1>
             {isAuthenticated && (
-              <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+              <span className={`hidden sm:inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
                 {isExpertMode ? 'PRO' : 'LITE'}
               </span>
             )}
@@ -947,6 +956,15 @@ export default function App() {
               <span className="sm:hidden">So Atlas Vincente & Ratib</span>
             </h2>
             <div className="flex items-center gap-4">
+              {isExpertMode && (
+                <button
+                  onClick={() => setVicenteViewMode(prev => prev === 'single' ? 'duet' : 'single')}
+                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                >
+                  {vicenteViewMode === 'single' ? <Eye size={16} className="shrink-0" /> : <BookOpen size={16} className="shrink-0" />}
+                  <span>{vicenteViewMode === 'single' ? 'Chế độ Single' : 'Chế độ Duet'}</span>
+                </button>
+              )}
               <button
                 onClick={() => setIsMagnifierActive(!isMagnifierActive)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
@@ -1024,9 +1042,9 @@ export default function App() {
                     exit={isMobile ? { opacity: 0 } : { opacity: 0, rotateY: -15, scale: 0.95 }}
                     transition={{ duration: 0.4, ease: "easeInOut" }}
                     className="flex shadow-2xl bg-white origin-center"
-                    style={{ transformStyle: isMobile && !isExpertMode ? 'flat' : 'preserve-3d' }}
+                    style={{ transformStyle: isMobile || vicenteViewMode === 'single' ? 'flat' : 'preserve-3d' }}
                   >
-                    {isMobile || isExpertMode ? (
+                    {isMobile || vicenteViewMode === 'single' ? (
                       <div className="relative">
                         <MagnifiablePage 
                           pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
@@ -1471,16 +1489,16 @@ export default function App() {
                   onClick={handleSavePatient}
                   className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10 min-w-[140px]"
                 >
-                  <Copy size={16} className="inline mr-1 -mt-0.5" /> Lưu Case Này
+                  <Copy size={16} className="inline mr-1 -mt-0.5" /> Lưu Case
                 </button>
                 <button
                   onClick={handleExportRecords}
                   className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-sky-900/10 min-w-[140px]"
                 >
-                  <Download size={16} className="inline mr-1 -mt-0.5" /> Backup JSON
+                  <Download size={16} className="inline mr-1 -mt-0.5" /> Sao lưu
                 </button>
                 <label className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-zinc-600 hover:bg-zinc-500 text-white transition-colors text-sm font-semibold shadow-lg cursor-pointer text-center min-w-[140px]">
-                  <Upload size={16} className="inline mr-1 -mt-0.5" /> Restore JSON
+                  <Upload size={16} className="inline mr-1 -mt-0.5" /> Khôi phục
                   <input type="file" accept=".json" onChange={handleImportRecords} className="hidden" />
                 </label>
               </div>
@@ -1588,7 +1606,7 @@ export default function App() {
           <p>
             Bản quyền thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors">BS. Đỗ Tiến Sơn</a> &copy; 2026
           </p>
-          <p>Mọi quyền đều được bảo vệ.</p>
+          <p>Mọi quyền đều được bảo vệ</p>
         </div>
       </footer>
     </div>
