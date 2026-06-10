@@ -125,6 +125,8 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [finalAgeYears, setFinalAgeYears] = useState<number | ''>('');
   const [finalAgeMonths, setFinalAgeMonths] = useState<number | ''>('');
+  const [clinicalReason, setClinicalReason] = useState<string>('Đánh giá tăng trưởng');
+  const clinicalOptions = ['Sàng lọc dậy thì sớm', 'Đánh giá tăng trưởng', 'Đánh giá bệnh lý', 'Lý do khác'];
   const [isMagnifierActive, setIsMagnifierActive] = useState(false);
   const [isXrayMagnifierActive, setIsXrayMagnifierActive] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -342,6 +344,12 @@ export default function App() {
           new Paragraph({
             children: [
               new TextRun({ text: `Ngày khám: ${examDate || '........................................'}`, size: 24, font: "Arial" }),
+            ],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `Lý do đánh giá (Lâm sàng): ${clinicalReason || '........................................'}`, size: 24, font: "Arial" }),
             ],
             spacing: { after: 100 }
           }),
@@ -721,116 +729,114 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
         {/* Input Section */}
-        <section className="bg-zinc-50 p-3 sm:p-5 rounded-2xl border border-zinc-200 shadow-sm space-y-3">
-          {isExpertMode && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Tên khách hàng'}</label>
-                <input type="text" value={patientName} onChange={e => setPatientName(e.target.value)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Mã khách hàng'}</label>
-                <input type="text" value={patientId} onChange={e => setPatientId(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Ngày khám'}</label>
-                <input type="text" value={examDate} onChange={e => {
-                  let val = e.target.value.replace(/\D/g, '');
-                  if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
-                  if (val.length > 5) val = val.substring(0, 5) + '/' + val.substring(5, 9);
-                  setExamDate(val);
-                }} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm" maxLength={10} />
+        <section className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 shadow-sm shrink-0 flex flex-col gap-3 sm:gap-4 w-full">
+          <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
+            <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
+              <label className="text-xs font-semibold text-zinc-400">{'Giới tính'}</label>
+              <div className="flex p-1 bg-zinc-900 rounded-lg border border-white/10 h-[42px]">
+                <button 
+                  onClick={() => setGender('boy')}
+                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  {'Nam'}
+                </button>
+                <button 
+                  onClick={() => setGender('girl')}
+                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                >
+                  {'Nữ'}
+                </button>
               </div>
             </div>
-          )}
-
-          <div className={`flex flex-col md:grid md:grid-cols-2 ${isExpertMode ? '' : 'lg:grid-cols-3'} gap-3 md:gap-4`}>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi thực'}</label>
+            <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
+              <label className="text-xs font-semibold text-zinc-400">{'Tuổi thực'}</label>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <input 
                     type="number" 
                     value={realAgeYears} 
                     onChange={(e) => setRealAgeYears(Number(e.target.value))}
-                    className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
-                    
+                    className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
-                  <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Năm'}</span>
+                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
                 </div>
                 <div className="flex-1">
                   <input 
                     type="number" 
                     value={realAgeMonths} 
                     onChange={(e) => setRealAgeMonths(Number(e.target.value))}
-                    className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
-                    
+                    className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
-                  <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Tháng'}</span>
+                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
                 </div>
               </div>
             </div>
-
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Giới tính'}</label>
-              <div className="flex p-1 bg-zinc-100 rounded-lg border border-zinc-200 h-[42px]">
-                <button 
-                  onClick={() => setGender('boy')}
-                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
-                >
-                  {'Nam'}
-                </button>
-                <button 
-                  onClick={() => setGender('girl')}
-                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
-                >
-                  {'Nữ'}
-                </button>
-              </div>
-            </div>
-
+            {isExpertMode && (
+              <>
+                <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
+                  <label className="text-xs font-semibold text-zinc-400">{'Ngày khám'}</label>
+                  <input type="text" value={examDate} onChange={e => {
+                    let val = e.target.value.replace(/\D/g, '');
+                    if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
+                    if (val.length > 5) val = val.substring(0, 5) + '/' + val.substring(5, 9);
+                    setExamDate(val);
+                  }} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" maxLength={10} />
+                </div>
+                <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
+                  <label className="text-xs font-semibold text-zinc-400">{'Ngày chụp phim'}</label>
+                  <input type="text" value={xrayDate} onChange={handleDateChange} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  maxLength={10} />
+                </div>
+                <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.2] shrink-0 col-span-2 lg:col-span-1">
+                  <label className="text-xs font-semibold text-zinc-400">{'Lâm sàng'}</label>
+                  <select value={clinicalReason} onChange={e => setClinicalReason(e.target.value)} className="w-full bg-zinc-900 text-white border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-base h-[42px]">
+                    {clinicalOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
             {!isExpertMode && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Tuổi xương kết luận'}</label>
+              <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
+                <label className="text-xs font-semibold text-zinc-400">{'Kết luận'}</label>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <input 
                       type="number" 
                       value={finalAgeYears} 
                       onChange={(e) => setFinalAgeYears(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
-                      
+                      className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                     />
-                    <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Năm'}</span>
+                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
                   </div>
                   <div className="flex-1">
                     <input 
                       type="number" 
                       value={finalAgeMonths} 
                       onChange={(e) => setFinalAgeMonths(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"
-                      
+                      className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                     />
-                    <span className="text-[9px] text-zinc-500 mt-0.5 block">{'Tháng'}</span>
+                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
                   </div>
                 </div>
               </div>
             )}
           </div>
-
           {isExpertMode && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Ngày chụp phim'}</label>
-                <input type="text" value={xrayDate} onChange={handleDateChange} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  maxLength={10} />
+            <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
+              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0 col-span-2 lg:col-span-1">
+                <label className="text-xs font-semibold text-zinc-400">{'Tên khách hàng'}</label>
+                <input type="text" value={patientName} onChange={e => setPatientName(e.target.value)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Nơi chụp'}</label>
-                <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors text-sm"  />
+              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1] shrink-0">
+                <label className="text-xs font-semibold text-zinc-400">{'Mã khách hàng'}</label>
+                <input type="text" value={patientId} onChange={e => setPatientId(e.target.value)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">{'Chất lượng'}</label>
-                <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-2.5 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-sm">
+              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0">
+                <label className="text-xs font-semibold text-zinc-400">{'Nơi chụp'}</label>
+                <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  />
+              </div>
+              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.2] shrink-0">
+                <label className="text-xs font-semibold text-zinc-400">{'Chất lượng'}</label>
+                <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-zinc-900 text-white border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-base h-[42px]">
                   {qualityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               </div>
@@ -1161,34 +1167,45 @@ export default function App() {
             </div>
 
             <div className="flex flex-col md:flex-col gap-6 mt-6">
-              <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 shadow-xl space-y-3">
-                <label className="text-sm md:text-base font-semibold text-white tracking-wide block">Danh sách dấu hiệu ghi nhận:</label>
-                {Object.entries(dbacSelections).length > 0 && (
-                  <ul className="space-y-1.5 pl-2">
-                    {Object.entries(dbacSelections).map(([key, val]) => {
-                      const [mIdx, fIdx] = key.split('-').map(Number);
-                      const milestone = DBAC_DATA_BOY[mIdx];
-                      const feature = milestone.features[fIdx];
-                      return (
-                        <li key={key} className="text-sm md:text-base text-zinc-300">
-                          <span className="mr-2 text-zinc-500">-</span>
-                          <span>{feature}</span>
-                          <span className="text-indigo-400 ml-1.5 font-medium">[{milestone.label}]</span>
-                          <span className="mx-2 text-zinc-500">:</span>
-                          <span className={`font-medium ${val === 'yes' ? 'text-emerald-400' : 'text-red-400'}`}>{val === 'yes' ? 'Có' : 'Chưa thấy'}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                <div className="pt-3 border-t border-white/10 mt-3">
-                  <label className="text-sm font-medium text-white block mb-1">Dấu hiệu khác:</label>
+              <div className="bg-zinc-800/80 backdrop-blur-sm p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl space-y-4">
+                <label className="text-base font-semibold text-white tracking-wide block">Tổng kết cụm mốc cốt hoá</label>
+                {Object.entries(dbacSelections).length > 0 && (() => {
+                  const grouped: Record<number, { fIdx: number, val: 'yes' | 'no' }[]> = {};
+                  Object.entries(dbacSelections).forEach(([key, val]) => {
+                    const [mIdx, fIdx] = key.split('-').map(Number);
+                    if (!grouped[mIdx]) grouped[mIdx] = [];
+                    grouped[mIdx].push({ fIdx, val });
+                  });
+                  return (
+                    <div className="space-y-4">
+                      {Object.keys(grouped).map(mIdxStr => {
+                        const mIdx = Number(mIdxStr);
+                        const milestone = DBAC_DATA_BOY[mIdx];
+                        return (
+                          <div key={mIdxStr} className="space-y-3">
+                            <h4 className="text-sm font-bold text-indigo-300 bg-indigo-500/20 inline-block px-3 py-1 rounded-lg border border-indigo-500/30">Mốc {milestone.label}</h4>
+                            <div className="space-y-2 pl-1">
+                              {grouped[mIdx].map(({ fIdx, val }) => (
+                                <div key={fIdx} className="flex items-start gap-3 text-sm">
+                                  <span className={`shrink-0 w-14 text-center font-bold whitespace-nowrap px-2 py-0.5 rounded text-xs mt-0.5 ${val === 'yes' ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20' : 'text-red-400 bg-red-400/10 border border-red-400/20'}`}>{val === 'yes' ? 'Có' : 'Không'}</span>
+                                  <span className="text-zinc-300 leading-relaxed text-base">{milestone.features[fIdx]}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+                <div className="pt-4 border-t border-white/10 mt-2">
+                  <label className="text-sm font-medium text-white/70 block mb-2">Dấu hiệu khác (nếu có)</label>
                   <input 
                     type="text" 
                     value={dbacOtherFeatures} 
                     onChange={e => setDbacOtherFeatures(e.target.value)} 
-                    className="w-full bg-zinc-900 border border-white/20 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" 
-                    placeholder="Điền thêm dấu hiệu ghi nhận..." 
+                    className="w-full bg-zinc-900 border border-white/20 text-white rounded-lg px-4 py-2.5 text-base focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600" 
+                    placeholder="Nhập dấu hiệu xương ghi nhận thêm..." 
                   />
                 </div>
               </div>
