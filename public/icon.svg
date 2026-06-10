@@ -1,1 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bone"><path d="M17 10c.7-.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 .5.5 0 0 1-.5-.5 2.5 2.5 0 1 0-5 0c0 .81.7 1.8 0 2.5l-4.6 4.6a3.2 3.2 0 0 1-4.8 0 2.5 2.5 0 1 0-5 0c0 .81.7 1.8 0 2.5l4.6 4.6c.7.7 1.69 0 2.5 0a2.5 2.5 0 1 0 0-5 .5.5 0 0 1-.5-.5 2.5 2.5 0 1 0-5 0c0 .81.7 1.8 0 2.5l4.6 4.6a3.2 3.2 0 0 1 4.8 0 2.5 2.5 0 1 0 5 0c0-.81-.7-1.8 0-2.5z"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect width="100" height="100" rx="20" fill="#E8F4F8"/>
+  <g transform="translate(10, 15)">
+    <!-- Ears -->
+    <path d="M 20 40 Q 5 20 15 5 Q 30 -5 35 25" fill="#8B5A2B"/>
+    <path d="M 60 40 Q 75 20 65 5 Q 50 -5 45 25" fill="#8B5A2B"/>
+    
+    <!-- Face base -->
+    <ellipse cx="40" cy="45" rx="35" ry="30" fill="#D2B48C"/>
+    
+    <!-- Snout area -->
+    <ellipse cx="40" cy="55" rx="20" ry="15" fill="#FFF8DC"/>
+    
+    <!-- Nose -->
+    <ellipse cx="40" cy="50" rx="8" ry="5" fill="#3E2723"/>
+    
+    <!-- Eyes -->
+    <circle cx="25" cy="35" r="4" fill="#3E2723"/>
+    <circle cx="55" cy="35" r="4" fill="#3E2723"/>
+    
+    <!-- Mouth -->
+    <path d="M 35 55 Q 40 60 45 55" fill="none" stroke="#3E2723" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- Tongue -->
+    <path d="M 37 57 Q 40 67 43 57" fill="#FF7F50"/>
+  </g>
+</svg>
