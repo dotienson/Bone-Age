@@ -149,11 +149,80 @@ export default function App() {
   
   const [dbacIndex, setDbacIndex] = useState(0);
   const [dbacSelections, setDbacSelections] = useState<Record<string, 'yes' | 'no'>>({});
+  const [dbacOtherFeatures, setDbacOtherFeatures] = useState<string>('');
   const [dbacBoneAge, setDbacBoneAge] = useState<string>('');
   const [dbacNumPages, setDbacNumPages] = useState<number | null>(null);
   const [dbacPageNumber, setDbacPageNumber] = useState<number>(1);
   const [isDbacMagnifierActive, setIsDbacMagnifierActive] = useState(false);
   
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const atlas1Ref = useRef<HTMLDivElement>(null);
+  const atlas2Ref = useRef<HTMLDivElement>(null);
+  const [activeAtlasView, setActiveAtlasView] = useState<1 | 2 | null>(null);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY > lastScrollY.current && currentScrollY > 50) {
+        setIsHeaderVisible(false);
+      } else {
+        setIsHeaderVisible(true);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          if (entry.target === atlas1Ref.current) setActiveAtlasView(1);
+          if (entry.target === atlas2Ref.current) setActiveAtlasView(2);
+        } else {
+          setActiveAtlasView(prev => {
+            if (prev === 1 && entry.target === atlas1Ref.current) return null;
+            if (prev === 2 && entry.target === atlas2Ref.current) return null;
+            return prev;
+          });
+        }
+      });
+    }, { threshold: 0.5 });
+    
+    if (atlas1Ref.current) observer.observe(atlas1Ref.current);
+    if (atlas2Ref.current) observer.observe(atlas2Ref.current);
+    
+    return () => observer.disconnect();
+  }, [isExpertMode]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') {
+        if (activeAtlasView === 1 && pageNumber > 1) {
+          e.preventDefault();
+          setPageNumber(p => p - 1);
+        } else if (activeAtlasView === 2 && dbacPageNumber > 1) {
+          e.preventDefault();
+          setDbacPageNumber(p => p - 1);
+          setDbacIndex(prev => Math.max(0, prev - 1));
+        }
+      } else if (e.key === 'ArrowRight') {
+        if (activeAtlasView === 1 && numPages && pageNumber < numPages) {
+          e.preventDefault();
+          setPageNumber(p => p + 1);
+        } else if (activeAtlasView === 2 && dbacNumPages && dbacPageNumber < dbacNumPages) {
+          e.preventDefault();
+          setDbacPageNumber(p => p + 1);
+          setDbacIndex(prev => Math.min(DBAC_DATA_BOY.length - 1, prev + 1));
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeAtlasView, pageNumber, numPages, dbacPageNumber, dbacNumPages, gender]);
+
   useEffect(() => {
     const savedAuth = localStorage.getItem('boneAgeAuth');
     if (savedAuth === 'premium') {
@@ -493,6 +562,9 @@ export default function App() {
         if (val === 'yes') yesFeatures.push(str);
         if (val === 'no') noFeatures.push(str);
       });
+      if (dbacOtherFeatures.trim()) {
+        yesFeatures.push(dbacOtherFeatures.trim());
+      }
       const yesStr = yesFeatures.length > 0 ? yesFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
       const noStr = noFeatures.length > 0 ? noFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
       
@@ -618,7 +690,7 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+      <header className={`border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-transform duration-300 ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
             <Dog size={24} className="mr-2" />
@@ -806,7 +878,25 @@ export default function App() {
             </div>
           </div>
 
-          <div className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.15)] bg-zinc-800 flex justify-center items-center min-h-[600px] p-4 md:p-8" style={{ perspective: 1200 }}>
+          <div ref={atlas1Ref} className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.15)] bg-zinc-800 flex justify-center items-center min-h-[600px] p-4 md:p-8" style={{ perspective: 1200 }}>
+            {numPages && (
+              <>
+                <button 
+                  disabled={pageNumber <= 1}
+                  onClick={() => setPageNumber(prev => prev - 1)}
+                  className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 sm:py-6 bg-black/40 text-white rounded-xl backdrop-blur-sm opacity-50 hover:opacity-100 hover:scale-105 active:scale-95 transition-all disabled:opacity-0"
+                >
+                  <ChevronLeft size={28} />
+                </button>
+                <button 
+                  disabled={pageNumber >= numPages}
+                  onClick={() => setPageNumber(prev => prev + 1)}
+                  className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 sm:py-6 bg-black/40 text-white rounded-xl backdrop-blur-sm opacity-50 hover:opacity-100 hover:scale-105 active:scale-95 transition-all disabled:opacity-0"
+                >
+                  <ChevronRight size={28} />
+                </button>
+              </>
+            )}
             <Document
               file="/atlas.pdf"
               onLoadSuccess={onDocumentLoadSuccess}
@@ -960,7 +1050,31 @@ export default function App() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center min-h-[500px] p-4 lg:p-8" style={{ perspective: 1200 }}>
+              <div ref={atlas2Ref} className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center min-h-[500px] p-4 lg:p-8" style={{ perspective: 1200 }}>
+                {dbacNumPages && (
+                  <>
+                    <button 
+                      disabled={dbacPageNumber <= 1}
+                      onClick={() => {
+                        setDbacPageNumber(prev => prev - 1);
+                        setDbacIndex(prev => Math.max(0, prev - 1));
+                      }}
+                      className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 sm:py-6 bg-black/40 text-white rounded-xl backdrop-blur-sm opacity-50 hover:opacity-100 hover:scale-105 active:scale-95 transition-all disabled:opacity-0"
+                    >
+                      <ChevronLeft size={28} />
+                    </button>
+                    <button 
+                      disabled={dbacPageNumber >= dbacNumPages}
+                      onClick={() => {
+                        setDbacPageNumber(prev => prev + 1);
+                        setDbacIndex(prev => Math.min(DBAC_DATA_BOY.length - 1, prev + 1));
+                      }}
+                      className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 sm:py-6 bg-black/40 text-white rounded-xl backdrop-blur-sm opacity-50 hover:opacity-100 hover:scale-105 active:scale-95 transition-all disabled:opacity-0"
+                    >
+                      <ChevronRight size={28} />
+                    </button>
+                  </>
+                )}
               <Document
                 file={gender === 'boy' ? '/Male.pdf' : '/Female.pdf'}
                   onLoadSuccess={onDbacDocumentLoadSuccess}
@@ -1047,9 +1161,9 @@ export default function App() {
             </div>
 
             <div className="flex flex-col md:flex-col gap-6 mt-6">
-              {Object.entries(dbacSelections).length > 0 && (
-                <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 shadow-xl space-y-3">
-                  <label className="text-sm md:text-base font-semibold text-white tracking-wide block">Danh sách dấu hiệu ghi nhận:</label>
+              <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 shadow-xl space-y-3">
+                <label className="text-sm md:text-base font-semibold text-white tracking-wide block">Danh sách dấu hiệu ghi nhận:</label>
+                {Object.entries(dbacSelections).length > 0 && (
                   <ul className="space-y-1.5 pl-2">
                     {Object.entries(dbacSelections).map(([key, val]) => {
                       const [mIdx, fIdx] = key.split('-').map(Number);
@@ -1066,8 +1180,18 @@ export default function App() {
                       );
                     })}
                   </ul>
+                )}
+                <div className="pt-3 border-t border-white/10 mt-3">
+                  <label className="text-sm font-medium text-white block mb-1">Dấu hiệu khác:</label>
+                  <input 
+                    type="text" 
+                    value={dbacOtherFeatures} 
+                    onChange={e => setDbacOtherFeatures(e.target.value)} 
+                    className="w-full bg-zinc-900 border border-white/20 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-500" 
+                    placeholder="Điền thêm dấu hiệu ghi nhận..." 
+                  />
                 </div>
-              )}
+              </div>
 
               <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl w-full">
                 <div className="flex flex-col gap-1">
