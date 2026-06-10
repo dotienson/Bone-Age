@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen } from 'lucide-react';
-import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom } from 'docx';
+import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign } from 'docx';
 import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -456,31 +456,111 @@ export default function App() {
           }),
           
           // Inject exact conclusion
-          ...getExpertConclusion()
-            .substring(getExpertConclusion().indexOf('* Bằng phương pháp'))
-            .split('\n')
-            .map(line => {
-              if (line.trim() === "Bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:") {
-                return new Paragraph({
-                  children: [new TextRun({ text: line, size: 24, font: "Arial", bold: true })],
-                  spacing: { after: 100 }
-                });
-              }
-              if (line.trim() === "Bác sĩ chưa thấy rõ các dấu hiệu sau:") {
-                return new Paragraph({
-                  children: [
-                    new TextRun({ text: "Bác sĩ ", size: 24, font: "Arial", bold: true }),
-                    new TextRun({ text: "chưa thấy rõ", size: 24, font: "Arial", bold: true, underline: { type: "single", color: "000000" } }),
-                    new TextRun({ text: " các dấu hiệu sau:", size: 24, font: "Arial", bold: true })
-                  ],
-                  spacing: { after: 100 }
-                });
-              }
-              return new Paragraph({
-                children: [new TextRun({ text: line, size: 24, font: "Arial" })],
-                spacing: { after: 100 }
-              });
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({
+                    verticalAlign: VerticalAlign.CENTER,
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Atlas tham chiếu", bold: true, size: 24, font: "Arial" })] })],
+                  }),
+                  new TableCell({
+                    verticalAlign: VerticalAlign.CENTER,
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Kết quả đánh giá", bold: true, size: 24, font: "Arial" })] })],
+                  }),
+                ]
+              }),
+              new TableRow({
+                children: [
+                  new TableCell({
+                    verticalAlign: VerticalAlign.CENTER,
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "V.Gilsanz và O.Ratib", size: 24, font: "Arial" })] })],
+                  }),
+                  new TableCell({
+                    verticalAlign: VerticalAlign.CENTER,
+                    children: [
+                      new Paragraph({ alignment: AlignmentType.CENTER, children: [
+                        new TextRun({ text: expertBoneAge ? expertBoneAge.replace(',', '.') : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
+                        new TextRun({ text: " ± 0.5", size: 20, font: "Arial", color: "666666" })
+                      ] })
+                    ],
+                  }),
+                ]
+              }),
+              new TableRow({
+                children: [
+                  new TableCell({
+                    verticalAlign: VerticalAlign.CENTER,
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Cree M. Gaskin và cộng sự", size: 24, font: "Arial" })] })],
+                  }),
+                  new TableCell({
+                    verticalAlign: VerticalAlign.CENTER,
+                    children: [
+                      new Paragraph({ alignment: AlignmentType.CENTER, children: [
+                        new TextRun({ text: dbacBoneAge ? dbacBoneAge.replace(',', '.') : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
+                        new TextRun({ text: " ± 0.5", size: 20, font: "Arial", color: "666666" })
+                      ] })
+                    ],
+                  }),
+                ]
+              })
+            ]
+          }),
+          new Paragraph({ text: "", spacing: { after: 200 } }),
+          new Paragraph({
+            children: [new TextRun({ text: "Bằng phương pháp đối chiếu Greulich - Pyle, bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc cốt hoá:", size: 24, font: "Arial" })],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: "* Theo Atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011), tuổi xương khoảng mốc: ", size: 24, font: "Arial" }),
+              new TextRun({ text: expertBoneAge ? expertBoneAge.replace(',', '.') : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
+              new TextRun({ text: " +/- 0.5 tuổi", size: 24, font: "Arial" })
+            ],
+            spacing: { after: 100 }
+          }),
+          ...(dbacBoneAge ? [
+            new Paragraph({
+              children: [
+                new TextRun({ text: "* Theo Atlas thực tế đã chuẩn hoá của nhóm C.M. Gaskin (mốc cốt hoá của Brush Foundation) (ISBN-10: 0199782059, Oxford UP, 2011), tuổi xương khoảng mốc: ", size: 24, font: "Arial" }),
+                new TextRun({ text: dbacBoneAge.replace(',', '.'), size: 24, font: "Arial", bold: true, color: "800020" }),
+                new TextRun({ text: " +/- 0.5 tuổi.", size: 24, font: "Arial" })
+              ],
+              spacing: { after: 100 }
             }),
+            ...(yesFeatures.length > 0 ? [
+              new Paragraph({
+                children: [new TextRun({ text: "- Theo Atlas này, bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:", size: 24, font: "Arial", bold: true })],
+                spacing: { after: 100 }
+              }),
+              ...yesFeatures.map(f => new Paragraph({
+                children: [new TextRun({ text: `  + ${f}`, size: 24, font: "Arial" })],
+                spacing: { after: 100 }
+              }))
+            ] : []),
+            ...(noFeatures.length > 0 ? [
+              new Paragraph({
+                children: [new TextRun({ text: "- Các dấu hiệu sau đây chưa biểu hiện rõ:", size: 24, font: "Arial", bold: true })],
+                spacing: { after: 100 }
+              }),
+              ...noFeatures.map(f => new Paragraph({
+                children: [new TextRun({ text: `  + ${f}`, size: 24, font: "Arial" })],
+                spacing: { after: 100 }
+              }))
+            ] : [])
+          ] : []),
+          new Paragraph({ text: "", spacing: { after: 100 } }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "* Lưu ý: Kết quả tuổi xương được bác sĩ lâm sàng đánh giá trực tiếp, chỉ có ý nghĩa khi được ứng dụng trên từng trường hợp cụ thể.", size: 24, font: "Arial", italics: true })],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "Kết quả có thể có chênh lệnh tuỳ theo người phiên giải và tham chiếu sử dụng.", size: 24, font: "Arial", italics: true })],
+            spacing: { after: 100 }
+          }),
 
           new Paragraph({ text: "", spacing: { after: 200 } }),
 
@@ -651,8 +731,7 @@ export default function App() {
     
     const formattedBoneAge = expertBoneAge.replace(',', '.');
     
-    // G-P
-    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\nTuổi thực tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng\n\n* Bằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011): Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi`;
+    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\nTuổi thực tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng\n\nBằng phương pháp đối chiếu Greulich - Pyle, bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc cốt hoá:\n* Theo Atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011), tuổi xương khoảng mốc: ${formattedBoneAge} +/- 0.5 tuổi`;
 
     if (dbacBoneAge) {
       const yesFeatures: string[] = [];
@@ -668,18 +747,112 @@ export default function App() {
       if (dbacOtherFeatures.trim()) {
         yesFeatures.push(dbacOtherFeatures.trim());
       }
-      const yesStr = yesFeatures.length > 0 ? yesFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
-      const noStr = noFeatures.length > 0 ? noFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
       
       const dbacFormatted = dbacBoneAge.replace(',', '.');
-      const vDbac = `\n\n* Bằng phương pháp Greulich - Pyle, dựa trên atlas thực tế chuẩn hoá của Cree M. Gaskin (mốc cốt hoá từ Brush Foundation) (ISBN-10: 0199782059, Oxford Univ. Press, 2011): Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${dbacFormatted} +/- 0.5 tuổi.\nBác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesStr}\nBác sĩ chưa thấy rõ các dấu hiệu sau:\n${noStr}`;
+      const vDbac = `\n* Theo Atlas thực tế đã chuẩn hoá của nhóm C.M. Gaskin (mốc cốt hoá của Brush Foundation) (ISBN-10: 0199782059, Oxford UP, 2011), tuổi xương khoảng mốc: ${dbacFormatted} +/- 0.5 tuổi.`;
       
-      vText += vDbac;
+      let details = '';
+      if (yesFeatures.length > 0) {
+        details += `\n- Theo Atlas này, bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesFeatures.map(f => `  + ${f}`).join('\n')}`;
+      }
+      if (noFeatures.length > 0) {
+        details += `\n- Các dấu hiệu sau đây chưa biểu hiện rõ:\n${noFeatures.map(f => `  + ${f}`).join('\n')}`;
+      }
+      
+      vText += vDbac + details;
     }
 
-    const disclaimerVi = '\n\n* Lưu ý: Kết quả tuổi xương được BS. Đỗ Tiến Sơn đánh giá trực tiếp, chỉ có ý nghĩa khi được bác sĩ lâm sàng ứng dụng trong đánh giá, theo dõi trên từng trường hợp cụ thể.';
+    const disclaimerVi = '\n\n* Lưu ý: Kết quả tuổi xương được bác sĩ lâm sàng đánh giá trực tiếp, chỉ có ý nghĩa khi được ứng dụng trên từng trường hợp cụ thể.\nKết quả có thể có chênh lệnh tuỳ theo người phiên giải và tham chiếu sử dụng.';
 
     return vText + disclaimerVi;
+  };
+
+  const renderExpertConclusionDisplay = () => {
+    if (expertBoneAge === '') return null;
+    const dateText = xrayDate ? xrayDate : '....';
+    const locationText = xrayLocation ? xrayLocation : '....';
+    const qualityText = xrayQuality ? xrayQuality : '...';
+    
+    const formattedBoneAge = expertBoneAge.replace(',', '.');
+    const dbacFormatted = dbacBoneAge ? dbacBoneAge.replace(',', '.') : '-';
+
+    const yesFeatures: string[] = [];
+    const noFeatures: string[] = [];
+    if (dbacBoneAge) {
+      Object.entries(dbacSelections).forEach(([key, val]) => {
+        const [mIdx, fIdx] = key.split('-').map(Number);
+        const milestone = DBAC_DATA_BOY[mIdx];
+        const feature = milestone.features[fIdx];
+        const str = `${feature} [${milestone.label}]`;
+        if (val === 'yes') yesFeatures.push(str);
+        if (val === 'no') noFeatures.push(str);
+      });
+      if (dbacOtherFeatures.trim()) {
+        yesFeatures.push(dbacOtherFeatures.trim());
+      }
+    }
+
+    return (
+      <div className="space-y-4">
+        <p className="font-bold whitespace-pre-wrap">BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG</p>
+        <p className="whitespace-pre-wrap">Dựa trên phim chụp ngày {dateText}, tại {locationText} (Chất lượng phim: {qualityText})<br/>Tuổi thực tại ngày chụp: {realAgeYears} tuổi {realAgeMonths} tháng</p>
+        
+        <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-4 mb-6">
+          <table className="w-full text-center text-sm text-zinc-800">
+            <thead className="bg-[#800020]/10 border-b border-[#800020]/20">
+              <tr>
+                <th className="px-2 sm:px-4 py-3 font-semibold border-r border-[#800020]/20 text-[#800020]">Atlas tham chiếu</th>
+                <th className="px-2 sm:px-4 py-3 font-semibold text-[#800020]">
+                  <span className="hidden sm:inline">Kết quả đánh giá</span>
+                  <span className="sm:hidden">Kết quả</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-200">
+              <tr>
+                <td className="px-2 sm:px-4 py-3 border-r border-zinc-200 align-middle">V.Gilsanz và O.Ratib</td>
+                <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
+                  <span className="font-bold text-base text-[#800020]">{expertBoneAge ? formattedBoneAge : '-'}</span>
+                  <span className="text-xs text-zinc-500 ml-1 font-medium">± 0.5</span>
+                </td>
+              </tr>
+              <tr>
+                <td className="px-2 sm:px-4 py-3 border-r border-zinc-200 align-middle">
+                  <span className="hidden sm:inline">Cree M. Gaskin và cộng sự</span>
+                  <span className="sm:hidden">Cree M. Gaskin</span>
+                </td>
+                <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
+                  <span className="font-bold text-base text-[#800020]">{dbacBoneAge ? dbacFormatted : '-'}</span>
+                  <span className="text-xs text-zinc-500 ml-1 font-medium">± 0.5</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p className="whitespace-pre-wrap">Bằng phương pháp đối chiếu Greulich - Pyle, bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc cốt hoá:</p>
+        <p className="whitespace-pre-wrap">* Theo Atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011), tuổi xương khoảng mốc: <span className="font-bold text-[#800020]">{formattedBoneAge}</span> +/- 0.5 tuổi</p>
+        
+        {dbacBoneAge && (
+          <>
+            <p className="whitespace-pre-wrap">* Theo Atlas thực tế đã chuẩn hoá của nhóm C.M. Gaskin (mốc cốt hoá của Brush Foundation) (ISBN-10: 0199782059, Oxford UP, 2011), tuổi xương khoảng mốc: <span className="font-bold text-[#800020]">{dbacFormatted}</span> +/- 0.5 tuổi.</p>
+            {yesFeatures.length > 0 && (
+              <div className="whitespace-pre-wrap pl-2 mt-2">
+                <span className="font-semibold">- Theo Atlas này, bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:</span>
+                {yesFeatures.map((f, i) => <div key={i}>  + {f}</div>)}
+              </div>
+            )}
+            {noFeatures.length > 0 && (
+              <div className="whitespace-pre-wrap pl-2 mt-2">
+                <span className="font-semibold">- Các dấu hiệu sau đây chưa biểu hiện rõ:</span>
+                {noFeatures.map((f, i) => <div key={i}>  + {f}</div>)}
+              </div>
+            )}
+          </>
+        )}
+        <p className="whitespace-pre-wrap mt-4 text-sm italic text-zinc-600 text-justify">* Lưu ý: Kết quả tuổi xương được bác sĩ lâm sàng đánh giá trực tiếp, chỉ có ý nghĩa khi được ứng dụng trên từng trường hợp cụ thể.<br />Kết quả có thể có chênh lệnh tuỳ theo người phiên giải và tham chiếu sử dụng.</p>
+      </div>
+    );
   };
 
   const copyToClipboard = () => {
@@ -1105,7 +1278,7 @@ export default function App() {
                     setExpertBoneAge(val);
                   }
                 }} 
-                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center shadow-inner" 
+                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
                 
               />
             </div>
@@ -1337,7 +1510,7 @@ export default function App() {
                       setDbacBoneAge(val);
                     }
                   }} 
-                  className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center shadow-inner" 
+                  className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
                 />
               </div>
             </div>
@@ -1437,23 +1610,23 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button 
                     onClick={handleExportWord}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-blue-900/10"
+                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-blue-900/10"
                   >
-                    <FileType size={16} /> Xuất báo cáo
+                    <FileType size={16} /> <span className="hidden sm:inline">Xuất báo cáo</span>
                   </button>
                   <button 
                     onClick={copyToClipboard}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
+                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
                   >
                     {copied ? <Check size={16} /> : <Copy size={16} />}
-                    {copied ? ('Đã chép') : 'Sao chép'}
+                    <span className="hidden sm:inline">{copied ? 'Đã chép' : 'Sao chép'}</span>
                   </button>
                 </div>
               </div>
               <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
-                <p className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
-                  {getExpertConclusion()}
-                </p>
+                <div className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base">
+                  {renderExpertConclusionDisplay()}
+                </div>
               </div>
             </section>
           )
@@ -1464,10 +1637,10 @@ export default function App() {
                 <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
                 <button 
                   onClick={copyToClipboard}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
+                  className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
                 >
                   {copied ? <Check size={16} /> : <Copy size={16} />}
-                  {copied ? ('Đã chép') : 'Sao chép'}
+                  <span className="hidden sm:inline">{copied ? 'Đã chép' : 'Sao chép'}</span>
                 </button>
               </div>
               <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
@@ -1487,18 +1660,18 @@ export default function App() {
               <div className="flex flex-wrap gap-2 w-full xl:w-auto">
                 <button
                   onClick={handleSavePatient}
-                  className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10 min-w-[140px]"
+                  className="flex-1 xl:flex-none flex items-center justify-center px-3 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10 min-w-0 sm:min-w-[140px]"
                 >
-                  <Copy size={16} className="inline mr-1 -mt-0.5" /> Lưu Case
+                  <Copy size={16} className="inline sm:mr-1 -mt-0.5" /> <span className="hidden sm:inline">Lưu Case</span>
                 </button>
                 <button
                   onClick={handleExportRecords}
-                  className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-sky-900/10 min-w-[140px]"
+                  className="flex-1 xl:flex-none flex items-center justify-center px-3 sm:px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-sky-900/10 min-w-0 sm:min-w-[140px]"
                 >
-                  <Download size={16} className="inline mr-1 -mt-0.5" /> Sao lưu
+                  <Download size={16} className="inline sm:mr-1 -mt-0.5" /> <span className="hidden sm:inline">Sao lưu</span>
                 </button>
-                <label className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-zinc-600 hover:bg-zinc-500 text-white transition-colors text-sm font-semibold shadow-lg cursor-pointer text-center min-w-[140px]">
-                  <Upload size={16} className="inline mr-1 -mt-0.5" /> Khôi phục
+                <label className="flex-1 xl:flex-none flex items-center justify-center px-3 sm:px-4 py-2 rounded-xl bg-zinc-600 hover:bg-zinc-500 text-white transition-colors text-sm font-semibold shadow-lg cursor-pointer text-center min-w-0 sm:min-w-[140px]">
+                  <Upload size={16} className="inline sm:mr-1 -mt-0.5" /> <span className="hidden sm:inline">Khôi phục</span>
                   <input type="file" accept=".json" onChange={handleImportRecords} className="hidden" />
                 </label>
               </div>
