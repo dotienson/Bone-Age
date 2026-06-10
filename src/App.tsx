@@ -505,7 +505,7 @@ export default function App() {
     const formattedBoneAge = expertBoneAge.replace(',', '.');
     
     // G-P
-    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\n\n* Bằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi (ISBN-13: 978-3642237621, Springer, 2011)`;
+    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\n\n* Bằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011): Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi`;
 
     if (dbacBoneAge) {
       const yesFeatures: string[] = [];
@@ -522,7 +522,7 @@ export default function App() {
       const noStr = noFeatures.length > 0 ? noFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
       
       const dbacFormatted = dbacBoneAge.replace(',', '.');
-      const vDbac = `\n\n* Bằng phương pháp Greulich - Pyle cải tiến với DBAC, dựa trên Atlas thực tế chuẩn hoá của PGS. Cree M. Gaskin và cộng sự: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${dbacFormatted} +/- 0.5 tuổi (ISBN-10: 0199782059, Oxford Univ. Press, 2011).\nBác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesStr}\nBác sĩ chưa thấy rõ các dấu hiệu sau:\n${noStr}`;
+      const vDbac = `\n\n* Bằng phương pháp Greulich - Pyle, dựa trên atlas thực tế chuẩn hoá của Cree M. Gaskin (mốc cốt hoá từ Brush Foundation) (ISBN-10: 0199782059, Oxford Univ. Press, 2011): Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${dbacFormatted} +/- 0.5 tuổi.\nBác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesStr}\nBác sĩ chưa thấy rõ các dấu hiệu sau:\n${noStr}`;
       
       vText += vDbac;
     }
@@ -1273,6 +1273,11 @@ export default function App() {
                 <p>1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</p>
                 <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
                 <p>3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</p>
+
+                <div className="mt-6 space-y-3 text-[11px] md:text-xs text-zinc-500 pt-3 border-t border-white/5">
+                  <p><strong>Atlas tuổi xương của Gilsanz và Ratib ["rượu mới bình mới"]:</strong> Hình ảnh "lý tưởng hóa" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.</p>
+                  <p><strong>Atlas tuổi xương của Gaskin ["bình mới rượu cũ"]:</strong> Chỉnh sửa kỹ thuật số từng phần xương (digitally edited standards); Nhóm tác giả của Gaskin đã lấy dữ liệu từ các phim chụp X-quang kỹ thuật số (CR/DR) chất lượng cao của bệnh nhi thời hiện đại (trước 2011). Với tiêu chí kế thừa trực tiếp hệ thống phân loại của G&P, dữ liệu nền tảng của Gaskin vẫn dựa trên tiêu chuẩn cốt hoá của nghiên cứu Brush Foundation (tiến hành từ 1931-1942 trên gần 1.000 trẻ em da trắng, thuộc tầng lớp trung lưu tại Ohio, Mỹ).</p>
+                </div>
               </div>
             </motion.div>
           )}
@@ -1281,11 +1286,12 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 text-center space-y-1">
-          <p className="text-white/50 text-xs font-medium tracking-wide uppercase">
-            Bản quyền phần mềm thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors underline underline-offset-2">BS. Đỗ Tiến Sơn</a>
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-1 text-white/50 text-xs font-medium tracking-wide uppercase">
+          <p>
+            <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors">BS. Đỗ Tiến Sơn</a>
           </p>
-          
+          <p>Uỷ viên Tiểu ban Đào tạo Nền tảng số</p>
+          <p>Hội Nội tiết Nhi Châu Âu (ESPE)</p>
         </div>
       </footer>
     </div>
