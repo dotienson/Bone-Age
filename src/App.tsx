@@ -337,25 +337,25 @@ export default function App() {
           // References
           new Paragraph({
              children: [
-                new TextRun({ text: "Tài liệu tham khảo (References):", size: 22, font: "Arial", bold: true, color: "000000" })
+                new TextRun({ text: "Tài liệu tham khảo:", size: 22, font: "Arial", bold: true, color: "000000" })
              ],
              spacing: { after: 200 }
           }),
           new Paragraph({
              children: [
-                new TextRun({ text: "[1] Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.", size: 18, font: "Arial", color: "444444" })
+                new TextRun({ text: "[1] Bunch et al. Skeletal radiology, 46(6), 785–793.", size: 18, font: "Arial", color: "444444" })
              ],
              spacing: { after: 100 }
           }),
           new Paragraph({
              children: [
-                new TextRun({ text: "[2] Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition;", size: 18, font: "Arial", color: "444444" })
+                new TextRun({ text: "[2] Gilsanz V, Ratib O; 2011;", size: 18, font: "Arial", color: "444444" })
              ],
              spacing: { after: 100 }
           }),
           new Paragraph({
              children: [
-                new TextRun({ text: "[3] Martin, D. D., et al. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9.", size: 18, font: "Arial", color: "444444" })
+                new TextRun({ text: "[3] Martin et al. (2011). HRP, 76(1), 1–9.", size: 18, font: "Arial", color: "444444" })
              ]
           })
         ]
@@ -522,7 +522,7 @@ export default function App() {
       const noStr = noFeatures.length > 0 ? noFeatures.map(f => `- ${f}`).join('\n') : '- (không có)';
       
       const dbacFormatted = dbacBoneAge.replace(',', '.');
-      const vDbac = `\n\n* Bằng phương pháp Greulich - Pyle cải tiến với DBAC, dựa trên Atlas thực tế số hoá của PGS. Cree M. Gaskin và cộng sự: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${dbacFormatted} +/- 0.5 tuổi (ISBN-10: 0199782059, Oxford Univ. Press, 2011).\nBác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesStr}\nBác sĩ chưa thấy rõ các dấu hiệu sau:\n${noStr}`;
+      const vDbac = `\n\n* Bằng phương pháp Greulich - Pyle cải tiến với DBAC, dựa trên Atlas thực tế chuẩn hoá của PGS. Cree M. Gaskin và cộng sự: Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${dbacFormatted} +/- 0.5 tuổi (ISBN-10: 0199782059, Oxford Univ. Press, 2011).\nBác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesStr}\nBác sĩ chưa thấy rõ các dấu hiệu sau:\n${noStr}`;
       
       vText += vDbac;
     }
@@ -803,14 +803,13 @@ export default function App() {
                 onClick={() => setIsMagnifierActive(!isMagnifierActive)}
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
               >
-                <Search size={16} />
-                {'Kính lúp'}
+                <Search size={16} className="shrink-0" />
+                <span className="hidden sm:inline">{'Kính lúp'}</span>
               </button>
               <div className="flex items-center gap-2 text-sm font-medium text-white/70">
                 {selectedEntry && (
                   <span className="bg-white/10 px-2 py-1 rounded-md">{selectedEntry.labelVi}</span>
                 )}
-                <span>{'Trang'} {pageNumber} {numPages ? `${'trên'} ${numPages}` : ''}</span>
               </div>
               <div className="flex gap-2">
                 <button 
@@ -909,8 +908,7 @@ export default function App() {
           {isExpertMode && (
             <div className="mt-6 bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
               <div className="flex flex-col gap-1">
-                <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman):'}</label>
-                <span className="text-[10px] md:text-xs text-zinc-400">{'Nhập kết quả đánh giá để xuất báo cáo'}</span>
+                <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
               </div>
               <input 
                 type="text" 
@@ -923,7 +921,7 @@ export default function App() {
                     setExpertBoneAge(val);
                   }
                 }} 
-                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center placeholder:text-zinc-600 shadow-inner" 
+                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center shadow-inner" 
                 
               />
             </div>
@@ -936,7 +934,7 @@ export default function App() {
             <div className="flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shrink-0" />
-                <span className="hidden sm:inline">Phương pháp DBAC (Oxford, 2011)</span>
+                <span className="hidden sm:inline">Đối chiếu tuổi xương theo Atlas của Cree M. Gaskin và cộng sự</span>
                 <span className="sm:hidden">So Atlas Gaskin et al.</span>
               </h2>
               <div className="flex items-center gap-4">
@@ -944,12 +942,11 @@ export default function App() {
                   onClick={() => setIsDbacMagnifierActive(!isDbacMagnifierActive)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
                 >
-                  <Search size={16} />
-                  {'Kính lúp'}
+                  <Search size={16} className="shrink-0" />
+                  <span className="hidden sm:inline">{'Kính lúp'}</span>
                 </button>
                 <div className="flex items-center gap-2 text-sm font-medium text-white/70">
                   <span className="bg-white/10 px-2 py-1 rounded-md">{DBAC_DATA_BOY[dbacIndex]?.label || ''}</span>
-                  <span>{'Trang'} {dbacPageNumber} {dbacNumPages ? `${'trên'} ${dbacNumPages}` : ''}</span>
                 </div>
                 <div className="flex gap-2">
                   <button 
@@ -1014,13 +1011,16 @@ export default function App() {
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         transition={{ duration: 0.3 }}
-                        className="flex shadow-2xl bg-white"
+                        className="flex shadow-2xl bg-white relative"
                       >
                         <MagnifiablePage 
                           pageNumber={Math.max(1, Math.min(dbacPageNumber, dbacNumPages))} 
                           width={isMobile ? window.innerWidth - 64 : 500} 
                           isActive={isDbacMagnifierActive} 
                         />
+                        <div className="absolute bottom-1 left-0 right-0 text-center pointer-events-none z-10">
+                          <span className="text-[10px] text-black/30 font-medium">Bản dịch của BS. Đỗ Tiến Sơn</span>
+                        </div>
                       </motion.div>
                     )}
                   </AnimatePresence>
@@ -1033,9 +1033,9 @@ export default function App() {
                     const sKey = `${dbacIndex}-${idx}`;
                     const val = dbacSelections[sKey];
                     return (
-                      <li key={idx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border border-white/5">
-                        <span className="text-zinc-200 text-xs leading-relaxed flex-1">{feature}</span>
-                        <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 self-end sm:self-auto gap-1">
+                      <li key={idx} className="flex items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border border-white/5">
+                        <span className="text-zinc-200 text-[11px] sm:text-xs leading-relaxed flex-1 break-words">{feature}</span>
+                        <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 gap-1 ml-auto">
                           <button
                             onClick={() => setDbacSelections(prev => {
                               if (prev[sKey] === 'yes') {
@@ -1070,30 +1070,32 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-6 mt-6">
-              <div className="bg-zinc-800 p-4 rounded-2xl border border-white/10 space-y-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">Danh sách dấu hiệu ghi nhận:</label>
-                  <div className="p-3 bg-zinc-900 rounded-xl border border-white/10 min-h-[80px]">
-                    {Object.entries(dbacSelections).length > 0 ? Object.entries(dbacSelections).map(([key, val]) => {
+            <div className="flex flex-col md:flex-col gap-6 mt-6">
+              {Object.entries(dbacSelections).length > 0 && (
+                <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 shadow-xl space-y-3">
+                  <label className="text-sm md:text-base font-semibold text-white tracking-wide block">Danh sách dấu hiệu ghi nhận:</label>
+                  <ul className="space-y-1.5 pl-2">
+                    {Object.entries(dbacSelections).map(([key, val]) => {
                       const [mIdx, fIdx] = key.split('-').map(Number);
                       const milestone = DBAC_DATA_BOY[mIdx];
                       const feature = milestone.features[fIdx];
                       return (
-                        <div key={key} className="text-[10px] sm:text-xs text-zinc-300 mb-1 flex gap-2">
-                          <span className="shrink-0 text-zinc-500">-</span>
-                          <span>{feature} (mốc {milestone.label}): <span className={val === 'yes' ? 'text-emerald-400 font-medium' : 'text-red-400 font-medium'}>{val === 'yes' ? 'Có' : 'Không'}</span></span>
-                        </div>
+                        <li key={key} className="text-sm md:text-base text-zinc-300">
+                          <span className="mr-2 text-zinc-500">-</span>
+                          <span>{feature}</span>
+                          <span className="text-indigo-400 ml-1.5 font-medium">[{milestone.label}]</span>
+                          <span className="mx-2 text-zinc-500">:</span>
+                          <span className={`font-medium ${val === 'yes' ? 'text-emerald-400' : 'text-red-400'}`}>{val === 'yes' ? 'Có' : 'Chưa thấy'}</span>
+                        </li>
                       );
-                    }) : <span className="text-zinc-500 text-[10px] sm:text-xs italic">Chưa ghi nhận đặc điểm nào...</span>}
-                  </div>
+                    })}
+                  </ul>
                 </div>
-              </div>
+              )}
 
-              <div className="bg-zinc-800/80 backdrop-blur-sm p-4 md:p-5 rounded-2xl border border-white/10 flex flex-col justify-between gap-4 shadow-xl flex-1">
+              <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl w-full">
                 <div className="flex flex-col gap-1">
-                  <label className="text-[11px] md:text-sm font-semibold text-white tracking-wide uppercase">{'Kết luận DBAC:'}</label>
-                  <span className="text-[10px] md:text-xs text-zinc-400">{'Nhập kết quả đánh giá để xuất báo cáo'}</span>
+                  <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
                 </div>
                 <input 
                   type="text" 
@@ -1106,8 +1108,7 @@ export default function App() {
                       setDbacBoneAge(val);
                     }
                   }} 
-                  className="w-full bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center placeholder:text-zinc-600 shadow-inner text-sm" 
-                  placeholder="VD: 8.5"
+                  className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-medium text-center shadow-inner" 
                 />
               </div>
             </div>
@@ -1128,8 +1129,8 @@ export default function App() {
                   onClick={() => setIsXrayMagnifierActive(!isXrayMagnifierActive)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isXrayMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
                 >
-                  <Search size={16} />
-                  {'Kính lúp'}
+                  <Search size={16} className="shrink-0" />
+                  <span className="hidden sm:inline">{'Kính lúp'}</span>
                 </button>
               )}
               <button
