@@ -343,6 +343,12 @@ export default function App() {
           }),
           new Paragraph({
             children: [
+              new TextRun({ text: `Tuổi thực tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng`, size: 24, font: "Arial" }),
+            ],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [
               new TextRun({ text: `Ngày khám: ${examDate || '........................................'}`, size: 24, font: "Arial" }),
             ],
             spacing: { after: 100 }
@@ -557,7 +563,7 @@ export default function App() {
     const formattedBoneAge = expertBoneAge.replace(',', '.');
     
     // G-P
-    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\n\n* Bằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011): Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi`;
+    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\nTuổi thực tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng\n\n* Bằng phương pháp Greulich - Pyle, khi so với atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011): Bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc tuổi xương: ${formattedBoneAge} +/- 0.5 tuổi`;
 
     if (dbacBoneAge) {
       const yesFeatures: string[] = [];
