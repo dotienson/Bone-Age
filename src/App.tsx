@@ -111,6 +111,20 @@ const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean })
   );
 };
 
+type PatientRecord = {
+  id: string;
+  patientName: string;
+  patientId: string;
+  realAgeYears: number;
+  realAgeMonths: number;
+  gender: 'boy' | 'girl';
+  clinicalReason: string;
+  examDate: string;
+  boneAge1: string; // Glisanz-Osman
+  boneAge2: string; // Gaskin et al
+  createdAt: number;
+};
+
 const capitalizeNameWords = (str: string) => {
   return str.split(/\s+/).map(word => {
     if (!word) return '';
@@ -162,6 +176,73 @@ export default function App() {
   const atlas1Ref = useRef<HTMLDivElement>(null);
   const atlas2Ref = useRef<HTMLDivElement>(null);
   const [activeAtlasView, setActiveAtlasView] = useState<1 | 2 | null>(null);
+
+  const [patientRecords, setPatientRecords] = useState<PatientRecord[]>(() => {
+    const saved = localStorage.getItem('dualGP_patients');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { return []; }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dualGP_patients', JSON.stringify(patientRecords));
+  }, [patientRecords]);
+
+  const handleSavePatient = () => {
+    const record: PatientRecord = {
+      id: Date.now().toString(),
+      patientName,
+      patientId,
+      realAgeYears,
+      realAgeMonths,
+      gender,
+      clinicalReason,
+      examDate,
+      boneAge1: expertBoneAge,
+      boneAge2: dbacBoneAge,
+      createdAt: Date.now()
+    };
+    setPatientRecords(prev => [record, ...prev]);
+  };
+
+  const handleDeleteRecord = (id: string) => {
+    setPatientRecords(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleExportRecords = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(patientRecords, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", `patients_backup_${new Date().toISOString().split('T')[0]}.json`);
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
+  };
+
+  const handleImportRecords = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const imported = JSON.parse(event.target?.result as string);
+        if (Array.isArray(imported)) {
+          setPatientRecords(prev => {
+            const combined = [...prev, ...imported];
+            const unique = Array.from(new Map(combined.map(item => [item.id, item])).values());
+            return unique.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          });
+        } else {
+          alert('Sai định dạng file backup.');
+        }
+      } catch (err) {
+        alert('Lỗi khi đọc file backup.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = ''; // reset input
+  };
 
   useEffect(() => {
     const handleScroll = () => {
@@ -706,10 +787,17 @@ export default function App() {
       {/* Header */}
       <header className={`border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-transform duration-300 ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
-            <Dog size={24} className="mr-2" />
-            {t.title}
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
+              <Dog size={24} className="mr-2" />
+              {t.title}
+            </h1>
+            {isAuthenticated && (
+              <span className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                {isExpertMode ? 'PRO' : 'LITE'}
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             {isAuthenticated && (
               <>
@@ -1372,6 +1460,91 @@ export default function App() {
             </section>
           )
         )}
+
+        {/* Patient Records Dashboard */}
+        {isExpertMode && (
+          <section className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 shadow-sm mt-8 space-y-4 overflow-hidden">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+              <h2 className="text-lg font-semibold text-white">Dashboard Thông tin Bệnh nhân</h2>
+              <div className="flex flex-wrap gap-2 w-full xl:w-auto">
+                <button
+                  onClick={handleSavePatient}
+                  className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10 min-w-[140px]"
+                >
+                  <Copy size={16} className="inline mr-1 -mt-0.5" /> Lưu Case Này
+                </button>
+                <button
+                  onClick={handleExportRecords}
+                  className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-sky-900/10 min-w-[140px]"
+                >
+                  <Download size={16} className="inline mr-1 -mt-0.5" /> Backup JSON
+                </button>
+                <label className="flex-1 xl:flex-none items-center justify-center px-4 py-2 rounded-xl bg-zinc-600 hover:bg-zinc-500 text-white transition-colors text-sm font-semibold shadow-lg cursor-pointer text-center min-w-[140px]">
+                  <Upload size={16} className="inline mr-1 -mt-0.5" /> Restore JSON
+                  <input type="file" accept=".json" onChange={handleImportRecords} className="hidden" />
+                </label>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto rounded-xl border border-white/10 bg-zinc-900/30">
+              <table className="w-full text-left text-sm text-zinc-300 min-w-[800px]">
+                <thead className="text-xs text-zinc-400 uppercase bg-zinc-900/80">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Khám</th>
+                    <th className="px-4 py-3 font-semibold">Tên & ID</th>
+                    <th className="px-4 py-3 font-semibold">Tuổi</th>
+                    <th className="px-4 py-3 font-semibold">Giới tính</th>
+                    <th className="px-4 py-3 font-semibold">Lý do</th>
+                    <th className="px-4 py-3 font-semibold">Glisanz-Osman</th>
+                    <th className="px-4 py-3 font-semibold">Gaskin et al</th>
+                    <th className="px-4 py-3 font-semibold text-center">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {patientRecords.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-12 text-center text-zinc-500 font-medium">
+                        Chưa có ca bệnh lưu trữ.
+                      </td>
+                    </tr>
+                  ) : (
+                    patientRecords.map((record) => (
+                      <tr key={record.id} className="hover:bg-zinc-700/30 transition-colors group">
+                        <td className="px-4 py-3 whitespace-nowrap text-zinc-400">{record.examDate}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-semibold text-white/90">{record.patientName || '-'}</div>
+                          <div className="text-[11px] text-zinc-500 tracking-wide font-mono mt-0.5">{record.patientId || '-'}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-white/80">{record.realAgeYears}y {record.realAgeMonths}m</span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className={record.gender === 'boy' ? 'text-blue-400' : 'text-pink-400'}>{record.gender === 'boy' ? 'Nam' : 'Nữ'}</span>
+                        </td>
+                        <td className="px-4 py-3"><span className="text-zinc-400 max-w-[150px] truncate block" title={record.clinicalReason}>{record.clinicalReason}</span></td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {record.boneAge1 ? <span className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-xs font-mono">{record.boneAge1}</span> : '-'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {record.boneAge2 ? <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-xs font-mono">{record.boneAge2}</span> : '-'}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <button
+                            onClick={() => handleDeleteRecord(record.id)}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            title="Xoá ca này"
+                          >
+                            <X size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
       </main>
 
       {/* Reference Section */}
@@ -1411,12 +1584,11 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 text-center space-y-1 text-white/50 text-xs font-medium tracking-wide uppercase">
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-1 text-white/50 text-xs font-medium tracking-wide">
           <p>
-            <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors">BS. Đỗ Tiến Sơn</a>
+            Bản quyền thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors">BS. Đỗ Tiến Sơn</a> &copy; 2026
           </p>
-          <p>Uỷ viên Tiểu ban Đào tạo Nền tảng số</p>
-          <p>Hội Nội tiết Nhi Châu Âu (ESPE)</p>
+          <p>Mọi quyền đều được bảo vệ.</p>
         </div>
       </footer>
     </div>
