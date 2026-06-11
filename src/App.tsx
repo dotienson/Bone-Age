@@ -1409,6 +1409,9 @@ export default function App() {
               </div>
 
               <div className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 flex flex-col h-full overflow-hidden">
+                <h3 className="text-white font-semibold text-sm sm:text-[15px] mb-3 pb-3 border-b border-white/10">
+                  Mốc cốt hoá ứng với <span className="text-yellow-400">{DBAC_DATA_BOY[dbacIndex]?.label}</span> (<span className={gender === 'boy' ? 'text-blue-300' : 'text-pink-300'}>{gender === 'boy' ? 'nam' : 'nữ'}</span>)
+                </h3>
                 <ul className="space-y-2 overflow-y-auto pr-2">
                   {DBAC_DATA_BOY[dbacIndex].features.map((feature, idx) => {
                     const sKey = `${dbacIndex}-${idx}`;
