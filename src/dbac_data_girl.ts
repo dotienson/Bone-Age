@@ -42,7 +42,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "1",
+    "label": "1 tuổi",
     "gender": "girl",
     "ageMonths": 12,
     "features": [
@@ -75,7 +75,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "2",
+    "label": "2 tuổi",
     "gender": "girl",
     "ageMonths": 24,
     "features": [
@@ -102,7 +102,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "3",
+    "label": "3 tuổi",
     "gender": "girl",
     "ageMonths": 36,
     "features": [
@@ -139,7 +139,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "5",
+    "label": "5 tuổi",
     "gender": "girl",
     "ageMonths": 60,
     "features": [
@@ -211,7 +211,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "10",
+    "label": "10 tuổi",
     "gender": "girl",
     "ageMonths": 120,
     "features": [
@@ -227,7 +227,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "11",
+    "label": "11 tuổi",
     "gender": "girl",
     "ageMonths": 132,
     "features": [
@@ -241,7 +241,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "12",
+    "label": "12 tuổi",
     "gender": "girl",
     "ageMonths": 144,
     "features": [
@@ -253,7 +253,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "13",
+    "label": "13 tuổi",
     "gender": "girl",
     "ageMonths": 156,
     "features": [
@@ -277,7 +277,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "14",
+    "label": "14 tuổi",
     "gender": "girl",
     "ageMonths": 168,
     "features": [
@@ -291,7 +291,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "15",
+    "label": "15 tuổi",
     "gender": "girl",
     "ageMonths": 180,
     "features": [
@@ -303,7 +303,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "16",
+    "label": "16 tuổi",
     "gender": "girl",
     "ageMonths": 192,
     "features": [
@@ -312,7 +312,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "17",
+    "label": "17 tuổi",
     "gender": "girl",
     "ageMonths": 204,
     "features": [
@@ -323,7 +323,7 @@ export const DBAC_DATA_GIRL = [
     ]
   },
   {
-    "label": "18",
+    "label": "18 tuổi",
     "gender": "girl",
     "ageMonths": 216,
     "features": [

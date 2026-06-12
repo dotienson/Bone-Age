@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen } from 'lucide-react';
-import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign } from 'docx';
+import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign, UnderlineType } from 'docx';
 import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, AreaChart, Area, ReferenceArea } from 'recharts';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { ATLAS_DATA, AtlasEntry } from './data';
@@ -133,15 +134,213 @@ const capitalizeNameWords = (str: string) => {
   }).join(' ');
 };
 
+const BRUSH_DATA_BOY = [
+  { ageM: 3, sd: 0.69 },
+  { ageM: 6, sd: 1.13 },
+  { ageM: 9, sd: 1.43 },
+  { ageM: 12, sd: 1.97 },
+  { ageM: 18, sd: 3.52 },
+  { ageM: 24, sd: 3.92 },
+  { ageM: 30, sd: 4.52 },
+  { ageM: 36, sd: 5.08 },
+  { ageM: 42, sd: 5.40 },
+  { ageM: 48, sd: 6.66 },
+  { ageM: 54, sd: 8.36 },
+  { ageM: 60, sd: 8.79 },
+  { ageM: 72, sd: 9.17 },
+  { ageM: 84, sd: 8.91 },
+  { ageM: 96, sd: 9.10 },
+  { ageM: 108, sd: 9.00 },
+  { ageM: 120, sd: 9.79 },
+  { ageM: 132, sd: 10.09 },
+  { ageM: 144, sd: 10.38 },
+  { ageM: 156, sd: 10.44 },
+  { ageM: 168, sd: 10.72 },
+  { ageM: 180, sd: 11.32 },
+  { ageM: 192, sd: 12.86 },
+  { ageM: 204, sd: 13.05 }
+];
+
+const BRUSH_DATA_GIRL = [
+  { ageM: 3, sd: 0.72 },
+  { ageM: 6, sd: 1.16 },
+  { ageM: 9, sd: 1.36 },
+  { ageM: 12, sd: 1.77 },
+  { ageM: 18, sd: 3.49 },
+  { ageM: 24, sd: 4.64 },
+  { ageM: 30, sd: 5.37 },
+  { ageM: 36, sd: 5.97 },
+  { ageM: 42, sd: 7.48 },
+  { ageM: 48, sd: 8.98 },
+  { ageM: 54, sd: 10.73 },
+  { ageM: 60, sd: 11.65 },
+  { ageM: 72, sd: 10.23 },
+  { ageM: 84, sd: 9.64 },
+  { ageM: 96, sd: 10.23 },
+  { ageM: 108, sd: 10.74 },
+  { ageM: 120, sd: 11.73 },
+  { ageM: 132, sd: 11.94 },
+  { ageM: 144, sd: 10.24 },
+  { ageM: 156, sd: 10.67 },
+  { ageM: 168, sd: 11.30 },
+  { ageM: 180, sd: 9.23 },
+  { ageM: 192, sd: 7.31 }
+];
+
+const getInitialDraft = () => {
+  try {
+    const saved = localStorage.getItem('dualGP_draft_state');
+    if (saved) return JSON.parse(saved);
+  } catch (e) {}
+  return {};
+};
+
+const generateNormalDistributionData = () => {
+  const data = [];
+  for (let i = -4; i <= 4; i += 0.1) {
+    const x = Number(i.toFixed(1));
+    const y = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(x * x) / 2);
+    data.push({ x, y });
+  }
+  return data;
+};
+
+const NormalDistributionChart = ({ zScores }: { zScores: { name: string, z: number, color: string }[] }) => {
+  const data = useMemo(() => generateNormalDistributionData(), []);
+  
+  const minZ = Math.min(...zScores.map(z => z.z), -4);
+  const maxZ = Math.max(...zScores.map(z => z.z), 4);
+  const domainMin = Math.floor(minZ) - 0.5;
+  const domainMax = Math.ceil(maxZ) + 0.5;
+  const range = domainMax - domainMin;
+  const getPercent = (val: number) => `${((val - domainMin) / range) * 100}%`;
+  
+  return (
+    <div className="w-full mt-2">
+      {/* Desktop View: Bell Curve */}
+      <div className="hidden md:block w-full h-56 mx-auto mb-6 max-w-2xl">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data} margin={{ top: 20, right: 30, bottom: 0, left: 30 }}>
+            {/* Shaded area for -2 to +2 Z-score */}
+            <ReferenceArea x1={-2} x2={2} fill="#ecfdf5" fillOpacity={1} />
+            
+            <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
+            <XAxis 
+              dataKey="x" 
+              type="number" 
+              domain={[domainMin, domainMax]} 
+              ticks={[-4, -3, -2, -1, 0, 1, 2, 3, 4].filter(t => t >= domainMin && t <= domainMax)} 
+              tick={{ fontSize: 13, fill: '#64748b' }}
+              axisLine={{ stroke: '#cbd5e1' }}
+              tickLine={false}
+              dy={10}
+            />
+            <YAxis hide />
+            <Tooltip 
+              formatter={(value: any, name: any) => {
+                if (name === 'Phân bố bình thường') return [Number(value).toFixed(3), 'Xác suất'];
+                return null;
+              }}
+              labelFormatter={(label) => `Z = ${label}`}
+              contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+            />
+            <Area type="monotone" dataKey="y" name="Phân bố bình thường" stroke="#94a3b8" fill="none" strokeWidth={3} />
+            
+            <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="3 3" />
+            <ReferenceLine x={-2} stroke="#10b981" strokeDasharray="3 3" label={{ value: '-2SD', position: 'top', fill: '#059669', fontSize: 13, fontWeight: 'bold' }} />
+            <ReferenceLine x={2} stroke="#10b981" strokeDasharray="3 3" label={{ value: '+2SD', position: 'top', fill: '#059669', fontSize: 13, fontWeight: 'bold' }} />
+            
+            {zScores.map((zObj, idx) => (
+              <ReferenceLine 
+                  key={`line-${idx}`}
+                  x={zObj.z} 
+                  stroke={zObj.color} 
+                  strokeWidth={2.5} 
+              />
+            ))}
+            {zScores.map((zObj, idx) => (
+              <ReferenceDot 
+                key={`dot-${idx}`} 
+                x={zObj.z} 
+                y={(1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(zObj.z * zObj.z) / 2)} 
+                r={6} 
+                fill={zObj.color} 
+                stroke="white" 
+                strokeWidth={2}
+              />
+            ))}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Mobile View: 1D Line */}
+      <div className="md:hidden mt-8 mb-10 mx-2">
+        <div className="w-full relative h-12">
+          {/* Main axis line */}
+          <div className="absolute top-1/2 left-0 w-full h-1.5 bg-gray-200 -mt-[3px] rounded-full" />
+          
+          {/* -2 to +2 shaded zone */}
+          <div 
+             className="absolute top-1/2 h-1.5 bg-[#d1fae5] -mt-[3px] opacity-80" 
+             style={{ 
+               left: getPercent(-2), 
+               width: `${(4 / range) * 100}%` 
+             }} 
+          />
+          
+          {/* Ticks */}
+          {[-4, -3, -2, -1, 0, 1, 2, 3, 4].filter(t => t >= domainMin && t <= domainMax).map(tick => (
+            <div key={`tick-${tick}`} className="absolute top-1/2 w-[2px] h-3 bg-gray-400 -mt-1.5" style={{ left: getPercent(tick) }}>
+              <span className="absolute top-5 left-1/2 -translate-x-1/2 text-[11px] text-gray-500 font-medium">{tick}</span>
+              {Math.abs(tick) === 2 && (
+                <span className="absolute bottom-5 left-1/2 -translate-x-1/2 text-xs font-bold text-emerald-600 whitespace-nowrap">
+                  {tick > 0 ? '+2SD' : '-2SD'}
+                </span>
+              )}
+            </div>
+          ))}
+          
+          {/* ZScores Dots */}
+          {zScores.map((zObj, idx) => (
+            <div 
+              key={`mob-z-${idx}`} 
+              className="absolute top-1/2 z-10 w-[18px] h-[18px] rounded-full shadow-sm" 
+              style={{ left: `calc(${getPercent(zObj.z)} - 9px)`, backgroundColor: zObj.color, border: '3px solid white', marginTop: '-9px' }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Legend & Annotation */}
+      <div className="mt-2 flex flex-col items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          {zScores.map(zObj => (
+            <div key={zObj.name} className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: zObj.color }} />
+              <span className="text-sm font-semibold text-zinc-700">{zObj.name} (Z = {zObj.z.toFixed(2)})</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[13px] text-zinc-500 text-center mt-1 italic max-w-md">
+          Z-Score dựa vào Brush data, Stanford<br className="sm:hidden" />(Greulich & Pyle, 1959)
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// We get the draft once per component mount
 export default function App() {
-  const [realAgeYears, setRealAgeYears] = useState<number>(8);
-  const [realAgeMonths, setRealAgeMonths] = useState<number>(0);
-  const [gender, setGender] = useState<'boy' | 'girl'>('girl');
+  const initialDraft = useMemo(() => getInitialDraft(), []);
+  
+  const [realAgeYears, setRealAgeYears] = useState<number>(initialDraft.realAgeYears ?? 8);
+  const [realAgeMonths, setRealAgeMonths] = useState<number>(initialDraft.realAgeMonths ?? 0);
+  const [gender, setGender] = useState<'boy' | 'girl'>(initialDraft.gender ?? 'girl');
   const currentDbacData = gender === 'boy' ? DBAC_DATA_BOY : DBAC_DATA_GIRL;
   const [copied, setCopied] = useState(false);
-  const [finalAgeYears, setFinalAgeYears] = useState<number | ''>('');
-  const [finalAgeMonths, setFinalAgeMonths] = useState<number | ''>('');
-  const [clinicalReason, setClinicalReason] = useState<string>('Đánh giá tăng trưởng');
+  const [finalAgeYears, setFinalAgeYears] = useState<number | ''>(initialDraft.finalAgeYears ?? '');
+  const [finalAgeMonths, setFinalAgeMonths] = useState<number | ''>(initialDraft.finalAgeMonths ?? '');
+  const [clinicalReason, setClinicalReason] = useState<string>(initialDraft.clinicalReason ?? 'Đánh giá tăng trưởng');
   const clinicalOptions = ['Sàng lọc dậy thì sớm', 'Đánh giá tăng trưởng', 'Đánh giá bệnh lý', 'Lý do khác'];
   const [isMagnifierActive, setIsMagnifierActive] = useState(false);
   const [isXrayMagnifierActive, setIsXrayMagnifierActive] = useState(false);
@@ -151,9 +350,11 @@ export default function App() {
   const [xrayImage, setXrayImage] = useState<string | null>(null);
   const [isXrayVisible, setIsXrayVisible] = useState(true);
 
-  const [patientName, setPatientName] = useState('');
-  const [patientId, setPatientId] = useState('');
+  const [patientName, setPatientName] = useState(initialDraft.patientName ?? '');
+  const [patientId, setPatientId] = useState(initialDraft.patientId ?? '');
+  const [dob, setDob] = useState<string>(initialDraft.dob ?? '');
   const [examDate, setExamDate] = useState(() => {
+    if (initialDraft.examDate) return initialDraft.examDate;
     const d = new Date();
     return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
   });
@@ -163,12 +364,15 @@ export default function App() {
   const [isExpertMode, setIsExpertMode] = useState(false);
   const [username, setUsername] = useState('');
   const [passcode, setPasscode] = useState('');
-  const [loginTab, setLoginTab] = useState<'premium' | 'expert'>('premium');
+  const [loginTab, setLoginTab] = useState<'premium' | 'expert'>(initialDraft.loginTab ?? 'premium');
   
   const [dbacIndex, setDbacIndex] = useState(0);
-  const [dbacSelections, setDbacSelections] = useState<Record<string, 'yes' | 'no'>>({});
-  const [dbacOtherFeatures, setDbacOtherFeatures] = useState<string>('');
-  const [dbacBoneAge, setDbacBoneAge] = useState<string>('');
+  const [dbacSelections, setDbacSelections] = useState<Record<string, 'yes' | 'no'>>(initialDraft.dbacSelections ?? {});
+  const [dbacOtherFeatures, setDbacOtherFeatures] = useState<string>(initialDraft.dbacOtherFeatures ?? '');
+  const [dbacBoneAgeYears, setDbacBoneAgeYears] = useState<number | ''>(initialDraft.dbacBoneAgeYears ?? '');
+  const [dbacBoneAgeMonths, setDbacBoneAgeMonths] = useState<number | ''>(initialDraft.dbacBoneAgeMonths ?? '');
+  const [hasAbnormality, setHasAbnormality] = useState<boolean>(initialDraft.hasAbnormality ?? false);
+  const [abnormalityDetails, setAbnormalityDetails] = useState<string>(initialDraft.abnormalityDetails ?? '');
   const [dbacNumPages, setDbacNumPages] = useState<number | null>(null);
   const [dbacPageNumber, setDbacPageNumber] = useState<number>(1);
   const [isDbacMagnifierActive, setIsDbacMagnifierActive] = useState(false);
@@ -202,8 +406,8 @@ export default function App() {
       gender,
       clinicalReason,
       examDate,
-      boneAge1: expertBoneAge,
-      boneAge2: dbacBoneAge,
+      boneAge1: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '',
+      boneAge2: dbacBoneAgeYears !== '' ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '',
       createdAt: Date.now()
     };
     setPatientRecords(prev => [record, ...prev]);
@@ -327,14 +531,122 @@ export default function App() {
     }
   }, []);
   
-  const [expertBoneAge, setExpertBoneAge] = useState<string>('');
+  const [expertBoneAgeYears, setExpertBoneAgeYears] = useState<number | ''>(initialDraft.expertBoneAgeYears ?? '');
+  const [expertBoneAgeMonths, setExpertBoneAgeMonths] = useState<number | ''>(initialDraft.expertBoneAgeMonths ?? '');
   const [xrayDate, setXrayDate] = useState<string>(() => {
+    if (initialDraft.xrayDate) return initialDraft.xrayDate;
     const d = new Date();
     return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
   });
-  const [xrayLocation, setXrayLocation] = useState<string>('BVĐK Tâm Anh');
-  const [xrayQuality, setXrayQuality] = useState<string>('Tốt');
+  const [xrayLocation, setXrayLocation] = useState<string>(initialDraft.xrayLocation ?? 'BVĐK Tâm Anh');
+  const [xrayQuality, setXrayQuality] = useState<string>(initialDraft.xrayQuality ?? 'Tốt');
+
+  const [pendingAdminChange, setPendingAdminChange] = useState<{updater: Function, newValue: any} | null>(null);
+
+  const confirmAdminChange = () => {
+    if (pendingAdminChange) {
+      pendingAdminChange.updater(pendingAdminChange.newValue);
+      setExpertBoneAgeYears('');
+      setExpertBoneAgeMonths('');
+      setDbacSelections({});
+      setDbacBoneAgeYears('');
+      setDbacBoneAgeMonths('');
+      setDbacOtherFeatures('');
+      setHasAbnormality(false);
+      setAbnormalityDetails('');
+      setFinalAgeYears('');
+      setFinalAgeMonths('');
+      setPendingAdminChange(null);
+    }
+  };
+
+  const cancelAdminChange = () => {
+    setPendingAdminChange(null);
+  };
+
+  const handleAdminChangeAttempt = (newValue: any, updater: Function) => {
+    const hasResults = expertBoneAgeYears !== '' || Object.keys(dbacSelections).length > 0 || (typeof dbacBoneAgeYears === 'number' && dbacBoneAgeYears >= 0) || dbacBoneAgeYears !== '';
+    if (hasResults) {
+      setPendingAdminChange({ updater, newValue });
+    } else {
+      updater(newValue);
+    }
+  };
+
+  useEffect(() => {
+    if (dob.length === 10 && examDate.length === 10) {
+      const partsDob = dob.split('/');
+      const partsExam = examDate.split('/');
+      if (partsDob.length === 3 && partsExam.length === 3) {
+        const d1 = new Date(Number(partsDob[2]), Number(partsDob[1]) - 1, Number(partsDob[0]));
+        const d2 = new Date(Number(partsExam[2]), Number(partsExam[1]) - 1, Number(partsExam[0]));
+        if (!isNaN(d1.getTime()) && !isNaN(d2.getTime()) && d2 >= d1) {
+          let months = (d2.getFullYear() - d1.getFullYear()) * 12 + (d2.getMonth() - d1.getMonth());
+          if (d2.getDate() < d1.getDate()) {
+            months--;
+          }
+          if (months >= 0) {
+            let y = Math.floor(months / 12);
+            if (y > 19) y = 19;
+            setRealAgeYears(y);
+            setRealAgeMonths(months % 12);
+          }
+        }
+      }
+    }
+  }, [dob, examDate]);
   
+  useEffect(() => {
+    const draft = {
+      realAgeYears,
+      realAgeMonths,
+      gender,
+      finalAgeYears,
+      finalAgeMonths,
+      clinicalReason,
+      patientName,
+      patientId,
+      dob,
+      examDate,
+      loginTab,
+      dbacSelections,
+      dbacOtherFeatures,
+      dbacBoneAgeYears,
+      dbacBoneAgeMonths,
+      hasAbnormality,
+      abnormalityDetails,
+      expertBoneAgeYears,
+      expertBoneAgeMonths,
+      xrayDate,
+      xrayLocation,
+      xrayQuality
+    };
+    localStorage.setItem('dualGP_draft_state', JSON.stringify(draft));
+  }, [
+    realAgeYears,
+    realAgeMonths,
+    gender,
+    finalAgeYears,
+    finalAgeMonths,
+    clinicalReason,
+    patientName,
+    patientId,
+    dob,
+    examDate,
+    loginTab,
+    dbacSelections,
+    dbacOtherFeatures,
+    dbacBoneAgeYears,
+    dbacBoneAgeMonths,
+    hasAbnormality,
+    abnormalityDetails,
+    expertBoneAgeYears,
+    expertBoneAgeMonths,
+    xrayDate,
+    xrayLocation,
+    xrayQuality
+  ]);
+
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let val = e.target.value.replace(/\D/g, '');
     if (val.length > 8) val = val.slice(0, 8);
@@ -363,22 +675,51 @@ export default function App() {
     }
   };
 
+    const getDbacParsedData = () => {
+      const yesFeatures: string[] = [];
+      const noFeatures: string[] = [];
+      let summaryText = '';
+      if (dbacBoneAgeYears !== '') {
+        Object.entries(dbacSelections).forEach(([key, val]) => {
+          const [mIdx, fIdx] = key.split('-').map(Number);
+          const milestone = currentDbacData[mIdx];
+          const feature = milestone.features[fIdx];
+          const str = `${feature} [${milestone.label}]`;
+          if (val === 'yes') yesFeatures.push(str);
+          if (val === 'no') noFeatures.push(str);
+        });
+        if (dbacOtherFeatures.trim()) {
+          yesFeatures.push(dbacOtherFeatures.trim());
+        }
+        const grouped: Record<number, { val: 'yes'|'no' }[]> = {};
+        Object.entries(dbacSelections).forEach(([key, val]) => {
+          const [mIdx] = key.split('-').map(Number);
+          if (!grouped[mIdx]) grouped[mIdx] = [];
+          grouped[mIdx].push({ val: val as 'yes' | 'no' });
+        });
+        const summaryParts: string[] = [];
+        Object.entries(grouped).forEach(([mIdxStr, items]) => {
+          const mIdx = Number(mIdxStr);
+          const milestone = currentDbacData[mIdx];
+          if (items.length === milestone.features.length) {
+            const yesCount = items.filter(x => x.val === 'yes').length;
+            summaryParts.push(`${yesCount}/${milestone.features.length} tiêu chuẩn mốc ${milestone.label}`);
+          }
+        });
+        if (summaryParts.length > 0) {
+           summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
+        }
+      }
+      return { yesFeatures, noFeatures, summaryText };
+    };
+
   const handleExportWord = async () => {
     if (!isExpertMode) return;
     
     // Parse findings
-    const yesFeatures: string[] = [];
-    const noFeatures: string[] = [];
-    if (dbacBoneAge) {
-      Object.entries(dbacSelections).forEach(([key, val]) => {
-        const [mIdx, fIdx] = key.split('-').map(Number);
-        const milestone = currentDbacData[mIdx];
-        const feature = milestone.features[fIdx];
-        const str = `${capitalizeWords(feature)} (mốc ${milestone.label})`;
-        if (val === 'yes') yesFeatures.push(str);
-        if (val === 'no') noFeatures.push(str);
-      });
-    }
+    const dbacPopulated = dbacBoneAgeYears !== '';
+    const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
+    const devZ = getDeviationAndZScore();
 
     const doc = new DocxDocument({
       sections: [{
@@ -434,7 +775,13 @@ export default function App() {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: `Tuổi thực tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng`, size: 24, font: "Arial" }),
+              new TextRun({ text: `Tuổi thực tế (CA) tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)`, size: 24, font: "Arial" }),
+            ],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: `Hình thái xương sơ bộ: ${hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}`, size: 24, font: "Arial" }),
             ],
             spacing: { after: 100 }
           }),
@@ -483,7 +830,7 @@ export default function App() {
                     verticalAlign: VerticalAlign.CENTER,
                     children: [
                       new Paragraph({ alignment: AlignmentType.CENTER, children: [
-                        new TextRun({ text: expertBoneAge ? expertBoneAge.replace(',', '.') : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
+                        new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
                         new TextRun({ text: " ± 0.5", size: 20, font: "Arial", color: "666666" })
                       ] })
                     ],
@@ -500,7 +847,7 @@ export default function App() {
                     verticalAlign: VerticalAlign.CENTER,
                     children: [
                       new Paragraph({ alignment: AlignmentType.CENTER, children: [
-                        new TextRun({ text: dbacBoneAge ? dbacBoneAge.replace(',', '.') : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
+                        new TextRun({ text: dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
                         new TextRun({ text: " ± 0.5", size: 20, font: "Arial", color: "666666" })
                       ] })
                     ],
@@ -511,56 +858,80 @@ export default function App() {
           }),
           new Paragraph({ text: "", spacing: { after: 200 } }),
           new Paragraph({
-            children: [new TextRun({ text: "Bằng phương pháp đối chiếu Greulich - Pyle, bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc cốt hoá:", size: 24, font: "Arial" })],
+            children: [new TextRun({ text: "KẾT QUẢ:", bold: true, size: 24, font: "Arial" })],
+            spacing: { after: 100 }
+          }),
+          new Paragraph({
+            children: [new TextRun({ text: "Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:", size: 24, font: "Arial" })],
             spacing: { after: 100 }
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: "* Theo Atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011), tuổi xương khoảng mốc: ", size: 24, font: "Arial" }),
-              new TextRun({ text: expertBoneAge ? expertBoneAge.replace(',', '.') : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
-              new TextRun({ text: " +/- 0.5 tuổi", size: 24, font: "Arial" })
+              new TextRun({ text: "- Tuổi xương ước tính: ", size: 24, font: "Arial" }),
+              new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
+              new TextRun({ text: " ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).", size: 24, font: "Arial" })
             ],
             spacing: { after: 100 }
           }),
-          ...(dbacBoneAge ? [
+          ...(dbacPopulated ? [
             new Paragraph({
               children: [
-                new TextRun({ text: "* Theo Atlas thực tế đã chuẩn hoá của nhóm C.M. Gaskin (mốc cốt hoá của Brush Foundation) (ISBN-10: 0199782059, Oxford UP, 2011), tuổi xương khoảng mốc: ", size: 24, font: "Arial" }),
-                new TextRun({ text: dbacBoneAge.replace(',', '.'), size: 24, font: "Arial", bold: true, color: "800020" }),
-                new TextRun({ text: " +/- 0.5 tuổi.", size: 24, font: "Arial" })
+                new TextRun({ text: "- Tuổi xương ước tính: ", size: 24, font: "Arial" }),
+                new TextRun({ text: `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`, size: 24, font: "Arial", bold: true, color: "800020" }),
+                new TextRun({ text: ` ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd(), size: 24, font: "Arial" })
               ],
               spacing: { after: 100 }
             }),
             ...(yesFeatures.length > 0 ? [
               new Paragraph({
-                children: [new TextRun({ text: "- Theo Atlas này, bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:", size: 24, font: "Arial", bold: true })],
+                children: [new TextRun({ text: "+ Các dấu hiệu được ghi nhận:", size: 24, font: "Arial", bold: true })],
                 spacing: { after: 100 }
               }),
               ...yesFeatures.map(f => new Paragraph({
-                children: [new TextRun({ text: `  + ${f}`, size: 24, font: "Arial" })],
+                children: [new TextRun({ text: `  ${f}`, size: 24, font: "Arial" })],
                 spacing: { after: 100 }
               }))
             ] : []),
             ...(noFeatures.length > 0 ? [
               new Paragraph({
-                children: [new TextRun({ text: "- Các dấu hiệu sau đây chưa biểu hiện rõ:", size: 24, font: "Arial", bold: true })],
+                children: [
+                   new TextRun({ text: "+ Hiện ", size: 24, font: "Arial", bold: true }),
+                   new TextRun({ text: "chưa thấy rõ", size: 24, font: "Arial", bold: true, underline: { type: UnderlineType.SINGLE } }),
+                   new TextRun({ text: " các dấu hiệu sau:", size: 24, font: "Arial", bold: true })
+                ],
                 spacing: { after: 100 }
               }),
               ...noFeatures.map(f => new Paragraph({
-                children: [new TextRun({ text: `  + ${f}`, size: 24, font: "Arial" })],
+                children: [new TextRun({ text: `  ${f}`, size: 24, font: "Arial" })],
                 spacing: { after: 100 }
               }))
+            ] : []),
+            ...(hasAbnormality ? [
+              new Paragraph({
+                children: [new TextRun({ text: `+ Bất thường hình thái xương: Có`, size: 24, font: "Arial", bold: true })],
+                spacing: { after: 100 }
+              }),
+              ...(abnormalityDetails ? [new Paragraph({
+                children: [new TextRun({ text: `  Chi tiết: ${abnormalityDetails}`, size: 24, font: "Arial" })],
+                spacing: { after: 100 }
+              })] : [])
             ] : [])
+          ] : []),
+          ...(devZ ? [
+            new Paragraph({ text: "", spacing: { after: 100 } }),
+            new Paragraph({
+              children: [new TextRun({ text: devZ.diffText, size: 24, font: "Arial", bold: true })],
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              children: [new TextRun({ text: devZ.significanceText, size: 24, font: "Arial", bold: true })],
+              spacing: { after: 100 }
+            })
           ] : []),
           new Paragraph({ text: "", spacing: { after: 100 } }),
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "* Lưu ý: Kết quả tuổi xương được bác sĩ lâm sàng đánh giá trực tiếp, chỉ có ý nghĩa khi được ứng dụng trên từng trường hợp cụ thể.", size: 24, font: "Arial", italics: true })],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
-            alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "Kết quả có thể có chênh lệnh tuỳ theo người phiên giải và tham chiếu sử dụng.", size: 24, font: "Arial", italics: true })],
+            children: [new TextRun({ text: "Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.", size: 24, font: "Arial", italics: true })],
             spacing: { after: 100 }
           }),
 
@@ -616,7 +987,8 @@ export default function App() {
     setXrayQuality('Tốt');
     setDbacIndex(0);
     setDbacSelections({});
-    setDbacBoneAge('');
+    setDbacBoneAgeYears('');
+    setDbacBoneAgeMonths('');
     setDbacPageNumber(1);
     setCopied(false);
     setPatientName('');
@@ -725,79 +1097,161 @@ export default function App() {
     return `Bằng phương pháp Greulich - Pyle, khi so với atlas của Vicente Gilsanz và Osman Ratib: Hand Bone Age - A Digital Atlas of Skeletal Maturity - Ấn bản thứ 2, NXB Springer cho thấy Tuổi xương hiện tại của trẻ tương đương ${finalAgeTextVi} ${diffTextVi}${disclaimerVi}`;
   };
 
+  const getDeviationAndZScore = () => {
+    const gpAgeMonths = expertBoneAgeYears !== '' ? Number(expertBoneAgeYears) * 12 + Number(expertBoneAgeMonths || 0) : 0;
+    const dbacPopulated = dbacBoneAgeYears !== '';
+    const dbacAgeMonths = dbacPopulated ? (dbacBoneAgeYears || 0) * 12 + (dbacBoneAgeMonths || 0) : 0;
+
+    if (gpAgeMonths === 0 && dbacAgeMonths === 0) return null;
+
+    const caMonths = realAgeYears * 12 + realAgeMonths;
+    const caDecimal = caMonths / 12;
+
+    const brushData = gender === 'boy' ? BRUSH_DATA_BOY : BRUSH_DATA_GIRL;
+    let closestRow = brushData[0];
+    let minDiff = Math.abs(caMonths - closestRow.ageM);
+    for (const row of brushData) {
+      const d = Math.abs(caMonths - row.ageM);
+      if (d < minDiff) {
+        minDiff = d;
+        closestRow = row;
+      }
+    }
+
+    const sd = closestRow.sd;
+    const twoSd = 2 * sd;
+
+    let diffText = '';
+    let significanceText = '';
+    let zScores: { name: string, z: number, color: string }[] = [];
+
+    const formatSign = (val: number) => val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1);
+
+    if (gpAgeMonths > 0 && dbacAgeMonths > 0) {
+      const gDec = gpAgeMonths / 12;
+      const dbDec = dbacAgeMonths / 12;
+
+      const diffGm = Math.abs(gDec - caDecimal) * 12;
+      const diffDm = Math.abs(dbDec - caDecimal) * 12;
+
+      const rawDiffGm = (gDec - caDecimal) * 12;
+      const rawDiffDm = (dbDec - caDecimal) * 12;
+
+      const zG = rawDiffGm / sd;
+      const zD = rawDiffDm / sd;
+      
+      zScores = [
+        { name: 'Gilsanz & Ratib', z: zG, color: '#3b82f6' },
+        { name: 'Gaskin', z: zD, color: '#10b981' }
+      ];
+
+      const minZ = Math.min(zG, zD);
+      const maxZ = Math.max(zG, zD);
+
+      let opG = '~', opD = '~';
+      if (diffGm > twoSd) opG = '>'; else if (diffGm < twoSd) opG = '<';
+      if (diffDm > twoSd) opD = '>'; else if (diffDm < twoSd) opD = '<';
+
+      diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD) với 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+
+      const isSig = Math.abs(zG) > 2 || Math.abs(zD) > 2;
+      const dirText = maxZ > 0 && minZ > 0 ? 'tăng' : (maxZ < 0 && minZ < 0 ? 'giảm' : 'thay đổi');
+      if (isSig) {
+        significanceText = `Kết luận: Tuổi xương ${dirText} có ý nghĩa lâm sàng (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+      } else {
+        significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+      }
+    } else {
+      let maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
+      let maxAtlasName = gpAgeMonths > 0 ? 'Gilsanz & Ratib' : 'Gaskin';
+
+      const maxBaDecimal = maxBaMonths / 12;
+      const diffMonths = Math.abs(maxBaDecimal - caDecimal) * 12;
+      const rawDiffMonths = (maxBaDecimal - caDecimal) * 12;
+
+      const zScore = rawDiffMonths / sd;
+      
+      zScores = [
+        { name: maxAtlasName, z: zScore, color: maxAtlasName === 'Gaskin' ? '#10b981' : '#3b82f6' }
+      ];
+
+      let op = '~';
+      if (diffMonths > twoSd) op = '>';
+      else if (diffMonths < twoSd) op = '<';
+
+      diffText = `Delta (BA-CA) = ${formatSign(rawDiffMonths)} tháng (so atlas ${maxAtlasName}) (${op} 2SD) với 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+      
+      if (Math.abs(zScore) > 2) {
+        significanceText = `Kết luận: Tuổi xương ${rawDiffMonths > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zScore.toFixed(2)}) (Greulich & Pyle, 1959).`;
+      } else {
+        significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zScore.toFixed(2)}) (Greulich & Pyle, 1959).`;
+      }
+    }
+
+    return { diffText, significanceText, zScores };
+  };
+
   const getExpertConclusion = () => {
-    if (expertBoneAge === '') return '';
+    if (expertBoneAgeYears === '') return '';
     const dateText = xrayDate ? xrayDate : '....';
     const locationText = xrayLocation ? xrayLocation : '....';
     const qualityText = xrayQuality ? xrayQuality : '...';
     
-    const formattedBoneAge = expertBoneAge.replace(',', '.');
+    const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
     
-    let vText = `BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG\nDựa trên phim chụp ngày ${dateText}, tại ${locationText} (Chất lượng phim: ${qualityText})\nTuổi thực tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng\n\nBằng phương pháp đối chiếu Greulich - Pyle, bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc cốt hoá:\n* Theo Atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011), tuổi xương khoảng mốc: ${formattedBoneAge} +/- 0.5 tuổi`;
+    let vText = `KẾT QUẢ PHIÊN GIẢI TUỔI XƯƠNG\nPhim chụp ngày ${dateText} tại ${locationText} (Chất lượng phim: ${qualityText})\nTuổi thực tế (CA) tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)\nHình thái xương sơ bộ: ${hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}\nKẾT QUẢ:\n\nÁp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:\n- Tuổi xương ước tính: ${formattedBoneAge} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).`;
 
-    if (dbacBoneAge) {
-      const yesFeatures: string[] = [];
-      const noFeatures: string[] = [];
-      Object.entries(dbacSelections).forEach(([key, val]) => {
-        const [mIdx, fIdx] = key.split('-').map(Number);
-        const milestone = currentDbacData[mIdx];
-        const feature = milestone.features[fIdx];
-        const str = `${feature} [${milestone.label}]`;
-        if (val === 'yes') yesFeatures.push(str);
-        if (val === 'no') noFeatures.push(str);
-      });
-      if (dbacOtherFeatures.trim()) {
-        yesFeatures.push(dbacOtherFeatures.trim());
-      }
+    const dbacPopulated = dbacBoneAgeYears !== '';
+    if (dbacPopulated) {
+      const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
       
-      const dbacFormatted = dbacBoneAge.replace(',', '.');
-      const vDbac = `\n* Theo Atlas thực tế đã chuẩn hoá của nhóm C.M. Gaskin (mốc cốt hoá của Brush Foundation) (ISBN-10: 0199782059, Oxford UP, 2011), tuổi xương khoảng mốc: ${dbacFormatted} +/- 0.5 tuổi.`;
+      const dbacFormatted = `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`;
+      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd();
       
       let details = '';
       if (yesFeatures.length > 0) {
-        details += `\n- Theo Atlas này, bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:\n${yesFeatures.map(f => `  + ${f}`).join('\n')}`;
+        details += `\n+ Các dấu hiệu được ghi nhận: ${yesFeatures.join('; ')}`;
       }
       if (noFeatures.length > 0) {
-        details += `\n- Các dấu hiệu sau đây chưa biểu hiện rõ:\n${noFeatures.map(f => `  + ${f}`).join('\n')}`;
+        details += `\n+ Hiện chưa thấy rõ các dấu hiệu sau: ${noFeatures.join('; ')}`;
+      }
+      if (hasAbnormality) {
+        details += `\n+ Bất thường hình thái xương: Có`;
+        if (abnormalityDetails) {
+            details += `\n  Chi tiết: ${abnormalityDetails}`;
+        }
       }
       
       vText += vDbac + details;
     }
 
-    const disclaimerVi = '\n\n* Lưu ý: Kết quả tuổi xương được bác sĩ lâm sàng đánh giá trực tiếp, chỉ có ý nghĩa khi được ứng dụng trên từng trường hợp cụ thể.\nKết quả có thể có chênh lệnh tuỳ theo người phiên giải và tham chiếu sử dụng.';
+    const disclaimerVi = '\n\nLưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.';
+
+    const devZ = getDeviationAndZScore();
+    if (devZ) {
+      vText += `\n\n${devZ.diffText}\n${devZ.significanceText}`;
+    }
 
     return vText + disclaimerVi;
   };
 
   const renderExpertConclusionDisplay = () => {
-    if (expertBoneAge === '') return null;
+    if (expertBoneAgeYears === '') return null;
     const dateText = xrayDate ? xrayDate : '....';
     const locationText = xrayLocation ? xrayLocation : '....';
     const qualityText = xrayQuality ? xrayQuality : '...';
     
-    const formattedBoneAge = expertBoneAge.replace(',', '.');
-    const dbacFormatted = dbacBoneAge ? dbacBoneAge.replace(',', '.') : '-';
+    const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
+    const dbacPopulated = dbacBoneAgeYears !== '';
+    const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
 
-    const yesFeatures: string[] = [];
-    const noFeatures: string[] = [];
-    if (dbacBoneAge) {
-      Object.entries(dbacSelections).forEach(([key, val]) => {
-        const [mIdx, fIdx] = key.split('-').map(Number);
-        const milestone = currentDbacData[mIdx];
-        const feature = milestone.features[fIdx];
-        const str = `${feature} [${milestone.label}]`;
-        if (val === 'yes') yesFeatures.push(str);
-        if (val === 'no') noFeatures.push(str);
-      });
-      if (dbacOtherFeatures.trim()) {
-        yesFeatures.push(dbacOtherFeatures.trim());
-      }
-    }
+    const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
 
     return (
       <div className="space-y-4">
-        <p className="font-bold whitespace-pre-wrap">BÁO CÁO PHIÊN GIẢI TUỔI XƯƠNG</p>
-        <p className="whitespace-pre-wrap">Dựa trên phim chụp ngày {dateText}, tại {locationText} (Chất lượng phim: {qualityText})<br/>Tuổi thực tại ngày chụp: {realAgeYears} tuổi {realAgeMonths} tháng</p>
+        <p className="font-bold whitespace-pre-wrap">KẾT QUẢ PHIÊN GIẢI TUỔI XƯƠNG</p>
+        <p className="whitespace-pre-wrap">Phim chụp ngày {dateText} tại {locationText} (Chất lượng phim: {qualityText})<br/>Tuổi thực tế (CA) tại ngày chụp: {realAgeYears} tuổi {realAgeMonths} tháng ({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)<br/>Hình thái xương sơ bộ: {hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}</p>
+        <p className="mt-4 font-bold">KẾT QUẢ:</p>
         
         <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-4 mb-6">
           <table className="w-full text-center text-sm text-zinc-800">
@@ -814,8 +1268,8 @@ export default function App() {
               <tr>
                 <td className="px-2 sm:px-4 py-3 border-r border-zinc-200 align-middle">V.Gilsanz và O.Ratib</td>
                 <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
-                  <span className="font-bold text-base text-[#800020]">{expertBoneAge ? formattedBoneAge : '-'}</span>
-                  <span className="text-xs text-zinc-500 ml-1 font-medium">± 0.5</span>
+                  <span className="font-bold text-[#800020]">{expertBoneAgeYears !== '' ? formattedBoneAge : '-'}</span>
+                  <span className="text-zinc-500 ml-1 font-medium">± 0.5</span>
                 </td>
               </tr>
               <tr>
@@ -824,35 +1278,51 @@ export default function App() {
                   <span className="sm:hidden">Cree M. Gaskin</span>
                 </td>
                 <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
-                  <span className="font-bold text-base text-[#800020]">{dbacBoneAge ? dbacFormatted : '-'}</span>
-                  <span className="text-xs text-zinc-500 ml-1 font-medium">± 0.5</span>
+                  <span className="font-bold text-[#800020]">{dbacPopulated ? dbacFormatted : '-'}</span>
+                  <span className="text-zinc-500 ml-1 font-medium">± 0.5</span>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        <p className="whitespace-pre-wrap">Bằng phương pháp đối chiếu Greulich - Pyle, bác sĩ lâm sàng ghi nhận trung bình các xương bàn - ngón tay đang phù hợp với mốc cốt hoá:</p>
-        <p className="whitespace-pre-wrap">* Theo Atlas kĩ thuật số của V.Gilsanz và O.Ratib (ISBN-13: 978-3642237621, Springer, 2011), tuổi xương khoảng mốc: <span className="font-bold text-[#800020]">{formattedBoneAge}</span> +/- 0.5 tuổi</p>
+        <p className="whitespace-pre-wrap">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</p>
+        <p className="whitespace-pre-wrap">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{formattedBoneAge}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</p>
         
-        {dbacBoneAge && (
+        {dbacPopulated && (
           <>
-            <p className="whitespace-pre-wrap">* Theo Atlas thực tế đã chuẩn hoá của nhóm C.M. Gaskin (mốc cốt hoá của Brush Foundation) (ISBN-10: 0199782059, Oxford UP, 2011), tuổi xương khoảng mốc: <span className="font-bold text-[#800020]">{dbacFormatted}</span> +/- 0.5 tuổi.</p>
+            <p className="whitespace-pre-wrap mt-2">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). {`${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd()}</p>
             {yesFeatures.length > 0 && (
               <div className="whitespace-pre-wrap pl-2 mt-2">
-                <span className="font-semibold">- Theo Atlas này, bác sĩ lâm sàng ghi nhận các dấu hiệu đã có sau:</span>
-                {yesFeatures.map((f, i) => <div key={i}>  + {f}</div>)}
+                <span className="font-semibold">+ Các dấu hiệu được ghi nhận:</span> {yesFeatures.join('; ')}
               </div>
             )}
             {noFeatures.length > 0 && (
               <div className="whitespace-pre-wrap pl-2 mt-2">
-                <span className="font-semibold">- Các dấu hiệu sau đây chưa biểu hiện rõ:</span>
-                {noFeatures.map((f, i) => <div key={i}>  + {f}</div>)}
+                <span className="font-semibold">+ Hiện chưa thấy rõ các dấu hiệu sau:</span> {noFeatures.join('; ')}
+              </div>
+            )}
+            {hasAbnormality && (
+              <div className="whitespace-pre-wrap pl-2 mt-2">
+                <span className="font-semibold">+ Bất thường hình thái xương: Có</span>
+                {abnormalityDetails && <div>  Chi tiết: {abnormalityDetails}</div>}
               </div>
             )}
           </>
         )}
-        <p className="whitespace-pre-wrap mt-4 text-sm italic text-zinc-600 text-justify">* Lưu ý: Kết quả tuổi xương được bác sĩ lâm sàng đánh giá trực tiếp, chỉ có ý nghĩa khi được ứng dụng trên từng trường hợp cụ thể.<br />Kết quả có thể có chênh lệnh tuỳ theo người phiên giải và tham chiếu sử dụng.</p>
+        
+        {(() => {
+          const devZ = getDeviationAndZScore();
+          if (!devZ) return null;
+          return (
+            <div className="mt-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-900">
+              <p className="font-semibold">{devZ.diffText}</p>
+              <p className="mt-1">{devZ.significanceText}</p>
+            </div>
+          );
+        })()}
+
+        <p className="whitespace-pre-wrap mt-6 text-sm italic text-zinc-600 text-justify">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</p>
       </div>
     );
   };
@@ -1013,36 +1483,68 @@ export default function App() {
               <label className="text-xs font-semibold text-zinc-400">{'Giới tính'}</label>
               <div className="flex p-1 bg-zinc-900 rounded-lg border border-white/10 h-[42px]">
                 <button 
-                  onClick={() => setGender('boy')}
+                  onClick={() => handleAdminChangeAttempt('boy', setGender)}
                   className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
                 >
                   {'Nam'}
                 </button>
                 <button 
-                  onClick={() => setGender('girl')}
+                  onClick={() => handleAdminChangeAttempt('girl', setGender)}
                   className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
                 >
                   {'Nữ'}
                 </button>
               </div>
             </div>
+            <div className="space-y-1.5 w-full lg:w-auto shrink-0" style={{ maxWidth: '140px' }}>
+              <label className="text-xs font-semibold text-zinc-400">{'Ngày sinh'}</label>
+              <input type="text" placeholder="DD/MM/YYYY" value={dob} onChange={e => {
+                let val = e.target.value.replace(/\D/g, '');
+                if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
+                if (val.length > 5) val = val.substring(0, 5) + '/' + val.substring(5, 9);
+                handleAdminChangeAttempt(val, setDob);
+              }} 
+              onBlur={() => {
+                if (dob.length === 8) {
+                  const parts = dob.split('/');
+                  if (parts.length === 3 && parts[2].length === 2) {
+                    handleAdminChangeAttempt(`${parts[0]}/${parts[1]}/20${parts[2]}`, setDob);
+                  }
+                }
+              }}
+              className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base" maxLength={10} />
+            </div>
             <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
-              <label className="text-xs font-semibold text-zinc-400">{'Tuổi thực'}</label>
+              <label className="text-xs font-semibold text-zinc-400">{'Tuổi thực'} <span className="text-[10px] text-zinc-500 font-normal">({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</span></label>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <input 
-                    type="number" 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={realAgeYears} 
-                    onChange={(e) => setRealAgeYears(Number(e.target.value))}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      let num = val === '' ? 0 : Number(val);
+                      if (num > 19) num = 19;
+                      handleAdminChangeAttempt(num, setRealAgeYears);
+                    }}
                     className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
                   <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
                 </div>
                 <div className="flex-1">
                   <input 
-                    type="number" 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     value={realAgeMonths} 
-                    onChange={(e) => setRealAgeMonths(Number(e.target.value))}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      let num = val === '' ? 0 : Number(val);
+                      if (num > 11) num = 11;
+                      handleAdminChangeAttempt(num, setRealAgeMonths);
+                    }}
                     className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
                   <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
@@ -1057,12 +1559,30 @@ export default function App() {
                     let val = e.target.value.replace(/\D/g, '');
                     if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
                     if (val.length > 5) val = val.substring(0, 5) + '/' + val.substring(5, 9);
-                    setExamDate(val);
-                  }} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" maxLength={10} />
+                    handleAdminChangeAttempt(val, setExamDate);
+                  }} 
+                  onBlur={() => {
+                    if (examDate.length === 8) {
+                      const parts = examDate.split('/');
+                      if (parts.length === 3 && parts[2].length === 2) {
+                        handleAdminChangeAttempt(`${parts[0]}/${parts[1]}/20${parts[2]}`, setExamDate);
+                      }
+                    }
+                  }}
+                  className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" maxLength={10} />
                 </div>
                 <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
                   <label className="text-xs font-semibold text-zinc-400">{'Ngày chụp phim'}</label>
-                  <input type="text" value={xrayDate} onChange={handleDateChange} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  maxLength={10} />
+                  <input type="text" value={xrayDate} onChange={handleDateChange} 
+                  onBlur={() => {
+                    if (xrayDate.length === 8) {
+                      const parts = xrayDate.split('/');
+                      if (parts.length === 3 && parts[2].length === 2) {
+                        setXrayDate(`${parts[0]}/${parts[1]}/20${parts[2]}`);
+                      }
+                    }
+                  }}
+                  className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  maxLength={10} />
                 </div>
                 <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.2] shrink-0 col-span-2 lg:col-span-1">
                   <label className="text-xs font-semibold text-zinc-400">{'Lâm sàng'}</label>
@@ -1078,18 +1598,28 @@ export default function App() {
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <input 
-                      type="number" 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={finalAgeYears} 
-                      onChange={(e) => setFinalAgeYears(e.target.value === '' ? '' : Number(e.target.value))}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setFinalAgeYears(val === '' ? '' : Number(val));
+                      }}
                       className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                     />
                     <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
                   </div>
                   <div className="flex-1">
                     <input 
-                      type="number" 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       value={finalAgeMonths} 
-                      onChange={(e) => setFinalAgeMonths(e.target.value === '' ? '' : Number(e.target.value))}
+                      onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setFinalAgeMonths(val === '' ? '' : Number(val));
+                      }}
                       className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                     />
                     <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
@@ -1102,11 +1632,11 @@ export default function App() {
             <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
               <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0 col-span-2 lg:col-span-1">
                 <label className="text-xs font-semibold text-zinc-400">{'Tên khách hàng'}</label>
-                <input type="text" value={patientName} onChange={e => setPatientName(e.target.value)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
+                <input type="text" value={patientName} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientName)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
               </div>
               <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1] shrink-0">
                 <label className="text-xs font-semibold text-zinc-400">{'Mã khách hàng'}</label>
-                <input type="text" value={patientId} onChange={e => setPatientId(e.target.value)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
+                <input type="text" value={patientId} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientId)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
               </div>
               <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0">
                 <label className="text-xs font-semibold text-zinc-400">{'Nơi chụp'}</label>
@@ -1269,20 +1799,38 @@ export default function App() {
               <div className="flex flex-col gap-1">
                 <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
               </div>
-              <input 
-                type="text" 
-                inputMode="decimal"
-                pattern="[0-9.,]*"
-                value={expertBoneAge} 
-                onChange={e => {
-                  const val = e.target.value;
-                  if (/^[0-9.,]*$/.test(val)) {
-                    setExpertBoneAge(val);
-                  }
-                }} 
-                className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                
-              />
+              <div className="flex items-center gap-2 w-full md:w-auto">
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={expertBoneAgeYears} 
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      setExpertBoneAgeYears(val === '' ? '' : Number(val));
+                    }} 
+                    placeholder="0"
+                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                  />
+                  <span className="text-zinc-300">tuổi</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={expertBoneAgeMonths} 
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      setExpertBoneAgeMonths(val === '' ? '' : Number(val));
+                    }} 
+                    placeholder="0"
+                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                  />
+                  <span className="text-zinc-300">tháng</span>
+                </div>
+              </div>
             </div>
           )}
         </section>
@@ -1464,10 +2012,22 @@ export default function App() {
                   Object.entries(dbacSelections).forEach(([key, val]) => {
                     const [mIdx, fIdx] = key.split('-').map(Number);
                     if (!grouped[mIdx]) grouped[mIdx] = [];
-                    grouped[mIdx].push({ fIdx, val });
+                    grouped[mIdx].push({ fIdx, val: val as 'yes' | 'no' });
                   });
+                  
+                  const summaryParts: string[] = [];
+                  Object.entries(grouped).forEach(([mIdxStr, items]) => {
+                    const mIdx = Number(mIdxStr);
+                    const milestone = currentDbacData[mIdx];
+                    const yesCount = items.filter(x => x.val === 'yes').length;
+                    const totalCount = milestone.features.length;
+                    summaryParts.push(`${yesCount}/${totalCount} tiêu chuẩn mốc ${milestone.label}`);
+                  });
+                  const summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
+
                   return (
                     <div className="space-y-4">
+                      <p className="text-sm text-zinc-300 italic">{summaryText}</p>
                       {Object.keys(grouped).map(mIdxStr => {
                         const mIdx = Number(mIdxStr);
                         const milestone = currentDbacData[mIdx];
@@ -1504,20 +2064,74 @@ export default function App() {
                 <div className="flex flex-col gap-1">
                   <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
                 </div>
-                <input 
-                  type="text" 
-                  inputMode="decimal"
-                  pattern="[0-9.,]*"
-                  value={dbacBoneAge} 
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (/^[0-9.,]*$/.test(val)) {
-                      setDbacBoneAge(val);
-                    }
-                  }} 
-                  className="w-full md:w-48 bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                />
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={dbacBoneAgeYears} 
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      setDbacBoneAgeYears(val === '' ? '' : Number(val));
+                    }} 
+                    placeholder="0"
+                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                  />
+                  <span className="text-zinc-300">tuổi</span>
+                  <input 
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={dbacBoneAgeMonths} 
+                    onChange={e => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      setDbacBoneAgeMonths(val === '' ? '' : Number(val));
+                    }} 
+                    placeholder="0"
+                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                  />
+                  <span className="text-zinc-300">tháng</span>
+                </div>
               </div>
+            </div>
+            {/* Abnormal morphology Section */}
+            <div className="bg-zinc-800/80 backdrop-blur-sm p-4 sm:p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl">
+              <div className="flex items-center justify-between">
+                <label className="text-sm sm:text-base font-semibold text-white tracking-wide">Bất thường hình thái xương:</label>
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="abnormality"
+                      checked={hasAbnormality === true} 
+                      onChange={() => setHasAbnormality(true)}
+                    />
+                    <span className="text-zinc-200">Có</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input 
+                      type="radio" 
+                      name="abnormality"
+                      checked={hasAbnormality === false} 
+                      onChange={() => {
+                        setHasAbnormality(false);
+                        setAbnormalityDetails('');
+                      }}
+                    />
+                    <span className="text-zinc-200">Không</span>
+                  </label>
+                </div>
+              </div>
+              {hasAbnormality && (
+                <div>
+                  <textarea
+                    value={abnormalityDetails}
+                    onChange={e => setAbnormalityDetails(e.target.value)}
+                    placeholder="Mô tả chi tiết các bất thường hình thái xương ghi nhận trên phim..."
+                    className="w-full bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600 min-h-[80px] resize-y"
+                  />
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -1608,7 +2222,7 @@ export default function App() {
 
         {/* Conclusion Section */}
         {isExpertMode ? (
-          expertBoneAge !== '' && (
+          expertBoneAgeYears !== '' && (
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
@@ -1633,6 +2247,19 @@ export default function App() {
                   {renderExpertConclusionDisplay()}
                 </div>
               </div>
+              
+              {/* Separate Card for Chart */}
+              {(() => {
+                const devZ = getDeviationAndZScore();
+                if (devZ && devZ.zScores && devZ.zScores.length > 0) {
+                  return (
+                    <div className="mt-6 p-4 md:p-6 bg-white border border-zinc-200 rounded-2xl shadow-sm">
+                      <NormalDistributionChart zScores={devZ.zScores} />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </section>
           )
         ) : (
@@ -1661,7 +2288,7 @@ export default function App() {
         {isExpertMode && (
           <section className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 shadow-sm mt-8 space-y-4 overflow-hidden">
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-              <h2 className="text-lg font-semibold text-white">Dashboard Thông tin Bệnh nhân</h2>
+              <h2 className="text-lg font-semibold text-white">Danh sách kết quả</h2>
               <div className="flex flex-wrap gap-2 w-full xl:w-auto">
                 <button
                   onClick={handleSavePatient}
@@ -1748,7 +2375,7 @@ export default function App() {
         <section className="max-w-7xl mx-auto mt-8 border-t border-white/10 pt-6 px-4">
           <button 
             onClick={() => setShowRef(!showRef)}
-            className="flex items-center gap-2 text-zinc-400 hover:text-zinc-200 transition-colors text-sm font-medium"
+            className="flex items-center justify-center w-full gap-2 text-zinc-400 hover:text-zinc-200 transition-colors text-sm font-medium"
           >
             <ChevronDown size={16} className={`transition-transform ${showRef ? 'rotate-180' : ''}`} />
             Tài liệu tham khảo và Nguyên lí đánh giá
@@ -1766,6 +2393,7 @@ export default function App() {
                   <p>1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</p>
                   <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
                   <p>3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</p>
+                  <p>4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.</p>
 
                   <div className="mt-6 space-y-3 text-[11px] md:text-xs text-zinc-500 pt-3 border-t border-white/5">
                     <p><strong>Atlas tuổi xương của Gilsanz và Ratib ["rượu mới bình mới"]:</strong> Hình ảnh "lý tưởng hóa" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.</p>
@@ -1777,6 +2405,43 @@ export default function App() {
           </AnimatePresence>
         </section>
       )}
+
+      <AnimatePresence>
+        {pendingAdminChange && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-white/10 p-6 rounded-2xl max-w-md w-full shadow-2xl"
+            >
+              <h3 className="text-xl font-bold text-white mb-2">Tạo ca khám mới?</h3>
+              <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
+                Thay đổi thông tin hành chính (giới tính, họ tên, ...) sẽ <strong className="text-white">làm mới ca khám và xoá kết quả đánh giá hiện tại</strong>. Bạn có chắc chắn muốn tiếp tục?
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={cancelAdminChange}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-zinc-300 hover:text-white hover:bg-zinc-800 transition-colors"
+                >
+                  Huỷ bỏ
+                </button>
+                <button
+                  onClick={confirmAdminChange}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all shadow-lg shadow-red-900/20"
+                >
+                  Đồng ý tạo ca mới
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
