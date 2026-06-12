@@ -8,6 +8,7 @@ import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { ATLAS_DATA, AtlasEntry } from './data';
 import { DBAC_DATA_BOY } from './dbac_data';
+import { DBAC_DATA_GIRL } from './dbac_data_girl';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -136,6 +137,7 @@ export default function App() {
   const [realAgeYears, setRealAgeYears] = useState<number>(8);
   const [realAgeMonths, setRealAgeMonths] = useState<number>(0);
   const [gender, setGender] = useState<'boy' | 'girl'>('girl');
+  const currentDbacData = gender === 'boy' ? DBAC_DATA_BOY : DBAC_DATA_GIRL;
   const [copied, setCopied] = useState(false);
   const [finalAgeYears, setFinalAgeYears] = useState<number | ''>('');
   const [finalAgeMonths, setFinalAgeMonths] = useState<number | ''>('');
@@ -306,7 +308,7 @@ export default function App() {
         } else if (activeAtlasView === 2 && dbacNumPages && dbacPageNumber < dbacNumPages) {
           e.preventDefault();
           setDbacPageNumber(p => p + 1);
-          setDbacIndex(prev => Math.min(DBAC_DATA_BOY.length - 1, prev + 1));
+          setDbacIndex(prev => Math.min(currentDbacData.length - 1, prev + 1));
         }
       }
     };
@@ -370,7 +372,7 @@ export default function App() {
     if (dbacBoneAge) {
       Object.entries(dbacSelections).forEach(([key, val]) => {
         const [mIdx, fIdx] = key.split('-').map(Number);
-        const milestone = DBAC_DATA_BOY[mIdx];
+        const milestone = currentDbacData[mIdx];
         const feature = milestone.features[fIdx];
         const str = `${capitalizeWords(feature)} (mốc ${milestone.label})`;
         if (val === 'yes') yesFeatures.push(str);
@@ -659,11 +661,11 @@ export default function App() {
     }
     setPageNumber(closestPage);
     
-    if (gender === 'boy') {
-      let cIndex = 0;
-      let minD = Math.abs(DBAC_DATA_BOY[0].ageMonths - totalRealAgeMonths);
-      for (let i = 1; i < DBAC_DATA_BOY.length; i++) {
-        const d = Math.abs(DBAC_DATA_BOY[i].ageMonths - totalRealAgeMonths);
+    let cIndex = 0;
+    if (currentDbacData && currentDbacData.length > 0) {
+      let minD = Math.abs(currentDbacData[0].ageMonths - totalRealAgeMonths);
+      for (let i = 1; i < currentDbacData.length; i++) {
+        const d = Math.abs(currentDbacData[i].ageMonths - totalRealAgeMonths);
         if (d < minD) {
           minD = d;
           cIndex = i;
@@ -738,7 +740,7 @@ export default function App() {
       const noFeatures: string[] = [];
       Object.entries(dbacSelections).forEach(([key, val]) => {
         const [mIdx, fIdx] = key.split('-').map(Number);
-        const milestone = DBAC_DATA_BOY[mIdx];
+        const milestone = currentDbacData[mIdx];
         const feature = milestone.features[fIdx];
         const str = `${feature} [${milestone.label}]`;
         if (val === 'yes') yesFeatures.push(str);
@@ -781,7 +783,7 @@ export default function App() {
     if (dbacBoneAge) {
       Object.entries(dbacSelections).forEach(([key, val]) => {
         const [mIdx, fIdx] = key.split('-').map(Number);
-        const milestone = DBAC_DATA_BOY[mIdx];
+        const milestone = currentDbacData[mIdx];
         const feature = milestone.features[fIdx];
         const str = `${feature} [${milestone.label}]`;
         if (val === 'yes') yesFeatures.push(str);
@@ -1286,7 +1288,7 @@ export default function App() {
         </section>
 
         {/* DBAC Section */}
-        {isExpertMode && gender === 'boy' && DBAC_DATA_BOY.length > 0 && (
+        {isExpertMode && currentDbacData.length > 0 && (
           <section className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
@@ -1303,7 +1305,7 @@ export default function App() {
                   <span className="hidden sm:inline">{'Kính lúp'}</span>
                 </button>
                 <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-                  <span className="bg-white/10 px-2 py-1 rounded-md">{DBAC_DATA_BOY[dbacIndex]?.label || ''}</span>
+                  <span className="bg-white/10 px-2 py-1 rounded-md">{currentDbacData[dbacIndex]?.label || ''}</span>
                 </div>
                 <div className="flex gap-2">
                   <button 
@@ -1311,7 +1313,7 @@ export default function App() {
                     onClick={() => {
                       setDbacPageNumber(prev => {
                         const next = prev - 1;
-                        if (next > 0 && next <= DBAC_DATA_BOY.length) {
+                        if (next > 0 && next <= currentDbacData.length) {
                           setDbacIndex(next - 1);
                         }
                         return next;
@@ -1326,7 +1328,7 @@ export default function App() {
                     onClick={() => {
                       setDbacPageNumber(prev => {
                         const next = prev + 1;
-                        if (next > 0 && next <= DBAC_DATA_BOY.length) {
+                        if (next > 0 && next <= currentDbacData.length) {
                           setDbacIndex(next - 1);
                         }
                         return next;
@@ -1358,7 +1360,7 @@ export default function App() {
                       disabled={dbacPageNumber >= dbacNumPages}
                       onClick={() => {
                         setDbacPageNumber(prev => prev + 1);
-                        setDbacIndex(prev => Math.min(DBAC_DATA_BOY.length - 1, prev + 1));
+                        setDbacIndex(prev => Math.min(currentDbacData.length - 1, prev + 1));
                       }}
                       className="absolute right-2 md:right-4 top-1/2 -translate-y-1/2 z-20 p-2 sm:p-3 sm:py-6 bg-black/40 text-white rounded-xl backdrop-blur-sm opacity-50 hover:opacity-100 hover:scale-105 active:scale-95 transition-all disabled:opacity-0"
                     >
@@ -1367,7 +1369,7 @@ export default function App() {
                   </>
                 )}
               <Document
-                file={gender === 'boy' ? '/Male.pdf' : '/Female.pdf'}
+                file={gender === 'boy' ? '/Male.pdf' : '/Female Atlas.pdf'}
                   onLoadSuccess={onDbacDocumentLoadSuccess}
                   loading={
                     <div className="flex flex-col items-center gap-2 text-zinc-400">
@@ -1379,7 +1381,7 @@ export default function App() {
                     <div className="flex flex-col items-center gap-2 text-zinc-400 p-8 text-center">
                       <FileText size={48} className="opacity-20" />
                       <p className="text-sm">
-                        {`Không tìm thấy file ${gender === 'boy' ? 'Male.pdf' : 'Female.pdf'}. Vui lòng đặt file vào thư mục public của dự án.`}
+                        {`Không tìm thấy file ${gender === 'boy' ? 'Male.pdf' : 'Female Atlas.pdf'}. Vui lòng đặt file vào thư mục public của dự án.`}
                       </p>
                     </div>
                   }
@@ -1410,10 +1412,10 @@ export default function App() {
 
               <div className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 flex flex-col h-full overflow-hidden">
                 <h3 className="text-white font-semibold text-sm sm:text-[15px] mb-3 pb-3 border-b border-white/10">
-                  Mốc cốt hoá ứng với <span className="text-yellow-400">{DBAC_DATA_BOY[dbacIndex]?.label}</span> (<span className={gender === 'boy' ? 'text-blue-300' : 'text-pink-300'}>{gender === 'boy' ? 'nam' : 'nữ'}</span>)
+                  Mốc cốt hoá ứng với <span className="text-yellow-400">{currentDbacData[dbacIndex]?.label}</span> (<span className={gender === 'boy' ? 'text-blue-300' : 'text-pink-300'}>{gender === 'boy' ? 'nam' : 'nữ'}</span>)
                 </h3>
                 <ul className="space-y-2 overflow-y-auto pr-2">
-                  {DBAC_DATA_BOY[dbacIndex].features.map((feature, idx) => {
+                  {currentDbacData[dbacIndex].features.map((feature, idx) => {
                     const sKey = `${dbacIndex}-${idx}`;
                     const val = dbacSelections[sKey];
                     return (
@@ -1468,7 +1470,7 @@ export default function App() {
                     <div className="space-y-4">
                       {Object.keys(grouped).map(mIdxStr => {
                         const mIdx = Number(mIdxStr);
-                        const milestone = DBAC_DATA_BOY[mIdx];
+                        const milestone = currentDbacData[mIdx];
                         return (
                           <div key={mIdxStr} className="space-y-3">
                             <h4 className="text-sm font-bold text-indigo-300 bg-indigo-500/20 inline-block px-3 py-1 rounded-lg border border-indigo-500/30">Mốc {milestone.label}</h4>
