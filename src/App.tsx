@@ -533,6 +533,13 @@ export default function App() {
   
   const [expertBoneAgeYears, setExpertBoneAgeYears] = useState<number | ''>(initialDraft.expertBoneAgeYears ?? '');
   const [expertBoneAgeMonths, setExpertBoneAgeMonths] = useState<number | ''>(initialDraft.expertBoneAgeMonths ?? '');
+  const [sauvegrainScore1, setSauvegrainScore1] = useState<number | ''>(initialDraft.sauvegrainScore1 ?? '');
+  const [sauvegrainScore2, setSauvegrainScore2] = useState<number | ''>(initialDraft.sauvegrainScore2 ?? '');
+  const [sauvegrainScore3, setSauvegrainScore3] = useState<number | ''>(initialDraft.sauvegrainScore3 ?? '');
+  const [sauvegrainScore4, setSauvegrainScore4] = useState<number | ''>(initialDraft.sauvegrainScore4 ?? '');
+  const [sauvegrainAgeYears, setSauvegrainAgeYears] = useState<number | ''>(initialDraft.sauvegrainAgeYears ?? '');
+  const [sauvegrainAgeMonths, setSauvegrainAgeMonths] = useState<number | ''>(initialDraft.sauvegrainAgeMonths ?? '');
+  const [isSauvegrainVisible, setIsSauvegrainVisible] = useState<boolean>(false);
   const [xrayDate, setXrayDate] = useState<string>(() => {
     if (initialDraft.xrayDate) return initialDraft.xrayDate;
     const d = new Date();
@@ -556,6 +563,12 @@ export default function App() {
       setAbnormalityDetails('');
       setFinalAgeYears('');
       setFinalAgeMonths('');
+      setSauvegrainScore1('');
+      setSauvegrainScore2('');
+      setSauvegrainScore3('');
+      setSauvegrainScore4('');
+      setSauvegrainAgeYears('');
+      setSauvegrainAgeMonths('');
       setPendingAdminChange(null);
     }
   };
@@ -565,7 +578,7 @@ export default function App() {
   };
 
   const handleAdminChangeAttempt = (newValue: any, updater: Function) => {
-    const hasResults = expertBoneAgeYears !== '' || Object.keys(dbacSelections).length > 0 || (typeof dbacBoneAgeYears === 'number' && dbacBoneAgeYears >= 0) || dbacBoneAgeYears !== '';
+    const hasResults = expertBoneAgeYears !== '' || Object.keys(dbacSelections).length > 0 || (typeof dbacBoneAgeYears === 'number' && dbacBoneAgeYears >= 0) || dbacBoneAgeYears !== '' || sauvegrainAgeYears !== '';
     if (hasResults) {
       setPendingAdminChange({ updater, newValue });
     } else {
@@ -617,6 +630,12 @@ export default function App() {
       abnormalityDetails,
       expertBoneAgeYears,
       expertBoneAgeMonths,
+      sauvegrainScore1,
+      sauvegrainScore2,
+      sauvegrainScore3,
+      sauvegrainScore4,
+      sauvegrainAgeYears,
+      sauvegrainAgeMonths,
       xrayDate,
       xrayLocation,
       xrayQuality
@@ -642,6 +661,12 @@ export default function App() {
     abnormalityDetails,
     expertBoneAgeYears,
     expertBoneAgeMonths,
+    sauvegrainScore1,
+    sauvegrainScore2,
+    sauvegrainScore3,
+    sauvegrainScore4,
+    sauvegrainAgeYears,
+    sauvegrainAgeMonths,
     xrayDate,
     xrayLocation,
     xrayQuality
@@ -720,6 +745,7 @@ export default function App() {
     const dbacPopulated = dbacBoneAgeYears !== '';
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
     const devZ = getDeviationAndZScore();
+    const sauvegrainPopulated = sauvegrainAgeYears !== '';
 
     const doc = new DocxDocument({
       sections: [{
@@ -853,7 +879,25 @@ export default function App() {
                     ],
                   }),
                 ]
-              })
+              }),
+              ...(((realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy')) ? [
+                new TableRow({
+                  children: [
+                    new TableCell({
+                      verticalAlign: VerticalAlign.CENTER,
+                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Sauvegrain (Diméglio cải tiến)", size: 24, font: "Arial" })] })],
+                    }),
+                    new TableCell({
+                      verticalAlign: VerticalAlign.CENTER,
+                      children: [
+                        new Paragraph({ alignment: AlignmentType.CENTER, children: [
+                          new TextRun({ text: sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" })
+                        ] })
+                      ],
+                    }),
+                  ]
+                })
+              ] : [])
             ]
           }),
           new Paragraph({ text: "", spacing: { after: 200 } }),
@@ -917,12 +961,22 @@ export default function App() {
               })] : [])
             ] : [])
           ] : []),
+          ...(sauvegrainPopulated ? [
+            new Paragraph({
+              children: [
+                new TextRun({ text: `- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương `, size: 24, font: "Arial" }),
+                new TextRun({ text: `${sauvegrainAgeYears} tuổi${sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}`, size: 24, font: "Arial", bold: true, color: "800020" }),
+                new TextRun({ text: ` (tổng điểm = ${(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).`, size: 24, font: "Arial" }),
+              ],
+              spacing: { after: 100 }
+            })
+          ] : []),
           ...(devZ ? [
             new Paragraph({ text: "", spacing: { after: 100 } }),
-            new Paragraph({
-              children: [new TextRun({ text: devZ.diffText, size: 24, font: "Arial", bold: true })],
+            ...devZ.diffText.split('\n').map(line => new Paragraph({
+              children: [new TextRun({ text: line, size: 24, font: "Arial", bold: true })],
               spacing: { after: 100 }
-            }),
+            })),
             new Paragraph({
               children: [new TextRun({ text: devZ.significanceText, size: 24, font: "Arial", bold: true })],
               spacing: { after: 100 }
@@ -981,7 +1035,14 @@ export default function App() {
     setGender('boy');
     setFinalAgeYears('');
     setFinalAgeMonths('');
-    setExpertBoneAge('');
+    setExpertBoneAgeYears('');
+    setExpertBoneAgeMonths('');
+    setSauvegrainScore1('');
+    setSauvegrainScore2('');
+    setSauvegrainScore3('');
+    setSauvegrainScore4('');
+    setSauvegrainAgeYears('');
+    setSauvegrainAgeMonths('');
     setXrayDate('');
     setXrayLocation('BVĐK Tâm Anh');
     setXrayQuality('Tốt');
@@ -989,6 +1050,9 @@ export default function App() {
     setDbacSelections({});
     setDbacBoneAgeYears('');
     setDbacBoneAgeMonths('');
+    setDbacOtherFeatures('');
+    setHasAbnormality(false);
+    setAbnormalityDetails('');
     setDbacPageNumber(1);
     setCopied(false);
     setPatientName('');
@@ -1152,7 +1216,7 @@ export default function App() {
       if (diffGm > twoSd) opG = '>'; else if (diffGm < twoSd) opG = '<';
       if (diffDm > twoSd) opD = '>'; else if (diffDm < twoSd) opD = '<';
 
-      diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD) với 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+      diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
 
       const isSig = Math.abs(zG) > 2 || Math.abs(zD) > 2;
       const dirText = maxZ > 0 && minZ > 0 ? 'tăng' : (maxZ < 0 && minZ < 0 ? 'giảm' : 'thay đổi');
@@ -1179,7 +1243,7 @@ export default function App() {
       if (diffMonths > twoSd) op = '>';
       else if (diffMonths < twoSd) op = '<';
 
-      diffText = `Delta (BA-CA) = ${formatSign(rawDiffMonths)} tháng (so atlas ${maxAtlasName}) (${op} 2SD) với 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+      diffText = `Delta (BA-CA) = ${formatSign(rawDiffMonths)} tháng (so atlas ${maxAtlasName}) (${op} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
       
       if (Math.abs(zScore) > 2) {
         significanceText = `Kết luận: Tuổi xương ${rawDiffMonths > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zScore.toFixed(2)}) (Greulich & Pyle, 1959).`;
@@ -1244,6 +1308,8 @@ export default function App() {
     const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
     const dbacPopulated = dbacBoneAgeYears !== '';
     const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
+    const sauvegrainPopulated = sauvegrainAgeYears !== '';
+    const sauvegrainFormatted = sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-';
 
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
 
@@ -1282,6 +1348,16 @@ export default function App() {
                   <span className="text-zinc-500 ml-1 font-medium">± 0.5</span>
                 </td>
               </tr>
+              {((realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy')) && (
+              <tr>
+                <td className="px-2 sm:px-4 py-3 border-r border-zinc-200 align-middle">
+                  Sauvegrain (Diméglio cải tiến)
+                </td>
+                <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
+                  <span className="font-bold text-[#800020]">{sauvegrainPopulated ? sauvegrainFormatted : '-'}</span>
+                </td>
+              </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -1310,13 +1386,17 @@ export default function App() {
             )}
           </>
         )}
+
+        {sauvegrainPopulated && (
+          <p className="whitespace-pre-wrap mt-2">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span className="font-bold text-[#800020]">{sauvegrainAgeYears} tuổi{sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = {(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</p>
+        )}
         
         {(() => {
           const devZ = getDeviationAndZScore();
           if (!devZ) return null;
           return (
             <div className="mt-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-900">
-              <p className="font-semibold">{devZ.diffText}</p>
+              <p className="font-semibold whitespace-pre-wrap">{devZ.diffText}</p>
               <p className="mt-1">{devZ.significanceText}</p>
             </div>
           );
@@ -2136,6 +2216,132 @@ export default function App() {
           </section>
         )}
 
+        {/* Sauvegrain Module */}
+        {isExpertMode && ((realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy')) && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
+                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse shrink-0" />
+                Đối chiếu tuổi xương theo phương pháp Sauvegrain (Diméglio cải tiến)
+              </h2>
+              <button
+                 onClick={() => setIsSauvegrainVisible(!isSauvegrainVisible)}
+                 className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
+              >
+                 {isSauvegrainVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                 {isSauvegrainVisible ? 'Ẩn' : 'Hiện'}
+              </button>
+            </div>
+            
+            <AnimatePresence>
+            {isSauvegrainVisible && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden space-y-6"
+              >
+                <div className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex flex-col lg:flex-row items-stretch min-h-[400px] p-4 md:p-8 gap-8">
+                   
+                   <div className="w-full lg:w-1/2 flex items-center justify-center">
+                     {(sauvegrainScore1 !== '' && sauvegrainScore2 !== '' && sauvegrainScore3 !== '' && sauvegrainScore4 !== '') ? (
+                       <div className="flex flex-col items-center w-full">
+                         <p className="text-center text-sm font-medium text-zinc-400 mb-4">Bảng kết quả đối chiếu tuổi ({gender === 'boy' ? 'Nam' : 'Nữ'}):</p>
+                         <img src={gender === 'boy' ? "/Sauve Boy Result.png" : "/Sauve Girl Result.png"} alt="Kết quả Sauvegrain" className="w-full max-w-xl object-contain rounded-lg" />
+                       </div>
+                     ) : (
+                       <img src="/Sauvegrain 01.jpg" alt="Sauvegrain Methods" className="w-full max-w-xl object-contain rounded-lg" />
+                     )}
+                   </div>
+                   
+                   <div className="w-full lg:w-1/2 bg-zinc-900/80 backdrop-blur border border-white/10 p-6 sm:p-8 rounded-3xl text-white flex flex-col justify-center shadow-2xl">
+                      <div className="flex items-center gap-3 mb-8">
+                        <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                          <Check size={20} className="text-indigo-400" />
+                        </div>
+                        <h3 className="font-bold text-xl text-white">Chấm điểm Sauvegrain</h3>
+                      </div>
+
+                      <div className="flex-1 flex flex-col space-y-4">
+                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                             <div className="flex flex-col flex-1 min-w-0">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">1. Lồi cầu ngoài & mỏm trên lồi cầu</span>
+                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 9 điểm</span>
+                             </div>
+                             <input type="number" min="1" max="9" placeholder="-" value={sauvegrainScore1} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>9)n=9; if(n<1)n=1; setSauvegrainScore1(n); } else setSauvegrainScore1(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                          </div>
+
+                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                             <div className="flex flex-col flex-1 min-w-0">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">2. Ròng rọc thuộc xương cánh tay</span>
+                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 5 điểm</span>
+                             </div>
+                             <input type="number" min="1" max="5" placeholder="-" value={sauvegrainScore2} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>5)n=5; if(n<1)n=1; setSauvegrainScore2(n); } else setSauvegrainScore2(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                          </div>
+
+                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                             <div className="flex flex-col flex-1 min-w-0">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">3. Mỏm khuỷu thuộc xương trụ</span>
+                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 7 điểm</span>
+                             </div>
+                             <input type="number" min="1" max="7" placeholder="-" value={sauvegrainScore3} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>7)n=7; if(n<1)n=1; setSauvegrainScore3(n); } else setSauvegrainScore3(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                          </div>
+
+                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                             <div className="flex flex-col flex-1 min-w-0">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">4. Đầu trên xương quay</span>
+                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 6 điểm</span>
+                             </div>
+                             <input type="number" min="1" max="6" placeholder="-" value={sauvegrainScore4} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>6)n=6; if(n<1)n=1; setSauvegrainScore4(n); } else setSauvegrainScore4(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                          </div>
+                      </div>
+                      
+                      <div className="mt-8 pt-6 border-t border-white/10 flex justify-between items-center">
+                          <span className="font-medium text-lg text-zinc-400">Tổng điểm:</span>
+                          <span className="text-indigo-400 font-bold text-3xl">{(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}</span>
+                      </div>
+                   </div>
+                </div>
+
+                <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl w-full text-white">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-sm md:text-base font-semibold tracking-wide">Kết luận tuổi xương khớp khuỷu (Sauvegrain):</label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={sauvegrainAgeYears} 
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setSauvegrainAgeYears(val === '' ? '' : Number(val));
+                      }} 
+                      placeholder="0"
+                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                    />
+                    <span className="text-zinc-300">tuổi</span>
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={sauvegrainAgeMonths} 
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setSauvegrainAgeMonths(val === '' ? '' : Number(val));
+                      }} 
+                      placeholder="0"
+                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                    />
+                    <span className="text-zinc-300">tháng</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </section>
+        )}
+
         {/* X-ray Section */}
         {false && (
           <section className="space-y-6">
@@ -2243,7 +2449,7 @@ export default function App() {
                 </div>
               </div>
               <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
-                <div className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base">
+                <div className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
                   {renderExpertConclusionDisplay()}
                 </div>
               </div>
@@ -2394,6 +2600,7 @@ export default function App() {
                   <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
                   <p>3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</p>
                   <p>4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.</p>
+                  <p>5. Diméglio, Alain (2005). Accuracy of the Sauvegrain Method in Determining Skeletal Age During Puberty. The Journal of Bone and Joint Surgery (American), 87(8), 1689–. doi:10.2106/JBJS.D.02418</p>
 
                   <div className="mt-6 space-y-3 text-[11px] md:text-xs text-zinc-500 pt-3 border-t border-white/5">
                     <p><strong>Atlas tuổi xương của Gilsanz và Ratib ["rượu mới bình mới"]:</strong> Hình ảnh "lý tưởng hóa" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.</p>
