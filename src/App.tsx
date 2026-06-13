@@ -2149,7 +2149,7 @@ export default function App() {
                             <div className="space-y-2 pl-1">
                               {grouped[mIdx].map(({ fIdx, val }) => (
                                 <div key={fIdx} className="flex items-start gap-3 text-sm">
-                                  <span className={`shrink-0 w-14 text-center font-bold whitespace-nowrap px-2 py-0.5 rounded text-xs mt-0.5 ${val === 'yes' ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20' : 'text-red-400 bg-red-400/10 border border-red-400/20'}`}>{val === 'yes' ? 'Có' : 'Không'}</span>
+                                  <span className={`shrink-0 w-14 text-center font-bold whitespace-nowrap px-2 py-0.5 rounded text-xs mt-0.5 ${val === 'yes' ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20' : val === 'maybe' ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20' : 'text-red-400 bg-red-400/10 border border-red-400/20'}`}>{val === 'yes' ? 'Có' : val === 'maybe' ? 'Có' : 'Không'}</span>
                                   <span className="text-zinc-300 leading-relaxed text-base">{milestone.features[fIdx]}</span>
                                 </div>
                               ))}
