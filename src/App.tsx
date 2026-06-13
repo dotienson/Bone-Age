@@ -335,6 +335,7 @@ export default function App() {
   
   const [realAgeYears, setRealAgeYears] = useState<number>(initialDraft.realAgeYears ?? 8);
   const [realAgeMonths, setRealAgeMonths] = useState<number>(initialDraft.realAgeMonths ?? 0);
+  const [isAgeManuallySet, setIsAgeManuallySet] = useState<boolean>(initialDraft.isAgeManuallySet ?? false);
   const [gender, setGender] = useState<'boy' | 'girl'>(initialDraft.gender ?? 'girl');
   const currentDbacData = gender === 'boy' ? DBAC_DATA_BOY : DBAC_DATA_GIRL;
   const [copied, setCopied] = useState(false);
@@ -613,6 +614,7 @@ export default function App() {
     const draft = {
       realAgeYears,
       realAgeMonths,
+      isAgeManuallySet,
       gender,
       finalAgeYears,
       finalAgeMonths,
@@ -644,6 +646,7 @@ export default function App() {
   }, [
     realAgeYears,
     realAgeMonths,
+    isAgeManuallySet,
     gender,
     finalAgeYears,
     finalAgeMonths,
@@ -1577,13 +1580,24 @@ export default function App() {
               </div>
             </div>
             <div className="space-y-1.5 w-full lg:w-auto shrink-0" style={{ maxWidth: '140px' }}>
-              <label className="text-xs font-semibold text-zinc-400">{'Ngày sinh'}</label>
+              <label className="text-xs font-semibold text-zinc-400 flex items-center justify-between">
+                <span>{'Ngày sinh'}</span>
+                {isAgeManuallySet && (
+                  <button 
+                    onClick={() => setIsAgeManuallySet(false)}
+                    className="text-emerald-500 hover:text-emerald-400 text-[10px] flex items-center gap-1"
+                  >
+                    <Lock size={10} /> Mở khóa
+                  </button>
+                )}
+              </label>
               <input type="text" placeholder="DD/MM/YYYY" value={dob} onChange={e => {
                 let val = e.target.value.replace(/\D/g, '');
                 if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
                 if (val.length > 5) val = val.substring(0, 5) + '/' + val.substring(5, 9);
                 handleAdminChangeAttempt(val, setDob);
               }} 
+              disabled={isAgeManuallySet}
               onBlur={() => {
                 if (dob.length === 8) {
                   const parts = dob.split('/');
@@ -1592,7 +1606,7 @@ export default function App() {
                   }
                 }
               }}
-              className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base" maxLength={10} />
+              className={`w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base ${isAgeManuallySet ? 'opacity-50 cursor-not-allowed' : ''}`} maxLength={10} />
             </div>
             <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
               <label className="text-xs font-semibold text-zinc-400">{'Tuổi thực'} <span className="text-[10px] text-zinc-500 font-normal">({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</span></label>
@@ -1608,6 +1622,7 @@ export default function App() {
                       let num = val === '' ? 0 : Number(val);
                       if (num > 19) num = 19;
                       handleAdminChangeAttempt(num, setRealAgeYears);
+                      setIsAgeManuallySet(true);
                     }}
                     className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
@@ -1624,6 +1639,7 @@ export default function App() {
                       let num = val === '' ? 0 : Number(val);
                       if (num > 11) num = 11;
                       handleAdminChangeAttempt(num, setRealAgeMonths);
+                      setIsAgeManuallySet(true);
                     }}
                     className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
@@ -2222,7 +2238,7 @@ export default function App() {
             <div className="flex items-center justify-between flex-wrap gap-4">
               <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
                 <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse shrink-0" />
-                Đối chiếu tuổi xương theo phương pháp Sauvegrain (Diméglio cải tiến)
+                Đối chiếu tuổi xương theo phương pháp Sauvegrain
               </h2>
               <button
                  onClick={() => setIsSauvegrainVisible(!isSauvegrainVisible)}
@@ -2264,35 +2280,31 @@ export default function App() {
 
                       <div className="flex-1 flex flex-col space-y-4">
                           <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
-                             <div className="flex flex-col flex-1 min-w-0">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">1. Lồi cầu ngoài & mỏm trên lồi cầu</span>
-                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 9 điểm</span>
+                             <div className="flex flex-col flex-1 pr-2">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">1. Lồi cầu ngoài & mỏm trên lồi cầu</span>
                              </div>
-                             <input type="number" min="1" max="9" placeholder="-" value={sauvegrainScore1} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>9)n=9; if(n<1)n=1; setSauvegrainScore1(n); } else setSauvegrainScore1(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                             <input type="number" min="1" max="9" placeholder="1-9" value={sauvegrainScore1} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>9)n=9; if(n<1)n=1; setSauvegrainScore1(n); } else setSauvegrainScore1(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
                           </div>
 
                           <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
-                             <div className="flex flex-col flex-1 min-w-0">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">2. Ròng rọc thuộc xương cánh tay</span>
-                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 5 điểm</span>
+                             <div className="flex flex-col flex-1 pr-2">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">2. Ròng rọc thuộc xương cánh tay</span>
                              </div>
-                             <input type="number" min="1" max="5" placeholder="-" value={sauvegrainScore2} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>5)n=5; if(n<1)n=1; setSauvegrainScore2(n); } else setSauvegrainScore2(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                             <input type="number" min="1" max="5" placeholder="1-5" value={sauvegrainScore2} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>5)n=5; if(n<1)n=1; setSauvegrainScore2(n); } else setSauvegrainScore2(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
                           </div>
 
                           <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
-                             <div className="flex flex-col flex-1 min-w-0">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">3. Mỏm khuỷu thuộc xương trụ</span>
-                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 7 điểm</span>
+                             <div className="flex flex-col flex-1 pr-2">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">3. Mỏm khuỷu thuộc xương trụ</span>
                              </div>
-                             <input type="number" min="1" max="7" placeholder="-" value={sauvegrainScore3} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>7)n=7; if(n<1)n=1; setSauvegrainScore3(n); } else setSauvegrainScore3(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                             <input type="number" min="1" max="7" placeholder="1-7" value={sauvegrainScore3} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>7)n=7; if(n<1)n=1; setSauvegrainScore3(n); } else setSauvegrainScore3(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
                           </div>
 
                           <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
-                             <div className="flex flex-col flex-1 min-w-0">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base truncate">4. Đầu trên xương quay</span>
-                               <span className="text-xs text-zinc-500 mt-1">Giới hạn: 1 - 6 điểm</span>
+                             <div className="flex flex-col flex-1 pr-2">
+                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">4. Đầu trên xương quay</span>
                              </div>
-                             <input type="number" min="1" max="6" placeholder="-" value={sauvegrainScore4} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>6)n=6; if(n<1)n=1; setSauvegrainScore4(n); } else setSauvegrainScore4(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-lg" />
+                             <input type="number" min="1" max="6" placeholder="1-6" value={sauvegrainScore4} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>6)n=6; if(n<1)n=1; setSauvegrainScore4(n); } else setSauvegrainScore4(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
                           </div>
                       </div>
                       
