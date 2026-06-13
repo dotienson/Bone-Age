@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Check, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, CheckCheck, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen } from 'lucide-react';
 import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign, UnderlineType } from 'docx';
 import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -368,7 +368,7 @@ export default function App() {
   const [loginTab, setLoginTab] = useState<'premium' | 'expert'>(initialDraft.loginTab ?? 'premium');
   
   const [dbacIndex, setDbacIndex] = useState(0);
-  const [dbacSelections, setDbacSelections] = useState<Record<string, 'yes' | 'no'>>(initialDraft.dbacSelections ?? {});
+  const [dbacSelections, setDbacSelections] = useState<Record<string, 'yes' | 'maybe' | 'no'>>(initialDraft.dbacSelections ?? {});
   const [dbacOtherFeatures, setDbacOtherFeatures] = useState<string>(initialDraft.dbacOtherFeatures ?? '');
   const [dbacBoneAgeYears, setDbacBoneAgeYears] = useState<number | ''>(initialDraft.dbacBoneAgeYears ?? '');
   const [dbacBoneAgeMonths, setDbacBoneAgeMonths] = useState<number | ''>(initialDraft.dbacBoneAgeMonths ?? '');
@@ -712,25 +712,25 @@ export default function App() {
           const [mIdx, fIdx] = key.split('-').map(Number);
           const milestone = currentDbacData[mIdx];
           const feature = milestone.features[fIdx];
-          const str = `${feature} [${milestone.label}]`;
-          if (val === 'yes') yesFeatures.push(str);
-          if (val === 'no') noFeatures.push(str);
+          if (val === 'yes') yesFeatures.push(`${feature} [${milestone.label}]`);
+          if (val === 'maybe') yesFeatures.push(`${feature} [${milestone.label}] [chưa rõ ràng]`);
+          if (val === 'no') noFeatures.push(`${feature} [${milestone.label}]`);
         });
         if (dbacOtherFeatures.trim()) {
           yesFeatures.push(dbacOtherFeatures.trim());
         }
-        const grouped: Record<number, { val: 'yes'|'no' }[]> = {};
+        const grouped: Record<number, { val: 'yes'|'maybe'|'no' }[]> = {};
         Object.entries(dbacSelections).forEach(([key, val]) => {
           const [mIdx] = key.split('-').map(Number);
           if (!grouped[mIdx]) grouped[mIdx] = [];
-          grouped[mIdx].push({ val: val as 'yes' | 'no' });
+          grouped[mIdx].push({ val: val as 'yes' | 'maybe' | 'no' });
         });
         const summaryParts: string[] = [];
         Object.entries(grouped).forEach(([mIdxStr, items]) => {
           const mIdx = Number(mIdxStr);
           const milestone = currentDbacData[mIdx];
           if (items.length === milestone.features.length) {
-            const yesCount = items.filter(x => x.val === 'yes').length;
+            const yesCount = items.filter(x => x.val === 'yes' || x.val === 'maybe').length;
             summaryParts.push(`${yesCount}/${milestone.features.length} tiêu chuẩn mốc ${milestone.label}`);
           }
         });
@@ -2075,7 +2075,22 @@ export default function App() {
                               }
                               return { ...prev, [sKey]: 'yes' };
                             })}
-                            className={`flex items-center justify-center w-10 py-1.5 rounded-md transition-all ${val === 'yes' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800'}`}
+                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded-md transition-all ${val === 'yes' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800'}`}
+                            title="Có"
+                          >
+                            <CheckCheck size={16} />
+                          </button>
+                          <button
+                            onClick={() => setDbacSelections(prev => {
+                              if (prev[sKey] === 'maybe') {
+                                const next = { ...prev };
+                                delete next[sKey];
+                                return next;
+                              }
+                              return { ...prev, [sKey]: 'maybe' };
+                            })}
+                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded-md transition-all ${val === 'maybe' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800'}`}
+                            title="Nghi ngờ"
                           >
                             <Check size={16} />
                           </button>
@@ -2088,7 +2103,8 @@ export default function App() {
                               }
                               return { ...prev, [sKey]: 'no' };
                             })}
-                            className={`flex items-center justify-center w-10 py-1.5 rounded-md transition-all ${val === 'no' ? 'bg-red-600 text-white shadow-sm' : 'text-zinc-400 hover:text-red-400 hover:bg-zinc-800'}`}
+                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded-md transition-all ${val === 'no' ? 'bg-red-600 text-white shadow-sm' : 'text-zinc-400 hover:text-red-400 hover:bg-zinc-800'}`}
+                            title="Không"
                           >
                             <X size={16} />
                           </button>
@@ -2104,18 +2120,18 @@ export default function App() {
               <div className="bg-zinc-800/80 backdrop-blur-sm p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl space-y-4">
                 <label className="text-base font-semibold text-white tracking-wide block">Tổng kết cụm mốc cốt hoá</label>
                 {Object.entries(dbacSelections).length > 0 && (() => {
-                  const grouped: Record<number, { fIdx: number, val: 'yes' | 'no' }[]> = {};
+                  const grouped: Record<number, { fIdx: number, val: 'yes' | 'maybe' | 'no' }[]> = {};
                   Object.entries(dbacSelections).forEach(([key, val]) => {
                     const [mIdx, fIdx] = key.split('-').map(Number);
                     if (!grouped[mIdx]) grouped[mIdx] = [];
-                    grouped[mIdx].push({ fIdx, val: val as 'yes' | 'no' });
+                    grouped[mIdx].push({ fIdx, val: val as 'yes' | 'maybe' | 'no' });
                   });
                   
                   const summaryParts: string[] = [];
                   Object.entries(grouped).forEach(([mIdxStr, items]) => {
                     const mIdx = Number(mIdxStr);
                     const milestone = currentDbacData[mIdx];
-                    const yesCount = items.filter(x => x.val === 'yes').length;
+                    const yesCount = items.filter(x => x.val === 'yes' || x.val === 'maybe').length;
                     const totalCount = milestone.features.length;
                     summaryParts.push(`${yesCount}/${totalCount} tiêu chuẩn mốc ${milestone.label}`);
                   });
