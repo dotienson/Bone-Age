@@ -2321,6 +2321,7 @@ export default function App() {
                   }
                   
                   const rawScores = [...scores];
+                  const rawIsEvaluated = [...isEvaluated];
                   
                   // NEW LOGIC: Advance the baseline if a higher milestone is significantly achieved (> 25%)
                   let activeMax = -1;
@@ -2344,6 +2345,20 @@ export default function App() {
                      if (rawScores[i-1] > 0.6 && rawScores[i] < 0.2 && rawScores[i+1] > 0.2) {
                         illogicalWarning = true;
                         break;
+                     }
+                  }
+                  
+                  if (!illogicalWarning) {
+                     for (let i = 0; i < currentDbacData.length; i++) {
+                        if (rawIsEvaluated[i] && rawScores[i] < 0.5) {
+                           for (let j = i + 1; j < currentDbacData.length; j++) {
+                              if (rawIsEvaluated[j] && rawScores[j] > 0.2) {
+                                 illogicalWarning = true;
+                                 break;
+                              }
+                           }
+                        }
+                        if (illogicalWarning) break;
                      }
                   }
                   
