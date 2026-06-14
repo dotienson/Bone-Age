@@ -2320,6 +2320,8 @@ export default function App() {
                      }
                   }
                   
+                  const rawScores = [...scores];
+                  
                   // NEW LOGIC: Advance the baseline if a higher milestone is significantly achieved (> 25%)
                   let activeMax = -1;
                   for (let i = currentDbacData.length - 1; i >= 0; i--) {
@@ -2335,6 +2337,14 @@ export default function App() {
                         isEvaluated[j] = true;
                      }
                      minEval = 0;
+                  }
+                  
+                  let illogicalWarning = false;
+                  for (let i = 1; i < currentDbacData.length - 1; i++) {
+                     if (scores[i-1] >= 0.99 && rawScores[i] < 0.2 && rawScores[i+1] > 0.2) {
+                        illogicalWarning = true;
+                        break;
+                     }
                   }
                   
                   let estimatedAgeMonths = 0;
@@ -2377,23 +2387,34 @@ export default function App() {
                   return (
                     <div className="space-y-4">
                       {maxEval !== -1 && estM > 0 && (
-                        <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
+                        <div className={`border rounded-xl p-4 ${illogicalWarning ? 'bg-amber-500/10 border-amber-500/30' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
                           <div className="flex items-center gap-2 mb-2">
-                            <CheckCheck className="text-indigo-400" size={20} />
-                            <h4 className="text-indigo-300 font-semibold">Tự động đề xuất tuổi xương</h4>
+                            <CheckCheck className={illogicalWarning ? "text-amber-400" : "text-indigo-400"} size={20} />
+                            <h4 className={`font-semibold ${illogicalWarning ? "text-amber-300" : "text-indigo-300"}`}>Tự động đề xuất tuổi xương</h4>
                           </div>
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-1 gap-3">
-                            <p className="text-white text-sm">Tuổi xương ước tính (không chính thức): <span className="font-bold text-lg text-emerald-400">{estLabel}</span></p>
-                            <button
-                              onClick={() => {
-                                setDbacBoneAgeYears(estYears);
-                                setDbacBoneAgeMonths(estMonths);
-                              }}
-                              className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
-                            >
-                              <Check size={16} /> Chốt kết quả
-                            </button>
-                          </div>
+                          
+                          {illogicalWarning ? (
+                            <p className="text-amber-400/90 text-sm mt-1 mb-2">Vui lòng xem lại các dấu hiệu! Hệ thống phát hiện sự thiếu logic (có mốc chưa đạt nhưng lại đạt mốc cao hơn).</p>
+                          ) : (
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-1 gap-3">
+                              <p className="text-white text-sm">
+                                <span className="hidden sm:inline">Tuổi xương ước tính (không chính thức): <span className="font-bold text-lg text-emerald-400">{estLabel}</span></span>
+                                <span className="sm:hidden block">
+                                  Tuổi xương ước tính (không chính thức): <br />
+                                  <span className="font-bold text-lg text-emerald-400 uppercase">{estLabel}</span>
+                                </span>
+                              </p>
+                              <button
+                                onClick={() => {
+                                  setDbacBoneAgeYears(estYears);
+                                  setDbacBoneAgeMonths(estMonths);
+                                }}
+                                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
+                              >
+                                <Check size={16} /> Chốt kết quả
+                              </button>
+                            </div>
+                          )}
                           
                           {partialLabels.length > 0 && (
                              <div className="mt-4 space-y-3">
