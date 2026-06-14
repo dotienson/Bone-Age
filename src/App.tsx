@@ -333,7 +333,7 @@ const NormalDistributionChart = ({ zScores }: { zScores: { name: string, z: numb
 export default function App() {
   const initialDraft = useMemo(() => getInitialDraft(), []);
   
-  const [realAgeYears, setRealAgeYears] = useState<number>(initialDraft.realAgeYears ?? 8);
+  const [realAgeYears, setRealAgeYears] = useState<number>(initialDraft.realAgeYears ?? 0);
   const [realAgeMonths, setRealAgeMonths] = useState<number>(initialDraft.realAgeMonths ?? 0);
   const [isAgeManuallySet, setIsAgeManuallySet] = useState<boolean>(initialDraft.isAgeManuallySet ?? false);
   const [gender, setGender] = useState<'boy' | 'girl'>(initialDraft.gender ?? 'girl');
@@ -1047,8 +1047,9 @@ export default function App() {
   };
 
   const handleReset = () => {
-    setRealAgeYears(8);
+    setRealAgeYears(0);
     setRealAgeMonths(0);
+    setIsAgeManuallySet(false);
     setGender('boy');
     setFinalAgeYears('');
     setFinalAgeMonths('');
@@ -1060,7 +1061,9 @@ export default function App() {
     setSauvegrainScore4('');
     setSauvegrainAgeYears('');
     setSauvegrainAgeMonths('');
-    setXrayDate('');
+    const d = new Date();
+    setXrayDate(`${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`);
+    setExamDate(`${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`);
     setXrayLocation('BVĐK Tâm Anh');
     setXrayQuality('Đạt');
     setDbacIndex(0);
@@ -1818,7 +1821,7 @@ export default function App() {
             <div className="mt-6 flex justify-center pb-2">
               <button 
                 onClick={() => setShowConfirmPopup(true)}
-                disabled={!patientName.trim() || !patientId.trim() || !dob.trim()}
+                disabled={!patientName.trim() || !patientId.trim() || (!dob.trim() && !isAgeManuallySet)}
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 Xác nhận & Bắt đầu phân tích
