@@ -353,6 +353,9 @@ export default function App() {
   const [isGpVisible, setIsGpVisible] = useState(true);
   const [isGaskinVisible, setIsGaskinVisible] = useState(true);
 
+  const [isPatientConfirmed, setIsPatientConfirmed] = useState(false);
+  const [showConfirmPopup, setShowConfirmPopup] = useState(false);
+
   const [patientName, setPatientName] = useState(initialDraft.patientName ?? '');
   const [patientId, setPatientId] = useState(initialDraft.patientId ?? '');
   const [dob, setDob] = useState<string>(initialDraft.dob ?? '');
@@ -746,6 +749,8 @@ export default function App() {
   const handleExportWord = async () => {
     if (!isExpertMode) return;
     
+    handleSavePatient();
+    
     // Parse findings
     const dbacPopulated = dbacBoneAgeYears !== '';
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
@@ -1022,7 +1027,14 @@ export default function App() {
     });
 
     Packer.toBlob(doc).then(blob => {
-      saveAs(blob, `TuoiXuong_${patientName || 'BenhNhan'}.docx`);
+      const namePart = patientName.trim() || 'Ten KH';
+      const idPart = patientId.trim() || 'ID';
+      const dobPart = dob.trim().replace(/\//g, '') || 'NgaySinh';
+      const agePart = `${realAgeYears}y${realAgeMonths}m`;
+      const datePart = (xrayDate || '').replace(/\//g, '');
+      const d = new Date();
+      const timePart = `${d.getHours().toString().padStart(2, '0')}h${d.getMinutes().toString().padStart(2, '0')}`;
+      saveAs(blob, `${namePart} ${idPart} ${dobPart} ${agePart} ${datePart} ${timePart} Dr Son.docx`);
     });
   };
 
@@ -1063,6 +1075,8 @@ export default function App() {
     setPatientName('');
     setPatientId('');
     setDob('');
+    setIsPatientConfirmed(false);
+    setShowConfirmPopup(false);
   };
 
   const capitalizeWords = (str: string) => {
@@ -1430,6 +1444,7 @@ export default function App() {
   };
 
   const copyToClipboard = () => {
+    handleSavePatient();
     navigator.clipboard.writeText(isExpertMode ? getExpertConclusion() : getConclusion());
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -1557,17 +1572,40 @@ export default function App() {
           <div className="flex gap-2">
             {isAuthenticated && (
               <>
+                {isExpertMode && (
+                  <>
+                    <button 
+                      onClick={handleSavePatient}
+                      title="Lưu Case"
+                      className="p-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors flex items-center justify-center"
+                    >
+                      <Copy size={18} />
+                    </button>
+                    <button 
+                      onClick={handleExportWord}
+                      title="Xuất Word"
+                      className="p-1.5 rounded-full border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center justify-center"
+                    >
+                      <FileType size={18} />
+                    </button>
+                  </>
+                )}
                 <button 
-                  onClick={handleReset}
+                  onClick={() => {
+                    if(window.confirm('Bạn có chắc chắn muốn reset để tạo ca mới?')) {
+                      handleReset();
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
                   title="Tạo mới"
-                  className="p-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors"
+                  className="p-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors flex items-center justify-center"
                 >
                   <RotateCcw size={18} />
                 </button>
                 <button 
                   onClick={handleLogout}
                   title="Đăng xuất"
-                  className="p-1.5 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                  className="p-1.5 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center"
                 >
                   <LogOut size={18} />
                 </button>
@@ -1765,10 +1803,34 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {/* Action to confirm patient */}
+          {!isPatientConfirmed ? (
+            <div className="mt-6 flex justify-center pb-2">
+              <button 
+                onClick={() => setShowConfirmPopup(true)}
+                disabled={!patientName.trim() || !patientId.trim() || !dob.trim()}
+                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              >
+                Xác nhận & Bắt đầu phân tích
+              </button>
+            </div>
+          ) : (
+            <div className="mt-6 flex justify-center pb-2">
+              <button
+                onClick={() => setIsPatientConfirmed(false)}
+                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-sm transition-colors border border-white/10"
+              >
+                Sửa thông tin hành chính
+              </button>
+            </div>
+          )}
         </section>
 
+        {isPatientConfirmed && (
+        <>
         {/* Atlas Comparison Section */}
-        <section className="space-y-6">
+        <section id="atlas-target" className="space-y-6">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
               <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0" />
@@ -2109,17 +2171,42 @@ export default function App() {
               </div>
 
               <div className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 flex flex-col h-full overflow-hidden">
-                <h3 className="text-white font-semibold text-sm sm:text-[15px] mb-3 pb-3 border-b border-white/10">
-                  Mốc cốt hoá ứng với <span className="text-yellow-400">{currentDbacData[dbacIndex]?.label}</span> (<span className={gender === 'boy' ? 'text-blue-300' : 'text-pink-300'}>{gender === 'boy' ? 'nam' : 'nữ'}</span>)
-                </h3>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 pb-3 border-b border-white/10 gap-2">
+                  <h3 className="text-white font-semibold text-sm sm:text-[15px]">
+                    Mốc cốt hoá ứng với <span className="text-yellow-400">{currentDbacData[dbacIndex]?.label}</span> (<span className={gender === 'boy' ? 'text-blue-300' : 'text-pink-300'}>{gender === 'boy' ? 'nam' : 'nữ'}</span>)
+                  </h3>
+                  <div className="flex gap-2 shrink-0">
+                    <button 
+                      onClick={() => {
+                        const newSels = { ...dbacSelections };
+                        currentDbacData[dbacIndex].features.forEach((_, idx) => newSels[`${dbacIndex}-${idx}`] = 'yes');
+                        setDbacSelections(newSels);
+                      }}
+                      className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                    >
+                      All Có
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const newSels = { ...dbacSelections };
+                        currentDbacData[dbacIndex].features.forEach((_, idx) => newSels[`${dbacIndex}-${idx}`] = 'no');
+                        setDbacSelections(newSels);
+                      }}
+                      className="px-2.5 py-1 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                    >
+                      All Không
+                    </button>
+                  </div>
+                </div>
                 <ul className="space-y-2 overflow-y-auto pr-2">
                   {currentDbacData[dbacIndex].features.map((feature, idx) => {
                     const sKey = `${dbacIndex}-${idx}`;
                     const val = dbacSelections[sKey];
                     return (
-                      <li key={idx} className="flex items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border border-white/5">
+                      <li key={idx} className={`relative flex items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border ${val ? 'border-white/5' : 'border-transparent'}`}>
+                        {!val && <div className="absolute inset-0 rounded-xl border border-red-500/50 animate-pulse pointer-events-none" style={{ animationDuration: '2s' }}></div>}
                         <span className="text-zinc-200 text-[11px] sm:text-xs leading-relaxed flex-1 break-words">{feature}</span>
-                        <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 gap-1 ml-auto">
+                        <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 gap-1 ml-auto relative z-10">
                           <button
                             onClick={() => setDbacSelections(prev => {
                               if (prev[sKey] === 'yes') {
@@ -2190,9 +2277,135 @@ export default function App() {
                     summaryParts.push(`${yesCount}/${totalCount} tiêu chuẩn mốc ${milestone.label}`);
                   });
                   const summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
+                  
+                  // Auto-suggestion logic
+                  let minEval = currentDbacData.length;
+                  let maxEval = -1;
+                  const scores = new Array(currentDbacData.length).fill(0);
+                  const isEvaluated = new Array(currentDbacData.length).fill(false);
+                  
+                  for (let i = 0; i < currentDbacData.length; i++) {
+                     const m = currentDbacData[i];
+                     const total = m.features.length;
+                     if (total === 0) continue;
+                     
+                     let yesCount = 0;
+                     let maybeCount = 0;
+                     let evaluated = false;
+                     
+                     for (let j = 0; j < total; j++) {
+                        const val = dbacSelections[`${i}-${j}`];
+                        if (val !== undefined) evaluated = true;
+                        if (val === 'yes') yesCount++;
+                        else if (val === 'maybe') maybeCount++;
+                     }
+                     
+                     if (evaluated) {
+                        isEvaluated[i] = true;
+                        if (i < minEval) minEval = i;
+                        if (i > maxEval) maxEval = i;
+                        scores[i] = (yesCount + maybeCount * 0.5) / total;
+                     }
+                  }
+                  
+                  // NEW LOGIC: Advance the baseline if a higher milestone is significantly achieved (> 25%)
+                  let activeMax = -1;
+                  for (let i = currentDbacData.length - 1; i >= 0; i--) {
+                     if (isEvaluated[i] && scores[i] > 0.25) {
+                        activeMax = i;
+                        break;
+                     }
+                  }
+                  
+                  if (activeMax > 0) {
+                     for (let j = 0; j < activeMax; j++) {
+                        scores[j] = 1;
+                        isEvaluated[j] = true;
+                     }
+                     minEval = 0;
+                  }
+                  
+                  let estimatedAgeMonths = 0;
+                  let partialLabels: {label: string, score: number, isNext?: boolean}[] = [];
+                  
+                  if (maxEval !== -1) {
+                     const startAge = minEval > 0 ? currentDbacData[minEval - 1].ageMonths : 0;
+                     estimatedAgeMonths = startAge;
+                     
+                     for (let i = minEval; i <= maxEval; i++) {
+                         const prevAge = i > 0 ? currentDbacData[i - 1].ageMonths : 0;
+                         const currentAge = currentDbacData[i].ageMonths;
+                         const delta = currentAge - prevAge;
+                         const p = scores[i] || 0;
+                         estimatedAgeMonths += p * delta;
+                         
+                         if (isEvaluated[i] && p > 0 && p < 1) {
+                            partialLabels.push({ label: currentDbacData[i].label, score: p });
+                         }
+                     }
+                     
+                     if (scores[maxEval] > 0.25 && maxEval < currentDbacData.length - 1) {
+                         const nextIdx = maxEval + 1;
+                         partialLabels.push({ label: currentDbacData[nextIdx].label, score: 0, isNext: true });
+                     } else {
+                         const existing = partialLabels.find(pl => pl.label === currentDbacData[maxEval].label);
+                         if (existing) {
+                             existing.isNext = true;
+                         } else {
+                             partialLabels.push({ label: currentDbacData[maxEval].label, score: 0, isNext: true });
+                         }
+                     }
+                  }
+
+                  const estM = Math.round(estimatedAgeMonths);
+                  const estYears = Math.floor(estM / 12);
+                  const estMonths = estM % 12;
+                  const estLabel = estM > 0 ? `${estYears} tuổi${estMonths > 0 ? ` ${estMonths} tháng` : ''}` : '';
 
                   return (
                     <div className="space-y-4">
+                      {maxEval !== -1 && estM > 0 && (
+                        <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-xl p-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <CheckCheck className="text-indigo-400" size={20} />
+                            <h4 className="text-indigo-300 font-semibold">Tự động đề xuất tuổi xương</h4>
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-1 gap-3">
+                            <p className="text-white text-sm">Tuổi xương ước tính (không chính thức): <span className="font-bold text-lg text-emerald-400">{estLabel}</span></p>
+                            <button
+                              onClick={() => {
+                                setDbacBoneAgeYears(estYears);
+                                setDbacBoneAgeMonths(estMonths);
+                              }}
+                              className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
+                            >
+                              <Check size={16} /> Chốt kết quả
+                            </button>
+                          </div>
+                          
+                          {partialLabels.length > 0 && (
+                             <div className="mt-4 space-y-3">
+                               {partialLabels.map((pl, idx) => (
+                                 <div key={idx}>
+                                   <p className="text-zinc-300 text-sm flex items-center justify-between mb-1">
+                                     <span>Tỉ lệ đạt tiêu chuẩn cho mốc {pl.label}:</span>
+                                     <span className="font-medium text-xs" style={{ color: `hsl(${220 - pl.score * 220}, 80%, 65%)` }}>{Math.round(pl.score * 100)}%</span>
+                                   </p>
+                                   <div className="w-full bg-zinc-900 rounded-full h-2 relative overflow-hidden">
+                                     <div className="h-2 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(255,255,255,0.2)]" style={{ width: `${Math.round(pl.score * 100)}%`, backgroundColor: `hsl(${220 - pl.score * 220}, 80%, 50%)` }}></div>
+                                   </div>
+                                   {pl.isNext && (
+                                     <p className="text-amber-400 text-xs mt-2 italic flex items-center gap-1">
+                                        <Info size={12} className="shrink-0"/> Vui lòng kiểm tra các dấu hiệu của mốc tuổi {pl.label}
+                                     </p>
+                                   )}
+                                 </div>
+                               ))}
+                             </div>
+                          )}
+                        </div>
+                      )}
+                      
                       <p className="text-sm text-zinc-300 italic">{summaryText}</p>
                       {Object.keys(grouped).map(mIdxStr => {
                         const mIdx = Number(mIdxStr);
@@ -2553,37 +2766,7 @@ export default function App() {
           )
         )}
         
-        {/* Sticky Action Footer */}
-        {((isExpertMode && expertBoneAgeYears !== '') || (!isExpertMode && finalAgeYears !== '' && finalAgeMonths !== '')) && (
-          <div className="fixed bottom-0 left-0 right-0 p-3 bg-zinc-900 border-t border-white/10 z-50 flex justify-center gap-2 sm:gap-4 flex-wrap">
-            {isExpertMode && (
-              <button 
-                onClick={handleExportWord}
-                className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors text-sm sm:text-base font-semibold shadow-lg shadow-blue-900/20"
-              >
-                <FileType size={20} /> <span className="hidden sm:inline">Xuất báo cáo</span>
-              </button>
-            )}
-            <button 
-              onClick={copyToClipboard}
-              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm sm:text-base font-semibold shadow-lg shadow-emerald-900/20"
-            >
-              {copied ? <Check size={20} /> : <Copy size={20} />}
-              <span className="hidden sm:inline">{copied ? 'Đã chép' : 'Sao chép kết quả'}</span>
-            </button>
-            <button 
-              onClick={() => {
-                if(window.confirm('Bạn có chắc chắn muốn reset để tạo ca mới?')) {
-                  handleReset();
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }
-              }}
-              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white transition-colors text-sm sm:text-base font-semibold shadow-lg shadow-red-900/20"
-            >
-              <RotateCcw size={20} /> <span className="hidden sm:inline">Tạo ca mới</span>
-            </button>
-          </div>
-        )}
+
 
         {/* Patient Records Dashboard */}
         {isExpertMode && (
@@ -2669,6 +2852,8 @@ export default function App() {
             </div>
           </section>
         )}
+        </>
+        )}
       </main>
 
       {/* Reference Section */}
@@ -2706,6 +2891,60 @@ export default function App() {
             )}
           </AnimatePresence>
         </section>
+      )}
+
+      {showConfirmPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-sm w-full relative">
+            <h3 className="text-xl font-bold text-white mb-6 text-center">Xác nhận thông tin</h3>
+            <div className="space-y-4 text-sm sm:text-base text-zinc-300">
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span>Khách hàng:</span>
+                <span className="font-semibold text-white">{patientName || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span>Mã KH:</span>
+                <span className="font-semibold text-white">{patientId || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
+                <span>Giới tính:</span>
+                <span className="font-bold">{gender === 'boy' ? 'Nam' : 'Nữ'}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span>Ngày sinh:</span>
+                <span className="font-semibold text-white">{dob || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span>Ngày chụp:</span>
+                <span className="font-semibold text-white">{xrayDate || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
+                <span>Tuổi lúc chụp (CA):</span>
+                <span className="font-bold">{realAgeYears} tuổi {realAgeMonths} tháng</span>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => setShowConfirmPopup(false)}
+                className="flex-1 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={() => {
+                  setIsPatientConfirmed(true);
+                  setShowConfirmPopup(false);
+                  setTimeout(() => {
+                    document.getElementById('atlas-target')?.scrollIntoView({ behavior: 'smooth' });
+                  }, 200);
+                }}
+                className="flex-1 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors shadow-lg shadow-emerald-900/20"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <AnimatePresence>
