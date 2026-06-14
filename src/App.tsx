@@ -2341,7 +2341,7 @@ export default function App() {
                   
                   let illogicalWarning = false;
                   for (let i = 1; i < currentDbacData.length - 1; i++) {
-                     if (scores[i-1] >= 0.99 && rawScores[i] < 0.2 && rawScores[i+1] > 0.2) {
+                     if (rawScores[i-1] > 0.6 && rawScores[i] < 0.2 && rawScores[i+1] > 0.2) {
                         illogicalWarning = true;
                         break;
                      }
@@ -2389,8 +2389,10 @@ export default function App() {
                       {maxEval !== -1 && estM > 0 && (
                         <div className={`border rounded-xl p-4 ${illogicalWarning ? 'bg-amber-500/10 border-amber-500/30' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
                           <div className="flex items-center gap-2 mb-2">
-                            <CheckCheck className={illogicalWarning ? "text-amber-400" : "text-indigo-400"} size={20} />
-                            <h4 className={`font-semibold ${illogicalWarning ? "text-amber-300" : "text-indigo-300"}`}>Tự động đề xuất tuổi xương</h4>
+                            {illogicalWarning ? <Info className="text-amber-400" size={20} /> : <CheckCheck className="text-indigo-400" size={20} />}
+                            <h4 className={`font-semibold ${illogicalWarning ? "text-amber-300" : "text-indigo-300"}`}>
+                              {illogicalWarning ? "Cảnh báo logic dữ liệu" : "Tự động đề xuất tuổi xương"}
+                            </h4>
                           </div>
                           
                           {illogicalWarning ? (
