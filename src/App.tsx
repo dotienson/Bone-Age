@@ -350,6 +350,8 @@ export default function App() {
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [xrayImage, setXrayImage] = useState<string | null>(null);
   const [isXrayVisible, setIsXrayVisible] = useState(true);
+  const [isGpVisible, setIsGpVisible] = useState(true);
+  const [isGaskinVisible, setIsGaskinVisible] = useState(true);
 
   const [patientName, setPatientName] = useState(initialDraft.patientName ?? '');
   const [patientId, setPatientId] = useState(initialDraft.patientId ?? '');
@@ -547,7 +549,7 @@ export default function App() {
     return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
   });
   const [xrayLocation, setXrayLocation] = useState<string>(initialDraft.xrayLocation ?? 'BVĐK Tâm Anh');
-  const [xrayQuality, setXrayQuality] = useState<string>(initialDraft.xrayQuality ?? 'Tốt');
+  const [xrayQuality, setXrayQuality] = useState<string>(initialDraft.xrayQuality ?? 'Đạt');
 
   const [pendingAdminChange, setPendingAdminChange] = useState<{updater: Function, newValue: any} | null>(null);
 
@@ -687,7 +689,7 @@ export default function App() {
     setXrayDate(formattedDate);
   };
   
-  const qualityOptions = ['Tốt', 'Đạt', 'Kém', 'Ảnh chụp', 'Tư thế không tối ưu'];
+  const qualityOptions = ['Đạt', 'Tốt', 'Kém', 'Ảnh chụp', 'Tư thế không tối ưu'];
 
   const handlePasscodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -828,7 +830,7 @@ export default function App() {
           }),
           new Paragraph({
             children: [
-              new TextRun({ text: `Chất lượng phim: ${xrayQuality || 'Tốt'}`, size: 24, font: "Arial" }),
+              new TextRun({ text: `Chất lượng phim: ${xrayQuality || 'Đạt'}`, size: 24, font: "Arial" }),
             ],
             spacing: { after: 400 }
           }),
@@ -1048,7 +1050,7 @@ export default function App() {
     setSauvegrainAgeMonths('');
     setXrayDate('');
     setXrayLocation('BVĐK Tâm Anh');
-    setXrayQuality('Tốt');
+    setXrayQuality('Đạt');
     setDbacIndex(0);
     setDbacSelections({});
     setDbacBoneAgeYears('');
@@ -1060,7 +1062,7 @@ export default function App() {
     setCopied(false);
     setPatientName('');
     setPatientId('');
-    setExamDate('');
+    setDob('');
   };
 
   const capitalizeWords = (str: string) => {
@@ -1219,14 +1221,24 @@ export default function App() {
       if (diffGm > twoSd) opG = '>'; else if (diffGm < twoSd) opG = '<';
       if (diffDm > twoSd) opD = '>'; else if (diffDm < twoSd) opD = '<';
 
-      diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
-
-      const isSig = Math.abs(zG) > 2 || Math.abs(zD) > 2;
-      const dirText = maxZ > 0 && minZ > 0 ? 'tăng' : (maxZ < 0 && minZ < 0 ? 'giảm' : 'thay đổi');
-      if (isSig) {
-        significanceText = `Kết luận: Tuổi xương ${dirText} có ý nghĩa lâm sàng (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+      if (gpAgeMonths === dbacAgeMonths) {
+        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (đối chiếu 2 atlas) (${opG} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+        const isSig = Math.abs(zG) > 2;
+        if (isSig) {
+          significanceText = `Kết luận: Tuổi xương ${zG > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zG.toFixed(2)}) (Greulich & Pyle, 1959).`;
+        } else {
+          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zG.toFixed(2)}) (Greulich & Pyle, 1959).`;
+        }
       } else {
-        significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+
+        const isSig = Math.abs(zG) > 2 || Math.abs(zD) > 2;
+        const dirText = maxZ > 0 && minZ > 0 ? 'tăng' : (maxZ < 0 && minZ < 0 ? 'giảm' : 'thay đổi');
+        if (isSig) {
+          significanceText = `Kết luận: Tuổi xương ${dirText} có ý nghĩa lâm sàng (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+        } else {
+          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+        }
       }
     } else {
       let maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
@@ -1397,10 +1409,17 @@ export default function App() {
         {(() => {
           const devZ = getDeviationAndZScore();
           if (!devZ) return null;
+          const isSignificant = devZ.significanceText.includes('có ý nghĩa lâm sàng');
           return (
-            <div className="mt-4 p-4 rounded-xl bg-indigo-50 border border-indigo-100 text-indigo-900">
+            <div className={`mt-4 p-4 rounded-xl border ${isSignificant ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
+              <div className="flex items-center gap-2 mb-1">
+                 {isSignificant ? <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> : <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
+                 <span className={`font-bold uppercase text-xs tracking-wider ${isSignificant ? 'text-amber-700' : 'text-emerald-700'}`}>
+                   {isSignificant ? 'Bất thường / Chú ý' : 'Bình thường'}
+                 </span>
+              </div>
               <p className="font-semibold whitespace-pre-wrap">{devZ.diffText}</p>
-              <p className="mt-1">{devZ.significanceText}</p>
+              <p className="mt-1 font-medium">{devZ.significanceText}</p>
             </div>
           );
         })()}
@@ -1757,7 +1776,14 @@ export default function App() {
               <span className="sm:hidden">So Atlas Vincente & Ratib</span>
             </h2>
             <div className="flex items-center gap-4">
-              {isExpertMode && (
+              <button
+                 onClick={() => setIsGpVisible(!isGpVisible)}
+                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${!isGpVisible ? 'bg-zinc-800 text-zinc-300 border-zinc-600' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+              >
+                 {isGpVisible ? <EyeOff size={16} className="shrink-0" /> : <Eye size={16} className="shrink-0" />}
+                 <span>{isGpVisible ? 'Ẩn' : 'Hiện'}</span>
+              </button>
+              {isGpVisible && isExpertMode && (
                 <button
                   onClick={() => setVicenteViewMode(prev => prev === 'single' ? 'duet' : 'single')}
                   className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
@@ -1766,38 +1792,47 @@ export default function App() {
                   <span>{vicenteViewMode === 'single' ? 'Chế độ Single' : 'Chế độ Duet'}</span>
                 </button>
               )}
-              <button
-                onClick={() => setIsMagnifierActive(!isMagnifierActive)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
-              >
-                <Search size={16} className="shrink-0" />
-                <span className="hidden sm:inline">{'Kính lúp'}</span>
-              </button>
-              <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-                {selectedEntry && (
-                  <span className="bg-white/10 px-2 py-1 rounded-md">{selectedEntry.labelVi}</span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  disabled={pageNumber <= 1}
-                  onClick={() => setPageNumber(prev => prev - 1)}
-                  className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+              {isGpVisible && (
+                <button
+                  onClick={() => setIsMagnifierActive(!isMagnifierActive)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
                 >
-                  <ChevronLeft size={24} />
+                  <Search size={16} className="shrink-0" />
+                  <span className="hidden sm:inline">{'Kính lúp'}</span>
                 </button>
-                <button 
-                  disabled={numPages ? pageNumber >= numPages : false}
-                  onClick={() => setPageNumber(prev => prev + 1)}
-                  className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
-                >
-                  <ChevronRight size={24} />
-                </button>
-              </div>
+              )}
+              {isGpVisible && (
+                <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                  {selectedEntry && (
+                    <span className="bg-white/10 px-2 py-1 rounded-md">{selectedEntry.labelVi}</span>
+                  )}
+                </div>
+              )}
+              {isGpVisible && (
+                <div className="flex gap-2">
+                  <button 
+                    disabled={pageNumber <= 1}
+                    onClick={() => setPageNumber(prev => prev - 1)}
+                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                  >
+                    <ChevronLeft size={24} />
+                  </button>
+                  <button 
+                    disabled={numPages ? pageNumber >= numPages : false}
+                    onClick={() => setPageNumber(prev => prev + 1)}
+                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                  >
+                    <ChevronRight size={24} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-          <div ref={atlas1Ref} className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.15)] bg-zinc-800 flex justify-center items-center min-h-[600px] p-4 md:p-8" style={{ perspective: 1200 }}>
+          <AnimatePresence>
+            {isGpVisible && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
+                <div ref={atlas1Ref} className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.15)] bg-zinc-800 flex justify-center items-center min-h-[600px] p-4 md:p-8" style={{ perspective: 1200 }}>
             {numPages && (
               <>
                 <button 
@@ -1929,6 +1964,9 @@ export default function App() {
               </div>
             </div>
           )}
+          </motion.div>
+          )}
+          </AnimatePresence>
         </section>
 
         {/* DBAC Section */}
@@ -1942,50 +1980,66 @@ export default function App() {
               </h2>
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => setIsDbacMagnifierActive(!isDbacMagnifierActive)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                   onClick={() => setIsGaskinVisible(!isGaskinVisible)}
+                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${!isGaskinVisible ? 'bg-zinc-800 text-zinc-300 border-zinc-600' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
                 >
-                  <Search size={16} className="shrink-0" />
-                  <span className="hidden sm:inline">{'Kính lúp'}</span>
+                   {isGaskinVisible ? <EyeOff size={16} className="shrink-0" /> : <Eye size={16} className="shrink-0" />}
+                   <span>{isGaskinVisible ? 'Ẩn' : 'Hiện'}</span>
                 </button>
-                <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-                  <span className="bg-white/10 px-2 py-1 rounded-md">{currentDbacData[dbacIndex]?.label || ''}</span>
-                </div>
-                <div className="flex gap-2">
-                  <button 
-                    disabled={dbacPageNumber <= 1}
-                    onClick={() => {
-                      setDbacPageNumber(prev => {
-                        const next = prev - 1;
-                        if (next > 0 && next <= currentDbacData.length) {
-                          setDbacIndex(next - 1);
-                        }
-                        return next;
-                      });
-                    }}
-                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                {isGaskinVisible && (
+                  <button
+                    onClick={() => setIsDbacMagnifierActive(!isDbacMagnifierActive)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
                   >
-                    <ChevronLeft size={24} />
+                    <Search size={16} className="shrink-0" />
+                    <span className="hidden sm:inline">{'Kính lúp'}</span>
                   </button>
-                  <button 
-                    disabled={dbacNumPages ? dbacPageNumber >= dbacNumPages : false}
-                    onClick={() => {
-                      setDbacPageNumber(prev => {
-                        const next = prev + 1;
-                        if (next > 0 && next <= currentDbacData.length) {
-                          setDbacIndex(next - 1);
-                        }
-                        return next;
-                      });
-                    }}
-                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
-                  >
-                    <ChevronRight size={24} />
-                  </button>
-                </div>
+                )}
+                {isGaskinVisible && (
+                  <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                    <span className="bg-white/10 px-2 py-1 rounded-md">{currentDbacData[dbacIndex]?.label || ''}</span>
+                  </div>
+                )}
+                {isGaskinVisible && (
+                  <div className="flex gap-2">
+                    <button 
+                      disabled={dbacPageNumber <= 1}
+                      onClick={() => {
+                        setDbacPageNumber(prev => {
+                          const next = prev - 1;
+                          if (next > 0 && next <= currentDbacData.length) {
+                            setDbacIndex(next - 1);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                    >
+                      <ChevronLeft size={24} />
+                    </button>
+                    <button 
+                      disabled={dbacNumPages ? dbacPageNumber >= dbacNumPages : false}
+                      onClick={() => {
+                        setDbacPageNumber(prev => {
+                          const next = prev + 1;
+                          if (next > 0 && next <= currentDbacData.length) {
+                            setDbacIndex(next - 1);
+                          }
+                          return next;
+                        });
+                      }}
+                      className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                    >
+                      <ChevronRight size={24} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
+            <AnimatePresence>
+            {isGaskinVisible && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div ref={atlas2Ref} className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center min-h-[500px] p-4 lg:p-8" style={{ perspective: 1200 }}>
                 {dbacNumPages && (
@@ -2245,6 +2299,9 @@ export default function App() {
                 </div>
               )}
             </div>
+            </motion.div>
+            )}
+            </AnimatePresence>
           </section>
         )}
 
@@ -2460,21 +2517,6 @@ export default function App() {
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={handleExportWord}
-                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-blue-900/10"
-                  >
-                    <FileType size={16} /> <span className="hidden sm:inline">Xuất báo cáo</span>
-                  </button>
-                  <button 
-                    onClick={copyToClipboard}
-                    className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                    <span className="hidden sm:inline">{copied ? 'Đã chép' : 'Sao chép'}</span>
-                  </button>
-                </div>
               </div>
               <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
                 <div className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
@@ -2501,21 +2543,46 @@ export default function App() {
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
-                <button 
-                  onClick={copyToClipboard}
-                  className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10"
-                >
-                  {copied ? <Check size={16} /> : <Copy size={16} />}
-                  <span className="hidden sm:inline">{copied ? 'Đã chép' : 'Sao chép'}</span>
-                </button>
               </div>
-              <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
+              <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group pb-14">
                 <p className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
                   {getConclusion()}
                 </p>
               </div>
             </section>
           )
+        )}
+        
+        {/* Sticky Action Footer */}
+        {((isExpertMode && expertBoneAgeYears !== '') || (!isExpertMode && finalAgeYears !== '' && finalAgeMonths !== '')) && (
+          <div className="fixed bottom-0 left-0 right-0 p-3 bg-zinc-900 border-t border-white/10 z-50 flex justify-center gap-2 sm:gap-4 flex-wrap">
+            {isExpertMode && (
+              <button 
+                onClick={handleExportWord}
+                className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors text-sm sm:text-base font-semibold shadow-lg shadow-blue-900/20"
+              >
+                <FileType size={20} /> <span className="hidden sm:inline">Xuất báo cáo</span>
+              </button>
+            )}
+            <button 
+              onClick={copyToClipboard}
+              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm sm:text-base font-semibold shadow-lg shadow-emerald-900/20"
+            >
+              {copied ? <Check size={20} /> : <Copy size={20} />}
+              <span className="hidden sm:inline">{copied ? 'Đã chép' : 'Sao chép kết quả'}</span>
+            </button>
+            <button 
+              onClick={() => {
+                if(window.confirm('Bạn có chắc chắn muốn reset để tạo ca mới?')) {
+                  handleReset();
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+              className="flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white transition-colors text-sm sm:text-base font-semibold shadow-lg shadow-red-900/20"
+            >
+              <RotateCcw size={20} /> <span className="hidden sm:inline">Tạo ca mới</span>
+            </button>
+          </div>
         )}
 
         {/* Patient Records Dashboard */}
