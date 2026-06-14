@@ -1558,16 +1558,19 @@ export default function App() {
       <header className={`border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-transform duration-300 ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
-              <Dog size={24} className="mr-2 hidden sm:block" />
-              <span className="hidden sm:inline">{t.title}</span>
-              <span className="sm:hidden">DualGP Dr.Son</span>
-            </h1>
-            {isAuthenticated && (
-              <span className={`hidden sm:inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
-                {isExpertMode ? 'PRO' : 'LITE'}
-              </span>
-            )}
+            <div className="flex flex-col">
+              <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
+                <Dog size={24} className="mr-2 hidden sm:block" />
+                <span className="hidden sm:inline">{t.title}</span>
+                <span className="sm:hidden">DualGP Dr.Son</span>
+                {isAuthenticated && (
+                  <span className={`hidden sm:inline-block ml-2 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                    {isExpertMode ? 'PRO' : 'LITE'}
+                  </span>
+                )}
+              </h1>
+              <span className="text-[10px] sm:text-xs text-emerald-600/70 font-medium sm:ml-[32px] -mt-0.5 sm:-mt-1 md:block hidden">Hỗ trợ đọc tuổi xương thủ công</span>
+            </div>
           </div>
           <div className="flex gap-2">
             {isAuthenticated && (
@@ -1678,8 +1681,11 @@ export default function App() {
                       let val = e.target.value.replace(/\D/g, '');
                       let num = val === '' ? 0 : Number(val);
                       if (num > 19) num = 19;
-                      handleAdminChangeAttempt(num, setRealAgeYears);
-                      setIsAgeManuallySet(true);
+                      handleAdminChangeAttempt(num, (v: number) => {
+                        setRealAgeYears(v);
+                        setIsAgeManuallySet(true);
+                        setDob('');
+                      });
                     }}
                     className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
@@ -1695,8 +1701,11 @@ export default function App() {
                       let val = e.target.value.replace(/\D/g, '');
                       let num = val === '' ? 0 : Number(val);
                       if (num > 11) num = 11;
-                      handleAdminChangeAttempt(num, setRealAgeMonths);
-                      setIsAgeManuallySet(true);
+                      handleAdminChangeAttempt(num, (v: number) => {
+                        setRealAgeMonths(v);
+                        setIsAgeManuallySet(true);
+                        setDob('');
+                      });
                     }}
                     className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
                   />
