@@ -2887,8 +2887,12 @@ export default function App() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
-                            onClick={() => handleDeleteRecord(record.id)}
-                            className="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                            onClick={() => {
+                              if (window.confirm('Bạn có chắc chắn muốn xoá ca này không?')) {
+                                handleDeleteRecord(record.id);
+                              }
+                            }}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-1.5 rounded-lg transition-colors"
                             title="Xoá ca này"
                           >
                             <X size={16} />
