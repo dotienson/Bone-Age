@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Check, CheckCheck, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, CheckCheck, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen, Contrast } from 'lucide-react';
 import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign, UnderlineType, ImageRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -16,7 +16,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
-const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds }: { pageNumber: number, width: number, isActive: boolean, cropTopTwoThirds?: boolean }) => {
+const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds, contrast = 1.3 }: { pageNumber: number, width: number, isActive: boolean, cropTopTwoThirds?: boolean, contrast?: number }) => {
   const ZOOM_LEVEL = 2;
   const LOUPE_SIZE = 220;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -77,7 +77,8 @@ const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds }: { pa
             ref={innerRef}
             style={{
               position: 'absolute',
-              willChange: 'left, top'
+              willChange: 'left, top',
+              filter: `contrast(${contrast})`
             }}
           >
             <Page 
@@ -101,7 +102,7 @@ const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds }: { pa
   );
 };
 
-const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean }) => {
+const MagnifiableImage = ({ src, isActive, contrast = 1.3 }: { src: string, isActive: boolean, contrast?: number }) => {
   const ZOOM_LEVEL = 2;
   const LOUPE_SIZE = 200;
   const imgRef = useRef<HTMLImageElement>(null);
@@ -147,6 +148,7 @@ const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean })
             width: LOUPE_SIZE,
             height: LOUPE_SIZE,
             backgroundImage: `url(${src})`,
+            filter: `contrast(${contrast})`,
           }}
         >
           <svg 
@@ -397,6 +399,7 @@ export default function App() {
   const clinicalOptions = ['Sàng lọc dậy thì sớm', 'Đánh giá tăng trưởng', 'Đánh giá bệnh lý', 'Lý do khác'];
   const [isMagnifierActive, setIsMagnifierActive] = useState(false);
   const [isXrayMagnifierActive, setIsXrayMagnifierActive] = useState(false);
+  const [magnifierContrast, setMagnifierContrast] = useState<number>(1.3);
   const [isMobile, setIsMobile] = useState(false);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
@@ -2270,13 +2273,33 @@ export default function App() {
                 </button>
               )}
               {isGpVisible && (
-                <button
-                  onClick={() => setIsMagnifierActive(!isMagnifierActive)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
-                >
-                  <Search size={16} className="shrink-0" />
-                  <span className="hidden sm:inline">{'Kính lúp'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsMagnifierActive(!isMagnifierActive)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                  >
+                    <Search size={16} className="shrink-0" />
+                    <span className="hidden sm:inline">{'Kính lúp'}</span>
+                  </button>
+                  {isMagnifierActive && (
+                    <div className="flex items-center bg-zinc-800 border border-emerald-600/50 rounded-lg overflow-hidden">
+                      <div className="pl-2 pr-1 py-1.5 flex items-center justify-center text-white">
+                        <Contrast size={14} />
+                      </div>
+                      <select
+                        value={magnifierContrast}
+                        onChange={e => setMagnifierContrast(Number(e.target.value))}
+                        className="bg-zinc-800 text-white text-xs px-1 py-1.5 outline-none cursor-pointer border-none"
+                      >
+                        <option value={1.15}>+15%</option>
+                        <option value={1.20}>+20%</option>
+                        <option value={1.25}>+25%</option>
+                        <option value={1.30}>+30%</option>
+                        <option value={1.35}>+35%</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
               )}
               {isGpVisible && (
                 <div className="flex items-center gap-2 text-sm font-medium text-white/70">
@@ -2364,6 +2387,7 @@ export default function App() {
                           width={isMobile ? window.innerWidth - 20 : 800} 
                           isActive={isMagnifierActive} 
                           cropTopTwoThirds={true}
+                          contrast={magnifierContrast}
                         />
                       </div>
                     ) : (
@@ -2377,6 +2401,7 @@ export default function App() {
                               width={500}
                               isActive={isMagnifierActive}
                               cropTopTwoThirds={!isMobile}
+                              contrast={magnifierContrast}
                             />
                           </div>
                         ) : (
@@ -2392,6 +2417,7 @@ export default function App() {
                               width={500}
                               isActive={isMagnifierActive}
                               cropTopTwoThirds={!isMobile}
+                              contrast={magnifierContrast}
                             />
                           </div>
                         ) : (
@@ -2467,13 +2493,33 @@ export default function App() {
                    <span>{isGaskinVisible ? 'Ẩn' : 'Hiện'}</span>
                 </button>
                 {isGaskinVisible && (
-                  <button
-                    onClick={() => setIsDbacMagnifierActive(!isDbacMagnifierActive)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
-                  >
-                    <Search size={16} className="shrink-0" />
-                    <span className="hidden sm:inline">{'Kính lúp'}</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsDbacMagnifierActive(!isDbacMagnifierActive)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                    >
+                      <Search size={16} className="shrink-0" />
+                      <span className="hidden sm:inline">{'Kính lúp'}</span>
+                    </button>
+                    {isDbacMagnifierActive && (
+                      <div className="flex items-center bg-zinc-800 border border-indigo-600/50 rounded-lg overflow-hidden">
+                        <div className="pl-2 pr-1 py-1.5 flex items-center justify-center text-white">
+                          <Contrast size={14} />
+                        </div>
+                        <select
+                          value={magnifierContrast}
+                          onChange={e => setMagnifierContrast(Number(e.target.value))}
+                          className="bg-zinc-800 text-white text-xs px-1 py-1.5 outline-none cursor-pointer border-none"
+                        >
+                          <option value={1.15}>+15%</option>
+                          <option value={1.20}>+20%</option>
+                          <option value={1.25}>+25%</option>
+                          <option value={1.30}>+30%</option>
+                          <option value={1.35}>+35%</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {isGaskinVisible && (
                   <div className="flex items-center gap-2 text-sm font-medium text-white/70">
@@ -2579,6 +2625,7 @@ export default function App() {
                           width={isMobile ? window.innerWidth - 20 : 500} 
                           isActive={isDbacMagnifierActive} 
                           cropTopTwoThirds={false}
+                          contrast={magnifierContrast}
                         />
                         <div className="absolute bottom-1 left-0 right-0 text-center pointer-events-none z-10">
                           <span className="text-[10px] text-black/30 font-medium">Bản dịch của BS. Đỗ Tiến Sơn</span>
@@ -3107,13 +3154,33 @@ export default function App() {
             </h2>
             <div className="flex items-center gap-4">
               {xrayImage && (
-                <button
-                  onClick={() => setIsXrayMagnifierActive(!isXrayMagnifierActive)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isXrayMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
-                >
-                  <Search size={16} className="shrink-0" />
-                  <span className="hidden sm:inline">{'Kính lúp'}</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsXrayMagnifierActive(!isXrayMagnifierActive)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isXrayMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                  >
+                    <Search size={16} className="shrink-0" />
+                    <span className="hidden sm:inline">{'Kính lúp'}</span>
+                  </button>
+                  {isXrayMagnifierActive && (
+                    <div className="flex items-center bg-zinc-800 border border-emerald-600/50 rounded-lg overflow-hidden">
+                      <div className="pl-2 pr-1 py-1.5 flex items-center justify-center text-white">
+                        <Contrast size={14} />
+                      </div>
+                      <select
+                        value={magnifierContrast}
+                        onChange={e => setMagnifierContrast(Number(e.target.value))}
+                        className="bg-zinc-800 text-white text-xs px-1 py-1.5 outline-none cursor-pointer border-none"
+                      >
+                        <option value={1.15}>+15%</option>
+                        <option value={1.20}>+20%</option>
+                        <option value={1.25}>+25%</option>
+                        <option value={1.30}>+30%</option>
+                        <option value={1.35}>+35%</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
               )}
               <button
                 onClick={() => setIsXrayVisible(!isXrayVisible)}
@@ -3154,7 +3221,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="relative group flex justify-center items-center bg-black rounded-xl border border-white/10 overflow-hidden">
-                      <MagnifiableImage src={xrayImage} isActive={isXrayMagnifierActive} />
+                      <MagnifiableImage src={xrayImage} isActive={isXrayMagnifierActive} contrast={magnifierContrast} />
                       <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <label className="cursor-pointer p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg transition-colors">
                           <Camera size={20} />
