@@ -16,7 +16,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
-const MagnifiablePage = ({ pageNumber, width, isActive }: { pageNumber: number, width: number, isActive: boolean }) => {
+const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds }: { pageNumber: number, width: number, isActive: boolean, cropTopTwoThirds?: boolean }) => {
   const ZOOM_LEVEL = 2;
   const LOUPE_SIZE = 220;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -48,7 +48,8 @@ const MagnifiablePage = ({ pageNumber, width, isActive }: { pageNumber: number, 
 
   return (
     <div 
-      className={`relative ${isActive ? 'cursor-none' : ''}`}
+      className={`relative ${isActive ? 'cursor-none' : ''} ${cropTopTwoThirds ? 'overflow-hidden' : ''}`}
+      style={cropTopTwoThirds ? { height: width * 1.35 * 0.67 } : undefined}
       ref={containerRef}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
@@ -1095,6 +1096,248 @@ export default function App() {
     });
   };
 
+  const handleExportPdf = () => {
+    if (!isExpertMode) return;
+    handleSavePatient();
+    
+    // Parse findings
+    const dbacPopulated = dbacBoneAgeYears !== '';
+    const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
+    const devZ = getDeviationAndZScore();
+    const sauvegrainPopulated = sauvegrainAgeYears !== '';
+
+    const renderZScoreChartHTML = (zScores?: {name: string, z: number, color: string}[]) => {
+      if (!zScores || zScores.length === 0) return '';
+      
+      const width = 500;
+      const height = 150;
+      const padding = { top: 20, right: 30, bottom: 40, left: 30 };
+      const innerWidth = width - padding.left - padding.right;
+      const innerHeight = height - padding.top - padding.bottom;
+      
+      const minZ = -4;
+      const maxZ = 4;
+      const range = maxZ - minZ;
+      
+      const getX = (z: number) => padding.left + ((z - minZ) / range) * innerWidth;
+      const getY = (z: number) => {
+        const val = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(z * z) / 2);
+        const maxVal = 1 / Math.sqrt(2 * Math.PI);
+        return padding.top + innerHeight - (val / maxVal) * innerHeight;
+      };
+
+      const points = [];
+      for (let z = minZ; z <= maxZ; z += 0.1) {
+        points.push(`${getX(z)},${getY(z)}`);
+      }
+      points.push(`${getX(maxZ)},${getY(maxZ)}`);
+      const pathData = `M ${points.join(' L ')}`;
+      
+      const fillPoints = [];
+      fillPoints.push(`${getX(-2)},${padding.top + innerHeight}`);
+      for (let z = -2; z <= 2; z += 0.1) {
+        fillPoints.push(`${getX(z)},${getY(z)}`);
+      }
+      fillPoints.push(`${getX(2)},${getY(2)}`);
+      fillPoints.push(`${getX(2)},${padding.top + innerHeight}`);
+      const fillPathData = `M ${fillPoints.join(' L ')} Z`;
+
+      const ticks = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+      const ticksHtml = ticks.map(tick => `
+        <line x1="${getX(tick)}" y1="${padding.top + innerHeight}" x2="${getX(tick)}" y2="${padding.top + innerHeight + 5}" stroke="#000" stroke-width="1.5" />
+        <text x="${getX(tick)}" y="${padding.top + innerHeight + 17}" text-anchor="middle" font-size="11" font-weight="bold" fill="#000">${tick}</text>
+        ${Math.abs(tick) === 2 ? `<text x="${getX(tick)}" y="${padding.top + innerHeight + 30}" text-anchor="middle" font-size="12" font-weight="bold" fill="#000">${tick > 0 ? '+2SD' : '-2SD'}</text>` : ''}
+      `).join('');
+
+      let dotsHtml = zScores.map((zObj) => {
+        const x = getX(zObj.z);
+        const y = getY(zObj.z);
+        const isGaskin = zObj.name === 'Gaskin';
+        if (isGaskin) {
+          return `
+            <circle cx="${x}" cy="${y}" r="6.5" fill="#fff" stroke="#000" stroke-width="2.5" />
+          `;
+        }
+        return `
+          <circle cx="${x}" cy="${y}" r="6.5" fill="#000" stroke="none" />
+        `;
+      }).join('');
+
+      const axisHtml = `<line x1="${padding.left}" y1="${padding.top + innerHeight}" x2="${padding.left + innerWidth}" y2="${padding.top + innerHeight}" stroke="#000" stroke-width="1.5" />`;
+
+      let dropLinesHtml = zScores.map((zObj) => {
+        const x = getX(zObj.z);
+        const y = getY(zObj.z);
+        return `<line x1="${x}" y1="${y}" x2="${x}" y2="${padding.top + innerHeight}" stroke="#666" stroke-width="1.5" stroke-dasharray="3,3" />`;
+      }).join('');
+      
+      let legendHtml = zScores.map((zObj) => {
+        const isGaskin = zObj.name === 'Gaskin';
+        const iconHtml = isGaskin 
+          ? `<svg width="16" height="16" viewBox="0 0 16 16" style="display:block;"><circle cx="8" cy="8" r="6" fill="#fff" stroke="#000" stroke-width="2.5"/></svg>`
+          : `<svg width="16" height="16" viewBox="0 0 16 16" style="display:block;"><circle cx="8" cy="8" r="6.5" fill="#000" stroke="none"/></svg>`;
+        return `
+          <div style="display:flex; align-items:center; gap:6px;">
+            ${iconHtml}
+            <span style="font-size:12px; font-weight:bold; color:#000;">${zObj.name} (Z = ${zObj.z.toFixed(2)})</span>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div style="margin-top: 5mm; margin-bottom: 5mm; text-align:center;">
+          <div style="width:100%; max-width:500px; margin:0 auto;">
+            <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; display:block;">
+              <defs>
+                <pattern id="diagonalHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+                  <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="1" stroke-opacity="0.2" />
+                </pattern>
+              </defs>
+              <path d="${fillPathData}" fill="url(#diagonalHatch)" />
+              ${axisHtml}
+              ${ticksHtml}
+              <path d="${pathData}" fill="none" stroke="#000" stroke-width="2" />
+              ${dropLinesHtml}
+              ${dotsHtml}
+            </svg>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:16px; margin-top:8px;">
+            ${legendHtml}
+          </div>
+          <div style="font-size: 11px; color: #444; margin-top: 6px; font-style: italic;">
+            Z-Score dựa vào Brush data, Stanford (Greulich & Pyle, 1959)
+          </div>
+        </div>
+      `;
+    };
+
+    // Create printable HTML
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow popups to print PDF.");
+      return;
+    }
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Ket qua Tuoi xuong - ${patientName}</title>
+        <style>
+          @page {
+            size: A4;
+            margin: 8mm 12mm;
+          }
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.25;
+            color: #000;
+            margin: 0;
+            padding: 0;
+            font-size: 11.5pt;
+          }
+          .content-box {
+            padding: 2mm 0;
+            box-sizing: border-box;
+          }
+          h1 {
+            text-align: center;
+            font-size: 14pt;
+            font-weight: bold;
+            margin-bottom: 3mm;
+          }
+          .subtitle {
+            text-align: center;
+            font-size: 10.5pt;
+            margin-bottom: 4mm;
+          }
+          .subtitle i { font-style: italic; }
+          .mb-1 { margin-bottom: 1.5mm; }
+          .mb-3 { margin-bottom: 3mm; }
+          .mb-5 { margin-bottom: 4mm; }
+          .font-bold { font-weight: bold; }
+          .text-red { color: #800020; font-weight: bold; }
+          .text-gray { color: #666; font-size: 10pt; }
+          .underline { text-decoration: underline; font-weight: bold; }
+          .signature-section {
+            text-align: right;
+            margin-top: 10mm;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="content-box">
+          <h1>KẾT QUẢ PHÂN TÍCH CHUYÊN SÂU TUỔI XƯƠNG</h1>
+          <div class="subtitle">
+            Bằng phương pháp Greulich & Pyle với 2 Atlas<br/>
+            <i>Gilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)</i>
+          </div>
+
+          <div class="mb-1"><span class="font-bold">Tên khách hàng:</span> ${patientName || '........................................'}</div>
+          <div class="mb-1">Mã khách hàng: ${patientId || '........................................'}</div>
+          <div class="mb-1">Tuổi thực tế (CA) tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</div>
+          <div class="mb-1">Hình thái xương sơ bộ: ${hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}</div>
+          <div class="mb-1">Ngày khám: ${examDate || '........................................'}</div>
+          <div class="mb-1">Lý do đánh giá (Lâm sàng): ${clinicalReason || '........................................'}</div>
+          <div class="mb-5">Chất lượng phim: ${xrayQuality || 'Đạt'}</div>
+
+          <div class="mb-1 font-bold">KẾT QUẢ:</div>
+          <div class="mb-3">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</div>
+          
+          <div class="mb-1">- Tuổi xương ước tính: ${expertBoneAgeYears !== '' ? `<span class="text-red">${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng</span>` : '-'} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</div>
+          
+          ${dbacPopulated ? `
+          <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}</div>
+          
+          ${yesFeatures.length > 0 ? `
+            <div class="mb-1 font-bold">+ Các dấu hiệu được ghi nhận:</div>
+            ${yesFeatures.map(f => `<div class="mb-1" style="padding-left: 20px;">${f}</div>`).join('')}
+          ` : ''}
+
+          ${noFeatures.length > 0 ? `
+            <div class="mb-1">+ Hiện <span class="underline">chưa thấy rõ</span> các dấu hiệu sau:</div>
+            ${noFeatures.map(f => `<div class="mb-1" style="padding-left: 20px;">${f}</div>`).join('')}
+          ` : ''}
+
+          ${hasAbnormality ? `
+            <div class="mb-1 font-bold">+ Bất thường hình thái xương: Có</div>
+            ${abnormalityDetails ? `<div class="mb-1" style="padding-left: 20px;">Chi tiết: ${abnormalityDetails}</div>` : ''}
+          ` : ''}
+          ` : ''}
+
+          ${sauvegrainPopulated ? `
+            <div class="mb-3">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span class="text-red">${sauvegrainAgeYears} tuổi${sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = ${(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</div>
+          ` : ''}
+
+          ${devZ ? `
+            <div class="mb-1 font-bold" style="margin-top: 5mm;">${devZ.diffText.replace(/\\n/g, '<br/>')}</div>
+            <div class="mb-3 font-bold">${devZ.significanceText}</div>
+            ${renderZScoreChartHTML(devZ.zScores)}
+          ` : ''}
+
+          <div class="mb-5" style="text-align: justify; font-style: italic;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
+
+          <div class="signature-section">
+            <div style="font-style: italic; margin-bottom: 20mm;">Bác sĩ chuyên khoa đánh giá</div>
+            <div class="font-bold">ThS.BS. Đỗ Tiến Sơn</div>
+            <div style="margin-top: 2mm;">Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}</div>
+          </div>
+        </div>
+        <script>
+          setTimeout(() => {
+            window.print();
+            window.onfocus = function () { window.close(); }
+          }, 500);
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('boneAgeAuth');
     window.location.reload();
@@ -1689,6 +1932,13 @@ export default function App() {
                     >
                       <FileType size={18} />
                     </button>
+                    <button 
+                      onClick={handleExportPdf}
+                      title="In / Xuất PDF"
+                      className="p-1.5 rounded-full border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors flex items-center justify-center"
+                    >
+                      <FileText size={18} />
+                    </button>
                   </>
                 )}
                 <button 
@@ -1966,7 +2216,7 @@ export default function App() {
           <AnimatePresence>
             {isGpVisible && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
-                <div ref={atlas1Ref} className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.15)] bg-zinc-800 flex justify-center items-center min-h-[600px] p-4 md:p-8" style={{ perspective: 1200 }}>
+                <div ref={atlas1Ref} className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.15)] bg-zinc-800 flex justify-center items-center sm:min-h-[600px] p-0 sm:p-4 md:p-8" style={{ perspective: 1200 }}>
             {numPages && (
               <>
                 <button 
@@ -2018,8 +2268,9 @@ export default function App() {
                       <div className="relative">
                         <MagnifiablePage 
                           pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
-                          width={isMobile ? window.innerWidth - 64 : 600} 
+                          width={isMobile ? window.innerWidth - 20 : 800} 
                           isActive={isMagnifierActive} 
+                          cropTopTwoThirds={true}
                         />
                       </div>
                     ) : (
@@ -2030,12 +2281,13 @@ export default function App() {
                             <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/10 to-transparent z-10 pointer-events-none" />
                             <MagnifiablePage 
                               pageNumber={pageNumber % 2 === 0 ? pageNumber : pageNumber - 1} 
-                              width={400}
+                              width={500}
                               isActive={isMagnifierActive}
+                              cropTopTwoThirds={!isMobile}
                             />
                           </div>
                         ) : (
-                          <div style={{ width: 400 }} className="bg-zinc-100" />
+                          <div style={{ width: 500 }} className="bg-zinc-100" />
                         )}
                         
                         {/* Right Page */}
@@ -2044,12 +2296,13 @@ export default function App() {
                             <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/10 to-transparent z-10 pointer-events-none" />
                             <MagnifiablePage 
                               pageNumber={pageNumber % 2 === 0 ? pageNumber + 1 : pageNumber} 
-                              width={400}
+                              width={500}
                               isActive={isMagnifierActive}
+                              cropTopTwoThirds={!isMobile}
                             />
                           </div>
                         ) : (
-                          <div style={{ width: 400 }} className="bg-zinc-100" />
+                          <div style={{ width: 500 }} className="bg-zinc-100" />
                         )}
                       </>
                     )}
@@ -2175,7 +2428,7 @@ export default function App() {
             {isGaskinVisible && (
               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div ref={atlas2Ref} className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center min-h-[500px] p-4 lg:p-8" style={{ perspective: 1200 }}>
+              <div ref={atlas2Ref} className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center sm:min-h-[500px] p-0 sm:p-4 lg:p-8" style={{ perspective: 1200 }}>
                 {dbacNumPages && (
                   <>
                     <button 
@@ -2230,8 +2483,9 @@ export default function App() {
                       >
                         <MagnifiablePage 
                           pageNumber={Math.max(1, Math.min(dbacPageNumber, dbacNumPages))} 
-                          width={isMobile ? window.innerWidth - 64 : 500} 
+                          width={isMobile ? window.innerWidth - 20 : 500} 
                           isActive={isDbacMagnifierActive} 
+                          cropTopTwoThirds={false}
                         />
                         <div className="absolute bottom-1 left-0 right-0 text-center pointer-events-none z-10">
                           <span className="text-[10px] text-black/30 font-medium">Bản dịch của BS. Đỗ Tiến Sơn</span>
@@ -2856,19 +3110,19 @@ export default function App() {
                   const shortText = `${boneAgeSummary} ${devZ.shortDeltaText}`;
                   return (
                     <div className="p-4 md:p-6 bg-indigo-50/10 border border-indigo-500/30 rounded-2xl relative group">
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(shortText);
-                          alert('Đã sao chép kết luận rút gọn!');
-                        }}
-                        className="absolute top-4 right-4 p-2 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 rounded-full transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
-                        title="Sao chép kết luận rút gọn"
-                      >
-                        <Copy size={16} />
-                      </button>
                       <div className="text-indigo-50 leading-relaxed font-sans text-sm md:text-base">
                         <span className="font-bold text-indigo-300 mr-2">Kết luận rút gọn:</span>
                         {shortText}
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(shortText);
+                            alert('Đã sao chép kết luận rút gọn!');
+                          }}
+                          className="inline-flex items-center ml-2 p-1.5 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 rounded-md transition-colors shadow-sm align-middle"
+                          title="Sao chép kết luận rút gọn"
+                        >
+                          <Copy size={16} />
+                        </button>
                       </div>
                     </div>
                   );
