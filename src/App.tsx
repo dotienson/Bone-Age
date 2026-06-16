@@ -3458,11 +3458,16 @@ export default function App() {
                 <span className="font-bold text-right">{realAgeYears} tuổi {realAgeMonths} tháng</span>
               </div>
               <div className="border-b border-zinc-800 pb-2 flex flex-col space-y-1">
-                <span className="text-zinc-500 text-sm">Kết luận rút gọn (Z-Score):</span>
+                <span className="text-zinc-500 text-sm">Kết luận rút gọn:</span>
                 <span className="font-medium text-white break-words mt-1">
                   {(() => {
                     const devZ = getDeviationAndZScore();
-                    return devZ ? devZ.shortDeltaText : '-';
+                    if (!devZ) return '-';
+                    const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
+                    const dbacPopulated = dbacBoneAgeYears !== '';
+                    const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
+                    const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted} (Gaskin et al).`;
+                    return `${boneAgeSummary} ${devZ.shortDeltaText}`;
                   })()}
                 </span>
               </div>
