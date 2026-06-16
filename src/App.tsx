@@ -2282,22 +2282,17 @@ export default function App() {
                     <span className="hidden sm:inline">{'Kính lúp'}</span>
                   </button>
                   {isMagnifierActive && (
-                    <div className="flex items-center bg-zinc-800 border border-emerald-600/50 rounded-lg overflow-hidden">
-                      <div className="pl-2 pr-1 py-1.5 flex items-center justify-center text-white">
-                        <Contrast size={14} />
-                      </div>
-                      <select
-                        value={magnifierContrast}
-                        onChange={e => setMagnifierContrast(Number(e.target.value))}
-                        className="bg-zinc-800 text-white text-xs px-1 py-1.5 outline-none cursor-pointer border-none"
-                      >
-                        <option value={1.15}>+15%</option>
-                        <option value={1.20}>+20%</option>
-                        <option value={1.25}>+25%</option>
-                        <option value={1.30}>+30%</option>
-                        <option value={1.35}>+35%</option>
-                      </select>
-                    </div>
+                    <select
+                      value={magnifierContrast}
+                      onChange={e => setMagnifierContrast(Number(e.target.value))}
+                      className="bg-zinc-800 text-white text-xs rounded-lg px-2 py-1.5 border border-emerald-600/50 outline-none cursor-pointer"
+                    >
+                      <option value={1.15}>+15%</option>
+                      <option value={1.20}>+20%</option>
+                      <option value={1.25}>+25%</option>
+                      <option value={1.30}>+30%</option>
+                      <option value={1.35}>+35%</option>
+                    </select>
                   )}
                 </div>
               )}
@@ -2502,22 +2497,17 @@ export default function App() {
                       <span className="hidden sm:inline">{'Kính lúp'}</span>
                     </button>
                     {isDbacMagnifierActive && (
-                      <div className="flex items-center bg-zinc-800 border border-indigo-600/50 rounded-lg overflow-hidden">
-                        <div className="pl-2 pr-1 py-1.5 flex items-center justify-center text-white">
-                          <Contrast size={14} />
-                        </div>
-                        <select
-                          value={magnifierContrast}
-                          onChange={e => setMagnifierContrast(Number(e.target.value))}
-                          className="bg-zinc-800 text-white text-xs px-1 py-1.5 outline-none cursor-pointer border-none"
-                        >
-                          <option value={1.15}>+15%</option>
-                          <option value={1.20}>+20%</option>
-                          <option value={1.25}>+25%</option>
-                          <option value={1.30}>+30%</option>
-                          <option value={1.35}>+35%</option>
-                        </select>
-                      </div>
+                      <select
+                        value={magnifierContrast}
+                        onChange={e => setMagnifierContrast(Number(e.target.value))}
+                        className="bg-zinc-800 text-white text-xs rounded-lg px-2 py-1.5 border border-indigo-600/50 outline-none cursor-pointer"
+                      >
+                        <option value={1.15}>+15%</option>
+                        <option value={1.20}>+20%</option>
+                        <option value={1.25}>+25%</option>
+                        <option value={1.30}>+30%</option>
+                        <option value={1.35}>+35%</option>
+                      </select>
                     )}
                   </div>
                 )}
@@ -3163,22 +3153,17 @@ export default function App() {
                     <span className="hidden sm:inline">{'Kính lúp'}</span>
                   </button>
                   {isXrayMagnifierActive && (
-                    <div className="flex items-center bg-zinc-800 border border-emerald-600/50 rounded-lg overflow-hidden">
-                      <div className="pl-2 pr-1 py-1.5 flex items-center justify-center text-white">
-                        <Contrast size={14} />
-                      </div>
-                      <select
-                        value={magnifierContrast}
-                        onChange={e => setMagnifierContrast(Number(e.target.value))}
-                        className="bg-zinc-800 text-white text-xs px-1 py-1.5 outline-none cursor-pointer border-none"
-                      >
-                        <option value={1.15}>+15%</option>
-                        <option value={1.20}>+20%</option>
-                        <option value={1.25}>+25%</option>
-                        <option value={1.30}>+30%</option>
-                        <option value={1.35}>+35%</option>
-                      </select>
-                    </div>
+                    <select
+                      value={magnifierContrast}
+                      onChange={e => setMagnifierContrast(Number(e.target.value))}
+                      className="bg-zinc-800 text-white text-xs rounded-lg px-2 py-1.5 border border-emerald-600/50 outline-none cursor-pointer"
+                    >
+                      <option value={1.15}>+15%</option>
+                      <option value={1.20}>+20%</option>
+                      <option value={1.25}>+25%</option>
+                      <option value={1.30}>+30%</option>
+                      <option value={1.35}>+35%</option>
+                    </select>
                   )}
                 </div>
               )}
