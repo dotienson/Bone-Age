@@ -18,7 +18,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
-const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds, contrast = 1.3 }: { pageNumber: number, width: number, isActive: boolean, cropTopTwoThirds?: boolean, contrast?: number }) => {
+const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds }: { pageNumber: number, width: number, isActive: boolean, cropTopTwoThirds?: boolean }) => {
   const ZOOM_LEVEL = 2;
   const LOUPE_SIZE = 220;
   const containerRef = useRef<HTMLDivElement>(null);
@@ -80,7 +80,6 @@ const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds, contra
             style={{
               position: 'absolute',
               willChange: 'left, top',
-              filter: `contrast(${contrast})`
             }}
           >
             <Page 
@@ -104,7 +103,7 @@ const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds, contra
   );
 };
 
-const MagnifiableImage = ({ src, isActive, contrast = 1.3 }: { src: string, isActive: boolean, contrast?: number }) => {
+const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean }) => {
   const ZOOM_LEVEL = 2;
   const LOUPE_SIZE = 200;
   const imgRef = useRef<HTMLImageElement>(null);
@@ -150,7 +149,6 @@ const MagnifiableImage = ({ src, isActive, contrast = 1.3 }: { src: string, isAc
             width: LOUPE_SIZE,
             height: LOUPE_SIZE,
             backgroundImage: `url(${src})`,
-            filter: `contrast(${contrast})`,
           }}
         >
           <svg 
@@ -401,7 +399,6 @@ export default function App() {
   const clinicalOptions = ['Sàng lọc dậy thì sớm', 'Đánh giá tăng trưởng', 'Đánh giá bệnh lý', 'Lý do khác'];
   const [isMagnifierActive, setIsMagnifierActive] = useState(false);
   const [isXrayMagnifierActive, setIsXrayMagnifierActive] = useState(false);
-  const [magnifierContrast, setMagnifierContrast] = useState<number>(1.3);
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -2325,19 +2322,6 @@ export default function App() {
                     <Search size={16} className="shrink-0" />
                     <span className="hidden sm:inline">{'Kính lúp'}</span>
                   </button>
-                  {isMagnifierActive && (
-                    <select
-                      value={magnifierContrast}
-                      onChange={e => setMagnifierContrast(Number(e.target.value))}
-                      className="bg-zinc-800 text-white text-xs rounded-lg px-2 py-1.5 border border-emerald-600/50 outline-none cursor-pointer"
-                    >
-                      <option value={1.15}>+15%</option>
-                      <option value={1.20}>+20%</option>
-                      <option value={1.25}>+25%</option>
-                      <option value={1.30}>+30%</option>
-                      <option value={1.35}>+35%</option>
-                    </select>
-                  )}
                 </div>
               )}
               {isGpVisible && (
@@ -2426,10 +2410,9 @@ export default function App() {
                             pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
                             width={isStacked ? Math.min(600, window.innerWidth - 48) : Math.min(xrayImage ? 600 : 800, (window.innerWidth - 48) * (xrayImage ? 0.5 : 0.65))} 
                             isActive={isMagnifierActive} 
-                            cropTopTwoThirds={true}
-                            contrast={magnifierContrast}
+                            cropTopTwoThirds={!!xrayImage}
                           />
-                          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-10 backdrop-blur-md border border-white/20 pointer-events-none whitespace-nowrap shadow-lg">
+                          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-10 backdrop-blur-md pointer-events-none whitespace-nowrap shadow-lg">
                             Mốc tham chiếu {selectedEntry?.labelVi}, {gender === 'boy' ? 'Nam' : 'Nữ'}
                           </div>
                         </div>
@@ -2437,8 +2420,8 @@ export default function App() {
                         <div className={`relative ${isStacked ? 'w-full' : (xrayImage ? 'w-1/2' : 'w-[300px] shrink-0')} min-w-0 flex justify-center items-center overflow-hidden group rounded-xl border border-white/20 shadow-2xl ${xrayImage ? 'bg-black' : 'border-dashed bg-zinc-800/20 backdrop-blur-xl min-h-[400px]'}`}>
                            {xrayImage ? (
                              <>
-                               <MagnifiableImage src={xrayImage} isActive={isMagnifierActive} contrast={magnifierContrast} />
-                               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-10 backdrop-blur-md border border-white/20 pointer-events-none whitespace-nowrap shadow-lg">
+                               <MagnifiableImage src={xrayImage} isActive={isMagnifierActive} />
+                               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-10 backdrop-blur-md pointer-events-none whitespace-nowrap shadow-lg">
                                  Phim chụp của trẻ
                                </div>
                                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
@@ -2468,7 +2451,6 @@ export default function App() {
                           width={isMobile ? window.innerWidth - 20 : 800} 
                           isActive={isMagnifierActive} 
                           cropTopTwoThirds={true}
-                          contrast={magnifierContrast}
                         />
                       </div>
                     ) : (
@@ -2482,7 +2464,6 @@ export default function App() {
                               width={500}
                               isActive={isMagnifierActive}
                               cropTopTwoThirds={!isMobile}
-                              contrast={magnifierContrast}
                             />
                           </div>
                         ) : (
@@ -2498,7 +2479,6 @@ export default function App() {
                               width={500}
                               isActive={isMagnifierActive}
                               cropTopTwoThirds={!isMobile}
-                              contrast={magnifierContrast}
                             />
                           </div>
                         ) : (
@@ -2582,19 +2562,6 @@ export default function App() {
                       <Search size={16} className="shrink-0" />
                       <span className="hidden sm:inline">{'Kính lúp'}</span>
                     </button>
-                    {isDbacMagnifierActive && (
-                      <select
-                        value={magnifierContrast}
-                        onChange={e => setMagnifierContrast(Number(e.target.value))}
-                        className="bg-zinc-800 text-white text-xs rounded-lg px-2 py-1.5 border border-indigo-600/50 outline-none cursor-pointer"
-                      >
-                        <option value={1.15}>+15%</option>
-                        <option value={1.20}>+20%</option>
-                        <option value={1.25}>+25%</option>
-                        <option value={1.30}>+30%</option>
-                        <option value={1.35}>+35%</option>
-                      </select>
-                    )}
                   </div>
                 )}
                 {isGaskinVisible && (
@@ -2701,7 +2668,6 @@ export default function App() {
                           width={isMobile ? window.innerWidth - 20 : 500} 
                           isActive={isDbacMagnifierActive} 
                           cropTopTwoThirds={false}
-                          contrast={magnifierContrast}
                         />
                         <div className="absolute bottom-1 left-0 right-0 text-center pointer-events-none z-10">
                           <span className="text-[10px] text-black/30 font-medium">Bản dịch của BS. Đỗ Tiến Sơn</span>
@@ -3238,19 +3204,6 @@ export default function App() {
                     <Search size={16} className="shrink-0" />
                     <span className="hidden sm:inline">{'Kính lúp'}</span>
                   </button>
-                  {isXrayMagnifierActive && (
-                    <select
-                      value={magnifierContrast}
-                      onChange={e => setMagnifierContrast(Number(e.target.value))}
-                      className="bg-zinc-800 text-white text-xs rounded-lg px-2 py-1.5 border border-emerald-600/50 outline-none cursor-pointer"
-                    >
-                      <option value={1.15}>+15%</option>
-                      <option value={1.20}>+20%</option>
-                      <option value={1.25}>+25%</option>
-                      <option value={1.30}>+30%</option>
-                      <option value={1.35}>+35%</option>
-                    </select>
-                  )}
                 </div>
               )}
               <button
@@ -3292,7 +3245,7 @@ export default function App() {
                     </div>
                   ) : (
                     <div className="relative group flex justify-center items-center bg-black rounded-xl border border-white/10 overflow-hidden">
-                      <MagnifiableImage src={xrayImage} isActive={isXrayMagnifierActive} contrast={magnifierContrast} />
+                      <MagnifiableImage src={xrayImage} isActive={isXrayMagnifierActive} />
                       <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                         <label className="cursor-pointer p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg transition-colors">
                           <Camera size={20} />
