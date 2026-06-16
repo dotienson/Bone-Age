@@ -503,7 +503,7 @@ export default function App() {
     const day = now.getDate().toString().padStart(2, '0');
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const year = now.getFullYear();
-    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} DualGP Dr.Son.json`;
+    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} ProBA.json`;
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", fileName);
@@ -2041,8 +2041,8 @@ export default function App() {
             <div className="flex flex-col">
               <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
                 <Dog size={24} className="mr-2 hidden sm:block" />
-                <span className="hidden sm:inline">{t.title}</span>
-                <span className="sm:hidden">DualGP Dr.Son</span>
+                <span className="hidden sm:inline">ProBA 3.1 - Bác sĩ Sơn</span>
+                <span className="sm:hidden">ProBA 3.1</span>
                 {isAuthenticated && (
                   <span className={`hidden sm:inline-block ml-2 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
                     {isExpertMode ? 'PRO' : 'LITE'}
