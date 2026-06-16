@@ -407,6 +407,8 @@ export default function App() {
 
   const [isPatientConfirmed, setIsPatientConfirmed] = useState(false);
   const [showConfirmPopup, setShowConfirmPopup] = useState(false);
+  const [exportAction, setExportAction] = useState<'docx' | 'pdf' | 'reset' | null>(null);
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
 
   const [patientName, setPatientName] = useState(initialDraft.patientName ?? '');
   const [patientId, setPatientId] = useState(initialDraft.patientId ?? '');
@@ -1273,115 +1275,13 @@ export default function App() {
     const devZ = getDeviationAndZScore();
     const sauvegrainPopulated = sauvegrainAgeYears !== '';
 
-    const getZScoreChartSVGString = (zScores?: {name: string, z: number, color: string}[]) => {
-      if (!zScores || zScores.length === 0) return '';
-      const width = 500;
-      const height = 190;
-      const padding = { top: 20, right: 30, bottom: 80, left: 30 };
-      const innerWidth = width - padding.left - padding.right;
-      const innerHeight = height - padding.top - padding.bottom;
-      
-      const minZ = -4;
-      const maxZ = 4;
-      const range = maxZ - minZ;
-      
-      const getX = (z: number) => padding.left + ((z - minZ) / range) * innerWidth;
-      const getY = (z: number) => {
-        const val = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(z * z) / 2);
-        const maxVal = 1 / Math.sqrt(2 * Math.PI);
-        return padding.top + innerHeight - (val / maxVal) * innerHeight;
-      };
-
-      const points = [];
-      for (let z = minZ; z <= maxZ; z += 0.1) {
-        points.push(`${getX(z)},${getY(z)}`);
-      }
-      points.push(`${getX(maxZ)},${getY(maxZ)}`);
-      const pathData = `M ${points.join(' L ')}`;
-      
-      const fillPoints = [];
-      fillPoints.push(`${getX(-2)},${padding.top + innerHeight}`);
-      for (let z = -2; z <= 2; z += 0.1) {
-        fillPoints.push(`${getX(z)},${getY(z)}`);
-      }
-      fillPoints.push(`${getX(2)},${getY(2)}`);
-      fillPoints.push(`${getX(2)},${padding.top + innerHeight}`);
-      const fillPathData = `M ${fillPoints.join(' L ')} Z`;
-
-      const ticks = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
-      const ticksHtml = ticks.map(tick => `
-        <line x1="${getX(tick)}" y1="${padding.top + innerHeight}" x2="${getX(tick)}" y2="${padding.top + innerHeight + 5}" stroke="#000" stroke-width="1.5" />
-        <text x="${getX(tick)}" y="${padding.top + innerHeight + 17}" text-anchor="middle" font-size="11" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick}</text>
-        ${Math.abs(tick) === 2 ? `<text x="${getX(tick)}" y="${padding.top + innerHeight + 30}" text-anchor="middle" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick > 0 ? '+2SD' : '-2SD'}</text>` : ''}
-      `).join('');
-
-      let dotsHtml = zScores.map((zObj) => {
-        const x = getX(zObj.z);
-        const y = getY(zObj.z);
-        const isGaskin = zObj.name === 'Gaskin';
-        if (isGaskin) {
-          return `
-            <circle cx="${x}" cy="${y}" r="6.5" fill="#fff" stroke="#000" stroke-width="2.5" />
-          `;
-        }
-        return `
-          <circle cx="${x}" cy="${y}" r="6.5" fill="#000" stroke="none" />
-        `;
-      }).join('');
-
-      const axisHtml = `<line x1="${padding.left}" y1="${padding.top + innerHeight}" x2="${padding.left + innerWidth}" y2="${padding.top + innerHeight}" stroke="#000" stroke-width="1.5" />`;
-
-      let dropLinesHtml = zScores.map((zObj) => {
-        const x = getX(zObj.z);
-        const y = getY(zObj.z);
-        return `<line x1="${x}" y1="${y}" x2="${x}" y2="${padding.top + innerHeight}" stroke="#666" stroke-width="1.5" stroke-dasharray="3,3" />`;
-      }).join('');
-      
-      const legendY = padding.top + innerHeight + 55;
-      
-      // Calculate total width of legend to center it
-      // Gaskin: ~ 120px, GP: ~ 120px
-      // A simple layout:
-      const legendHtml = zScores.map((zObj, idx) => {
-        const isGaskin = zObj.name === 'Gaskin';
-        const startX = (width / 2) + (idx === 0 ? -120 : 20); // rough centering for 2 items
-        const iconSvg = isGaskin 
-          ? `<circle cx="${startX + 10}" cy="${legendY - 4}" r="5" fill="#fff" stroke="#000" stroke-width="2.5"/>`
-          : `<circle cx="${startX + 10}" cy="${legendY - 4}" r="5.5" fill="#000" stroke="none"/>`;
-        return `
-          ${iconSvg}
-          <text x="${startX + 22}" y="${legendY}" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${zObj.name} (Z = ${zObj.z.toFixed(2)})</text>
-        `;
-      }).join('');
-
-      const footerHtml = `<text x="${width/2}" y="${legendY + 20}" text-anchor="middle" font-size="11" fill="#444" font-style="italic" font-family="Arial, sans-serif">Z-Score dựa vào Brush data, Stanford (Greulich & Pyle, 1959)</text>`;
-
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color: white; font-family: Arial, sans-serif;">
-          <defs>
-            <pattern id="diagonalHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
-              <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="1" stroke-opacity="0.2" />
-            </pattern>
-          </defs>
-          <path d="${fillPathData}" fill="url(#diagonalHatch)" />
-          ${axisHtml}
-          ${ticksHtml}
-          <path d="${pathData}" fill="none" stroke="#000" stroke-width="2" />
-          ${dropLinesHtml}
-          ${dotsHtml}
-          ${legendHtml}
-          ${footerHtml}
-        </svg>
-      `;
-    };
-
     const renderZScoreChartHTML = (zScores?: {name: string, z: number, color: string}[]) => {
       const svgStr = getZScoreChartSVGString(zScores);
       if (!svgStr) return '';
       return `
         <div style="margin-top: 5mm; margin-bottom: 5mm; text-align:center;">
           <div style="width:100%; max-width:500px; margin:0 auto;">
-            ${svgStr.replace(/width="[0-9]+"/, 'style="width: 100%; height: auto; display: block;"').replace(/height="[0-9]+"/, '')}
+            ${svgStr}
           </div>
         </div>
       `;
@@ -1486,7 +1386,7 @@ export default function App() {
           ` : ''}
 
           ${devZ ? `
-            <div class="mb-1 font-bold" style="margin-top: 5mm;">${devZ.diffText.replace(/\\n/g, '<br/>')}</div>
+            <div class="mb-1 font-bold" style="margin-top: 5mm;">${devZ.diffText.replace(/\n/g, '<br/>')}</div>
             <div class="mb-3 font-bold">${devZ.significanceText}</div>
             ${renderZScoreChartHTML(devZ.zScores)}
           ` : ''}
@@ -1517,6 +1417,23 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('boneAgeAuth');
     window.location.reload();
+  };
+
+  const promptExportConfirm = (action: 'docx' | 'pdf' | 'reset') => {
+    setExportAction(action);
+    setShowExportConfirm(true);
+  };
+
+  const handleConfirmExportAction = () => {
+    if (exportAction === 'docx') {
+      handleExportWord();
+    } else if (exportAction === 'pdf') {
+      handleExportPdf();
+    } else if (exportAction === 'reset') {
+      handleReset();
+    }
+    setShowExportConfirm(false);
+    setExportAction(null);
   };
 
   const handleReset = () => {
@@ -3300,6 +3217,27 @@ export default function App() {
                           <Copy size={16} />
                         </button>
                       </div>
+                      
+                      <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-indigo-500/20">
+                        <button 
+                          onClick={() => promptExportConfirm('docx')}
+                          className="flex items-center px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-blue-900/20"
+                        >
+                          <FileType size={16} className="mr-2" /> Xuất Word
+                        </button>
+                        <button 
+                          onClick={() => promptExportConfirm('pdf')}
+                          className="flex items-center px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-rose-900/20"
+                        >
+                          <FileText size={16} className="mr-2" /> Xuất PDF
+                        </button>
+                        <button 
+                          onClick={() => promptExportConfirm('reset')}
+                          className="flex items-center px-4 py-2.5 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-zinc-900/20 md:ml-auto"
+                        >
+                          <RotateCcw size={16} className="mr-2" /> Reset ca nhập
+                        </button>
+                      </div>
                     </div>
                   );
                 }
@@ -3500,6 +3438,56 @@ export default function App() {
                 className="flex-1 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors shadow-lg shadow-emerald-900/20"
               >
                 Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-zinc-900 border border-zinc-700/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-sm sm:max-w-md w-full relative">
+            <h3 className="text-xl font-bold text-white mb-6 text-center">Xác nhận thao tác</h3>
+            <div className="space-y-4 text-sm sm:text-base text-zinc-300">
+              <div className="flex justify-between border-b border-zinc-800 pb-2">
+                <span>Khách hàng:</span>
+                <span className="font-semibold text-white truncate max-w-[200px] text-right">{patientName || '-'}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
+                <span>Tuổi lúc chụp (CA):</span>
+                <span className="font-bold text-right">{realAgeYears} tuổi {realAgeMonths} tháng</span>
+              </div>
+              <div className="border-b border-zinc-800 pb-2 flex flex-col space-y-1">
+                <span className="text-zinc-500 text-sm">Kết luận rút gọn (Z-Score):</span>
+                <span className="font-medium text-white break-words mt-1">
+                  {(() => {
+                    const devZ = getDeviationAndZScore();
+                    return devZ ? devZ.shortDeltaText : '-';
+                  })()}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-8">
+              <button
+                onClick={() => {
+                  setShowExportConfirm(false);
+                  setExportAction(null);
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium transition-colors"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleConfirmExportAction}
+                className={`flex-[1.5] px-4 py-2.5 rounded-xl text-white font-bold transition-colors shadow-lg ${
+                  exportAction === 'docx' ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20' :
+                  exportAction === 'pdf' ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/20' :
+                  'bg-zinc-600 hover:bg-zinc-500 shadow-zinc-900/20'
+                }`}
+              >
+                {exportAction === 'docx' ? 'Xuất Word' :
+                 exportAction === 'pdf' ? 'Xuất PDF' :
+                 'Xác nhận Làm mới'}
               </button>
             </div>
           </div>
