@@ -2305,7 +2305,11 @@ export default function App() {
               </button>
               {isGpVisible && isExpertMode && (
                 <button
-                  onClick={() => setVicenteViewMode(prev => prev === 'single' ? 'duet' : prev === 'duet' ? 'compare' : 'single')}
+                  onClick={() => setVicenteViewMode(prev => {
+                    if (prev === 'single') return isMobile ? 'compare' : 'duet';
+                    if (prev === 'duet') return 'compare';
+                    return 'single';
+                  })}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
                 >
                   {vicenteViewMode === 'single' ? <Eye size={16} className="shrink-0" /> : vicenteViewMode === 'duet' ? <BookOpen size={16} className="shrink-0" /> : <Columns size={16} className="shrink-0" />}
@@ -2410,7 +2414,7 @@ export default function App() {
                             pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
                             width={isStacked ? Math.min(600, window.innerWidth - 48) : Math.min(xrayImage ? 600 : 800, (window.innerWidth - 48) * (xrayImage ? 0.5 : 0.65))} 
                             isActive={isMagnifierActive} 
-                            cropTopTwoThirds={!!xrayImage}
+                            cropTopTwoThirds={isMobile ? true : !!xrayImage}
                           />
                           <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-10 backdrop-blur-md pointer-events-none whitespace-nowrap shadow-lg">
                             Mốc tham chiếu {selectedEntry?.labelVi}, {gender === 'boy' ? 'Nam' : 'Nữ'}
