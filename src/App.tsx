@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronLeft, ChevronRight, Copy, Check, CheckCheck, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen, Contrast } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Copy, Check, CheckCheck, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen, Contrast, Columns, FlipHorizontal, FlipVertical } from 'lucide-react';
 import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign, UnderlineType, ImageRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, AreaChart, Area, ReferenceArea } from 'recharts';
+import Cropper from 'react-easy-crop';
+import { getCroppedImg } from './utils/cropImage';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { ATLAS_DATA, AtlasEntry } from './data';
@@ -48,8 +50,8 @@ const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds, contra
 
   return (
     <div 
-      className={`relative ${isActive ? 'cursor-none' : ''} ${cropTopTwoThirds ? 'overflow-hidden' : ''}`}
-      style={cropTopTwoThirds ? { height: width * 1.35 * 0.67 } : undefined}
+      className={`relative ${isActive ? 'cursor-none' : ''} ${cropTopTwoThirds ? 'overflow-hidden' : ''} flex-shrink-0`}
+      style={cropTopTwoThirds ? { height: width * 1.35 * 0.67, width } : { width }}
       ref={containerRef}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
@@ -401,9 +403,19 @@ export default function App() {
   const [isXrayMagnifierActive, setIsXrayMagnifierActive] = useState(false);
   const [magnifierContrast, setMagnifierContrast] = useState<number>(1.3);
   const [isMobile, setIsMobile] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [pageNumber, setPageNumber] = useState<number>(1);
   const [xrayImage, setXrayImage] = useState<string | null>(null);
+  const [unprocessedXrayImage, setUnprocessedXrayImage] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [flipH, setFlipH] = useState(false);
+  const [flipV, setFlipV] = useState(false);
+  const [aspect, setAspect] = useState<number>(1);
+  const [originalAspect, setOriginalAspect] = useState<number>(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const [isXrayVisible, setIsXrayVisible] = useState(true);
   const [isGpVisible, setIsGpVisible] = useState(true);
   const [isGaskinVisible, setIsGaskinVisible] = useState(true);
@@ -445,7 +457,7 @@ export default function App() {
   const atlas1Ref = useRef<HTMLDivElement>(null);
   const atlas2Ref = useRef<HTMLDivElement>(null);
   const [activeAtlasView, setActiveAtlasView] = useState<1 | 2 | null>(null);
-  const [vicenteViewMode, setVicenteViewMode] = useState<'single' | 'duet'>('single');
+  const [vicenteViewMode, setVicenteViewMode] = useState<'single' | 'duet' | 'compare'>('single');
 
   const [patientRecords, setPatientRecords] = useState<PatientRecord[]>(() => {
     const auth = localStorage.getItem('boneAgeAuth');
@@ -1480,10 +1492,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const checkViewport = () => {
+      setIsMobile(window.innerWidth < 768);
+      setIsPortrait(window.innerHeight > window.innerWidth);
+    };
+    checkViewport();
+    window.addEventListener('resize', checkViewport);
+    return () => window.removeEventListener('resize', checkViewport);
   }, []);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
@@ -1923,11 +1938,39 @@ export default function App() {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setXrayImage(reader.result as string);
+        setUnprocessedXrayImage(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
+
+  const onCropComplete = (croppedArea: any, pixels: any) => {
+    setCroppedAreaPixels(pixels);
+  };
+
+  const handleApplyCrop = async () => {
+    if (unprocessedXrayImage && croppedAreaPixels) {
+      const croppedImage = await getCroppedImg(unprocessedXrayImage, croppedAreaPixels, rotation, { horizontal: flipH, vertical: flipV });
+      setXrayImage(croppedImage);
+      setUnprocessedXrayImage(null);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
+      setRotation(0);
+      setFlipH(false);
+      setFlipV(false);
+    }
+  };
+
+  const handleCancelCrop = () => {
+    setUnprocessedXrayImage(null);
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setRotation(0);
+    setFlipH(false);
+    setFlipV(false);
+  };
+
+  const isStacked = isMobile || isPortrait;
 
   return (
     <div className={`min-h-screen transition-colors duration-500 font-sans selection:bg-emerald-500/30 ${gender === 'boy' ? 'bg-blue-900' : 'bg-pink-900'}`}>
@@ -2265,11 +2308,12 @@ export default function App() {
               </button>
               {isGpVisible && isExpertMode && (
                 <button
-                  onClick={() => setVicenteViewMode(prev => prev === 'single' ? 'duet' : 'single')}
-                  className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                  onClick={() => setVicenteViewMode(prev => prev === 'single' ? 'duet' : prev === 'duet' ? 'compare' : 'single')}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
                 >
-                  {vicenteViewMode === 'single' ? <Eye size={16} className="shrink-0" /> : <BookOpen size={16} className="shrink-0" />}
-                  <span>{vicenteViewMode === 'single' ? 'Chế độ Single' : 'Chế độ Duet'}</span>
+                  {vicenteViewMode === 'single' ? <Eye size={16} className="shrink-0" /> : vicenteViewMode === 'duet' ? <BookOpen size={16} className="shrink-0" /> : <Columns size={16} className="shrink-0" />}
+                  <span className="hidden sm:inline">{vicenteViewMode === 'single' ? 'Chế độ Single' : vicenteViewMode === 'duet' ? 'Chế độ Duet' : 'Chế độ Compare'}</span>
+                  <span className="sm:hidden">{vicenteViewMode === 'single' ? 'Single' : vicenteViewMode === 'duet' ? 'Duet' : 'Compare'}</span>
                 </button>
               )}
               {isGpVisible && (
@@ -2368,14 +2412,56 @@ export default function App() {
                 {numPages && (
                   <motion.div
                     key={Math.min(pageNumber, numPages)}
-                    initial={isMobile ? { opacity: 0 } : { opacity: 0, rotateY: 15, scale: 0.95 }}
-                    animate={isMobile ? { opacity: 1 } : { opacity: 1, rotateY: 0, scale: 1 }}
-                    exit={isMobile ? { opacity: 0 } : { opacity: 0, rotateY: -15, scale: 0.95 }}
+                    initial={isStacked ? { opacity: 0 } : { opacity: 0, rotateY: 15, scale: 0.95 }}
+                    animate={isStacked ? { opacity: 1 } : { opacity: 1, rotateY: 0, scale: 1 }}
+                    exit={isStacked ? { opacity: 0 } : { opacity: 0, rotateY: -15, scale: 0.95 }}
                     transition={{ duration: 0.4, ease: "easeInOut" }}
-                    className="flex shadow-2xl bg-white origin-center"
-                    style={{ transformStyle: isMobile || vicenteViewMode === 'single' ? 'flat' : 'preserve-3d' }}
+                    className={`flex origin-center ${vicenteViewMode === 'compare' ? (isStacked ? 'flex-col w-full max-w-[600px] gap-4' : 'flex-row w-full max-w-[1200px] gap-4') : 'shadow-2xl bg-white overflow-hidden rounded-xl border border-white/20'}`}
+                    style={{ transformStyle: vicenteViewMode === 'duet' && !isStacked ? 'preserve-3d' : 'flat' }}
                   >
-                    {isMobile || vicenteViewMode === 'single' ? (
+                    {vicenteViewMode === 'compare' ? (
+                      <>
+                        <div className={`relative ${isStacked ? 'w-full' : (xrayImage ? 'w-1/2' : 'flex-1 max-w-[800px]')} shrink-0 min-w-0 flex justify-center bg-white items-center overflow-hidden rounded-xl border border-white/20 shadow-2xl`}>
+                          <MagnifiablePage 
+                            pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
+                            width={isStacked ? Math.min(600, window.innerWidth - 48) : Math.min(xrayImage ? 600 : 800, (window.innerWidth - 48) * (xrayImage ? 0.5 : 0.65))} 
+                            isActive={isMagnifierActive} 
+                            cropTopTwoThirds={true}
+                            contrast={magnifierContrast}
+                          />
+                          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-10 backdrop-blur-md border border-white/20 pointer-events-none whitespace-nowrap shadow-lg">
+                            Mốc tham chiếu {selectedEntry?.labelVi}, {gender === 'boy' ? 'Nam' : 'Nữ'}
+                          </div>
+                        </div>
+                        
+                        <div className={`relative ${isStacked ? 'w-full' : (xrayImage ? 'w-1/2' : 'w-[300px] shrink-0')} min-w-0 flex justify-center items-center overflow-hidden group rounded-xl border border-white/20 shadow-2xl ${xrayImage ? 'bg-black' : 'border-dashed bg-zinc-800/20 backdrop-blur-xl min-h-[400px]'}`}>
+                           {xrayImage ? (
+                             <>
+                               <MagnifiableImage src={xrayImage} isActive={isMagnifierActive} contrast={magnifierContrast} />
+                               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/40 text-white px-3 py-1.5 rounded-lg text-sm font-medium z-10 backdrop-blur-md border border-white/20 pointer-events-none whitespace-nowrap shadow-lg">
+                                 Phim chụp của trẻ
+                               </div>
+                               <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                 <label className="cursor-pointer p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg shadow-lg transition-colors">
+                                   <Camera size={20} />
+                                   <input type="file" accept="image/*" onChange={handleXrayUpload} className="hidden" />
+                                 </label>
+                                 <button onClick={() => setXrayImage(null)} className="p-2 bg-red-600 hover:bg-red-500 text-white rounded-lg shadow-lg transition-colors">
+                                   <X size={20} />
+                                 </button>
+                               </div>
+                             </>
+                           ) : (
+                             <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/20 rounded-xl cursor-pointer hover:border-emerald-500/50 hover:bg-white/5 transition-all text-white/70 w-[80%] my-8">
+                               <Camera size={48} className="mb-4 opacity-50" />
+                               <span className="text-center font-medium">Tải lên X-quang của trẻ</span>
+                               <span className="text-center text-sm opacity-50 mt-2">Nhấp để chọn ảnh chụp</span>
+                               <input type="file" accept="image/*" onChange={handleXrayUpload} className="hidden" />
+                             </label>
+                           )}
+                        </div>
+                      </>
+                    ) : isMobile || vicenteViewMode === 'single' ? (
                       <div className="relative">
                         <MagnifiablePage 
                           pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
@@ -3587,6 +3673,96 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Crop Modal */}
+      {unprocessedXrayImage && (
+        <div className="fixed inset-0 z-[200] flex flex-col bg-black/90 backdrop-blur-md items-center justify-center p-4">
+          <div className="relative w-full h-[50vh] sm:h-[60vh] max-w-4xl max-h-[800px] mb-4">
+            <Cropper
+              image={unprocessedXrayImage}
+              crop={crop}
+              zoom={zoom}
+              rotation={rotation}
+              aspect={aspect}
+              onCropChange={setCrop}
+              onRotationChange={setRotation}
+              onCropComplete={onCropComplete}
+              onZoomChange={setZoom}
+              onMediaLoaded={(mediaSize) => setOriginalAspect(mediaSize.width / mediaSize.height)}
+              transform={`translate(${crop.x}px, ${crop.y}px) rotate(${rotation}deg) scale(${zoom * (flipH ? -1 : 1)}, ${zoom * (flipV ? -1 : 1)})`}
+            />
+          </div>
+          <div className="flex flex-col items-center gap-6 bg-zinc-900 p-6 rounded-2xl border border-white/10 shadow-2xl w-full max-w-md my-4 z-10">
+            <h3 className="text-white font-semibold text-lg">Chỉnh sửa phim X-quang</h3>
+            <div className="flex flex-col gap-4 w-full">
+              <div className="flex items-center gap-4 w-full">
+                <span className="text-white/70 text-sm font-medium w-20">Tỷ lệ</span>
+                <div className="flex gap-2 flex-1 text-xs">
+                  <button onClick={() => setAspect(1)} className={`py-1.5 px-2 flex-1 rounded-lg border transition-colors ${aspect === 1 ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-zinc-800 border-white/10 text-white hover:bg-zinc-700'}`}>1:1</button>
+                  <button onClick={() => setAspect(3/4)} className={`py-1.5 px-2 flex-1 rounded-lg border transition-colors ${aspect === 3/4 ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-zinc-800 border-white/10 text-white hover:bg-zinc-700'}`}>3:4</button>
+                  <button onClick={() => setAspect(4/3)} className={`py-1.5 px-2 flex-1 rounded-lg border transition-colors ${aspect === 4/3 ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-zinc-800 border-white/10 text-white hover:bg-zinc-700'}`}>4:3</button>
+                  <button onClick={() => setAspect(originalAspect)} className={`py-1.5 px-2 flex-1 rounded-lg border transition-colors ${aspect === originalAspect ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-zinc-800 border-white/10 text-white hover:bg-zinc-700'}`}>Gốc</button>
+                  <button onClick={() => setAspect(undefined as any)} className={`py-1.5 px-2 flex-1 rounded-lg border transition-colors ${aspect === undefined ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-zinc-800 border-white/10 text-white hover:bg-zinc-700'}`}>Tự do</button>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 w-full">
+                <span className="text-white/70 text-sm font-medium w-20">Lật</span>
+                <div className="flex gap-2 flex-1">
+                  <button onClick={() => setFlipH(!flipH)} className={`flex-1 py-1.5 rounded-lg border flex items-center justify-center gap-2 transition-colors ${flipH ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-zinc-800 border-white/10 text-white hover:bg-zinc-700'}`}>
+                    <FlipHorizontal size={18} /> Lật ngang
+                  </button>
+                  <button onClick={() => setFlipV(!flipV)} className={`flex-1 py-1.5 rounded-lg border flex items-center justify-center gap-2 transition-colors ${flipV ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-zinc-800 border-white/10 text-white hover:bg-zinc-700'}`}>
+                    <FlipVertical size={18} /> Lật dọc
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 w-full">
+                <span className="text-white/70 text-sm font-medium w-20">Xoay</span>
+                <input
+                  type="range"
+                  value={rotation}
+                  min={0}
+                  max={360}
+                  step={1}
+                  aria-label="Xoay"
+                  onChange={(e) => setRotation(Number(e.target.value))}
+                  className="flex-1 accent-emerald-500"
+                />
+                <span className="text-white/50 text-xs w-8 text-right">{rotation}°</span>
+              </div>
+              <div className="flex items-center gap-4 w-full">
+                <span className="text-white/70 text-sm font-medium w-20">Thu/phóng</span>
+                <input
+                  type="range"
+                  value={zoom}
+                  min={1}
+                  max={4}
+                  step={0.1}
+                  aria-label="Thu/phóng"
+                  onChange={(e) => setZoom(Number(e.target.value))}
+                  className="flex-1 accent-emerald-500"
+                />
+                <span className="text-white/50 text-xs w-8 text-right">{zoom.toFixed(1)}x</span>
+              </div>
+            </div>
+            <div className="flex gap-4 w-full mt-2">
+              <button
+                onClick={handleCancelCrop}
+                className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-white rounded-xl font-medium transition-colors border border-white/5"
+              >
+                Hủy
+              </button>
+              <button
+                onClick={handleApplyCrop}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-medium shadow-[0_0_20px_rgba(16,185,129,0.3)] transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Check size={18} />
+                Lưu & Áp dụng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
