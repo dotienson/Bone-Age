@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronLeft, ChevronRight, Copy, Check, CheckCheck, Info, Languages, User, FileText, Search, Lock, Camera, Upload, Eye, EyeOff, X, RotateCcw, LogOut, ChevronDown, Download, FileType, Dog, BookOpen } from 'lucide-react';
-import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign, UnderlineType } from 'docx';
+import { Document as DocxDocument, Packer, Paragraph, TextRun, AlignmentType, SectionType, BorderStyle, PageBorderDisplay, PageBorderOffsetFrom, Table, TableRow, TableCell, WidthType, VerticalAlign, UnderlineType, ImageRun } from 'docx';
 import { saveAs } from 'file-saver';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceDot, AreaChart, Area, ReferenceArea } from 'recharts';
@@ -804,6 +804,145 @@ export default function App() {
       return { yesFeatures, noFeatures, summaryText };
     };
 
+  const getZScoreChartSVGString = (zScores?: {name: string, z: number, color: string}[]) => {
+    if (!zScores || zScores.length === 0) return '';
+    const width = 500;
+    const height = 220;
+    const padding = { top: 20, right: 30, bottom: 110, left: 30 };
+    const innerWidth = width - padding.left - padding.right;
+    const innerHeight = height - padding.top - padding.bottom;
+    
+    const minZ = -4;
+    const maxZ = 4;
+    const range = maxZ - minZ;
+    
+    const getX = (z: number) => padding.left + ((z - minZ) / range) * innerWidth;
+    const getY = (z: number) => {
+      const val = (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(z * z) / 2);
+      const maxVal = 1 / Math.sqrt(2 * Math.PI);
+      return padding.top + innerHeight - (val / maxVal) * innerHeight;
+    };
+
+    const points = [];
+    for (let z = minZ; z <= maxZ; z += 0.1) {
+      points.push(`${getX(z)},${getY(z)}`);
+    }
+    points.push(`${getX(maxZ)},${getY(maxZ)}`);
+    const pathData = `M ${points.join(' L ')}`;
+    
+    const fillPoints = [];
+    fillPoints.push(`${getX(-2)},${padding.top + innerHeight}`);
+    for (let z = -2; z <= 2; z += 0.1) {
+      fillPoints.push(`${getX(z)},${getY(z)}`);
+    }
+    fillPoints.push(`${getX(2)},${getY(2)}`);
+    fillPoints.push(`${getX(2)},${padding.top + innerHeight}`);
+    const fillPathData = `M ${fillPoints.join(' L ')} Z`;
+
+    const ticks = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
+    const escapeXML = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    const ticksHtml = ticks.map(tick => `
+      <line x1="${getX(tick)}" y1="${padding.top + innerHeight}" x2="${getX(tick)}" y2="${padding.top + innerHeight + 5}" stroke="#000" stroke-width="1.5" />
+      <text x="${getX(tick)}" y="${padding.top + innerHeight + 17}" text-anchor="middle" font-size="11" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick}</text>
+      ${Math.abs(tick) === 2 ? `<text x="${getX(tick)}" y="${padding.top + innerHeight + 30}" text-anchor="middle" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick > 0 ? '+2SD' : '-2SD'}</text>` : ''}
+    `).join('');
+
+    let dotsHtml = zScores.map((zObj) => {
+      const x = getX(zObj.z);
+      const y = getY(zObj.z);
+      const isGaskin = zObj.name === 'Gaskin';
+      if (isGaskin) {
+        return `
+          <circle cx="${x}" cy="${y}" r="6.5" fill="#fff" stroke="#000" stroke-width="2.5" />
+        `;
+      }
+      return `
+        <circle cx="${x}" cy="${y}" r="6.5" fill="#000" stroke="none" />
+      `;
+    }).join('');
+
+    const axisHtml = `<line x1="${padding.left}" y1="${padding.top + innerHeight}" x2="${padding.left + innerWidth}" y2="${padding.top + innerHeight}" stroke="#000" stroke-width="1.5" />`;
+
+    let dropLinesHtml = zScores.map((zObj) => {
+      const x = getX(zObj.z);
+      const y = getY(zObj.z);
+      return `<line x1="${x}" y1="${y}" x2="${x}" y2="${padding.top + innerHeight}" stroke="#666" stroke-width="1.5" stroke-dasharray="3,3" />`;
+    }).join('');
+    
+    const baseLegendY = padding.top + innerHeight + 50;
+    
+    const legendHtml = zScores.map((zObj, idx) => {
+      const isGaskin = zObj.name === 'Gaskin';
+      const curLegendY = baseLegendY + (idx * 20);
+      const startX = (width / 2) - 80; // center manually
+      const iconSvg = isGaskin 
+        ? `<circle cx="${startX + 10}" cy="${curLegendY - 4}" r="5" fill="#fff" stroke="#000" stroke-width="2.5"/>`
+        : `<circle cx="${startX + 10}" cy="${curLegendY - 4}" r="5.5" fill="#000" stroke="none"/>`;
+      return `
+        ${iconSvg}
+        <text x="${startX + 22}" y="${curLegendY}" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${escapeXML(zObj.name)} (Z = ${zObj.z.toFixed(2)})</text>
+      `;
+    }).join('');
+
+    const footerY = baseLegendY + (zScores.length * 20) + 10;
+    const footerHtml = `<text x="${width/2}" y="${footerY}" text-anchor="middle" font-size="11" fill="#444" font-style="italic" font-family="Arial, sans-serif">Z-Score dựa vào Brush data, Stanford (Greulich &amp; Pyle, 1959)</text>`;
+
+    return `
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color: white; font-family: Arial, sans-serif;">
+        <defs>
+          <pattern id="diagonalHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="1" stroke-opacity="0.2" />
+          </pattern>
+        </defs>
+        <path d="${fillPathData}" fill="url(#diagonalHatch)" />
+        ${axisHtml}
+        ${ticksHtml}
+        <path d="${pathData}" fill="none" stroke="#000" stroke-width="2" />
+        ${dropLinesHtml}
+        ${dotsHtml}
+        ${legendHtml}
+        ${footerHtml}
+      </svg>
+    `;
+  };
+
+  const svgToPngUint8Array = async (svgString: string, width: number, height: number): Promise<Uint8Array> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = width * 2; // high res
+        canvas.height = height * 2;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            reject(new Error("No context")); return;
+        }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(2, 2);
+        ctx.drawImage(img, 0, 0);
+        
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
+          const binaryStr = window.atob(base64Data);
+          const len = binaryStr.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+              bytes[i] = binaryStr.charCodeAt(i);
+          }
+          resolve(bytes);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  };
+
   const handleExportWord = async () => {
     if (!isExpertMode) return;
     
@@ -814,6 +953,18 @@ export default function App() {
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
     const devZ = getDeviationAndZScore();
     const sauvegrainPopulated = sauvegrainAgeYears !== '';
+
+    let devZPngBuffer: Uint8Array | null = null;
+    if (devZ && devZ.zScores && devZ.zScores.length > 0) {
+      try {
+        const svgStr = getZScoreChartSVGString(devZ.zScores);
+        if (svgStr) {
+          devZPngBuffer = await svgToPngUint8Array(svgStr, 500, 220);
+        }
+      } catch (err) {
+        console.error("Failed to generate PNG for docx:", err);
+      }
+    }
 
     const doc = new DocxDocument({
       sections: [{
@@ -1050,6 +1201,22 @@ export default function App() {
               spacing: { after: 100 }
             })
           ] : []),
+          ...(devZPngBuffer ? [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new ImageRun({
+                  data: devZPngBuffer,
+                  transformation: {
+                    width: 500,
+                    height: 220,
+                  },
+                  type: "png",
+                })
+              ],
+              spacing: { before: 200, after: 200 }
+            })
+          ] : []),
           new Paragraph({ text: "", spacing: { after: 100 } }),
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
@@ -1106,12 +1273,11 @@ export default function App() {
     const devZ = getDeviationAndZScore();
     const sauvegrainPopulated = sauvegrainAgeYears !== '';
 
-    const renderZScoreChartHTML = (zScores?: {name: string, z: number, color: string}[]) => {
+    const getZScoreChartSVGString = (zScores?: {name: string, z: number, color: string}[]) => {
       if (!zScores || zScores.length === 0) return '';
-      
       const width = 500;
-      const height = 150;
-      const padding = { top: 20, right: 30, bottom: 40, left: 30 };
+      const height = 190;
+      const padding = { top: 20, right: 30, bottom: 80, left: 30 };
       const innerWidth = width - padding.left - padding.right;
       const innerHeight = height - padding.top - padding.bottom;
       
@@ -1145,8 +1311,8 @@ export default function App() {
       const ticks = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
       const ticksHtml = ticks.map(tick => `
         <line x1="${getX(tick)}" y1="${padding.top + innerHeight}" x2="${getX(tick)}" y2="${padding.top + innerHeight + 5}" stroke="#000" stroke-width="1.5" />
-        <text x="${getX(tick)}" y="${padding.top + innerHeight + 17}" text-anchor="middle" font-size="11" font-weight="bold" fill="#000">${tick}</text>
-        ${Math.abs(tick) === 2 ? `<text x="${getX(tick)}" y="${padding.top + innerHeight + 30}" text-anchor="middle" font-size="12" font-weight="bold" fill="#000">${tick > 0 ? '+2SD' : '-2SD'}</text>` : ''}
+        <text x="${getX(tick)}" y="${padding.top + innerHeight + 17}" text-anchor="middle" font-size="11" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick}</text>
+        ${Math.abs(tick) === 2 ? `<text x="${getX(tick)}" y="${padding.top + innerHeight + 30}" text-anchor="middle" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick > 0 ? '+2SD' : '-2SD'}</text>` : ''}
       `).join('');
 
       let dotsHtml = zScores.map((zObj) => {
@@ -1171,41 +1337,51 @@ export default function App() {
         return `<line x1="${x}" y1="${y}" x2="${x}" y2="${padding.top + innerHeight}" stroke="#666" stroke-width="1.5" stroke-dasharray="3,3" />`;
       }).join('');
       
-      let legendHtml = zScores.map((zObj) => {
+      const legendY = padding.top + innerHeight + 55;
+      
+      // Calculate total width of legend to center it
+      // Gaskin: ~ 120px, GP: ~ 120px
+      // A simple layout:
+      const legendHtml = zScores.map((zObj, idx) => {
         const isGaskin = zObj.name === 'Gaskin';
-        const iconHtml = isGaskin 
-          ? `<svg width="16" height="16" viewBox="0 0 16 16" style="display:block;"><circle cx="8" cy="8" r="6" fill="#fff" stroke="#000" stroke-width="2.5"/></svg>`
-          : `<svg width="16" height="16" viewBox="0 0 16 16" style="display:block;"><circle cx="8" cy="8" r="6.5" fill="#000" stroke="none"/></svg>`;
+        const startX = (width / 2) + (idx === 0 ? -120 : 20); // rough centering for 2 items
+        const iconSvg = isGaskin 
+          ? `<circle cx="${startX + 10}" cy="${legendY - 4}" r="5" fill="#fff" stroke="#000" stroke-width="2.5"/>`
+          : `<circle cx="${startX + 10}" cy="${legendY - 4}" r="5.5" fill="#000" stroke="none"/>`;
         return `
-          <div style="display:flex; align-items:center; gap:6px;">
-            ${iconHtml}
-            <span style="font-size:12px; font-weight:bold; color:#000;">${zObj.name} (Z = ${zObj.z.toFixed(2)})</span>
-          </div>
+          ${iconSvg}
+          <text x="${startX + 22}" y="${legendY}" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${zObj.name} (Z = ${zObj.z.toFixed(2)})</text>
         `;
       }).join('');
 
+      const footerHtml = `<text x="${width/2}" y="${legendY + 20}" text-anchor="middle" font-size="11" fill="#444" font-style="italic" font-family="Arial, sans-serif">Z-Score dựa vào Brush data, Stanford (Greulich & Pyle, 1959)</text>`;
+
+      return `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color: white; font-family: Arial, sans-serif;">
+          <defs>
+            <pattern id="diagonalHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="1" stroke-opacity="0.2" />
+            </pattern>
+          </defs>
+          <path d="${fillPathData}" fill="url(#diagonalHatch)" />
+          ${axisHtml}
+          ${ticksHtml}
+          <path d="${pathData}" fill="none" stroke="#000" stroke-width="2" />
+          ${dropLinesHtml}
+          ${dotsHtml}
+          ${legendHtml}
+          ${footerHtml}
+        </svg>
+      `;
+    };
+
+    const renderZScoreChartHTML = (zScores?: {name: string, z: number, color: string}[]) => {
+      const svgStr = getZScoreChartSVGString(zScores);
+      if (!svgStr) return '';
       return `
         <div style="margin-top: 5mm; margin-bottom: 5mm; text-align:center;">
           <div style="width:100%; max-width:500px; margin:0 auto;">
-            <svg viewBox="0 0 ${width} ${height}" style="width:100%; height:auto; display:block;">
-              <defs>
-                <pattern id="diagonalHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
-                  <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="1" stroke-opacity="0.2" />
-                </pattern>
-              </defs>
-              <path d="${fillPathData}" fill="url(#diagonalHatch)" />
-              ${axisHtml}
-              ${ticksHtml}
-              <path d="${pathData}" fill="none" stroke="#000" stroke-width="2" />
-              ${dropLinesHtml}
-              ${dotsHtml}
-            </svg>
-          </div>
-          <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:16px; margin-top:8px;">
-            ${legendHtml}
-          </div>
-          <div style="font-size: 11px; color: #444; margin-top: 6px; font-style: italic;">
-            Z-Score dựa vào Brush data, Stanford (Greulich & Pyle, 1959)
+            ${svgStr.replace(/width="[0-9]+"/, 'style="width: 100%; height: auto; display: block;"').replace(/height="[0-9]+"/, '')}
           </div>
         </div>
       `;
