@@ -17,44 +17,66 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 const MagnifiablePage = ({ pageNumber, width, isActive }: { pageNumber: number, width: number, isActive: boolean }) => {
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [show, setShow] = useState(false);
   const ZOOM_LEVEL = 2;
-  const LOUPE_SIZE = 200;
+  const LOUPE_SIZE = 220;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const loupeRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isActive || !containerRef.current || !loupeRef.current || !innerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    loupeRef.current.style.opacity = '1';
+    loupeRef.current.style.visibility = 'visible';
+    
+    loupeRef.current.style.left = `${x - LOUPE_SIZE / 2}px`;
+    loupeRef.current.style.top = `${y - LOUPE_SIZE / 2}px`;
+    
+    innerRef.current.style.left = `${-x * ZOOM_LEVEL + LOUPE_SIZE / 2}px`;
+    innerRef.current.style.top = `${-y * ZOOM_LEVEL + LOUPE_SIZE / 2}px`;
+  };
+
+  const handleMouseLeave = () => {
+    if (loupeRef.current) {
+      loupeRef.current.style.opacity = '0';
+      loupeRef.current.style.visibility = 'hidden';
+    }
+  };
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => isActive && setShow(true)}
-      onMouseLeave={() => setShow(false)}
-      onMouseMove={(e) => {
-        if (!isActive) return;
-        const rect = e.currentTarget.getBoundingClientRect();
-        setPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      }}
+    <div 
+      className={`relative ${isActive ? 'cursor-none' : ''}`}
+      ref={containerRef}
+      onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMove}
     >
       <Page 
         pageNumber={pageNumber} 
         renderTextLayer={false}
         renderAnnotationLayer={false}
         width={width}
-        className="bg-white"
+        className={`bg-white ${isActive ? 'cursor-none' : ''}`}
       />
-      {isActive && show && (
+      {isActive && (
         <div
-          className="absolute pointer-events-none border-4 border-emerald-500 rounded-full overflow-hidden bg-white shadow-2xl z-50"
+          ref={loupeRef}
+          className="absolute pointer-events-none border-2 border-emerald-500 rounded-xl overflow-hidden shadow-2xl z-50 bg-white"
           style={{
+            opacity: 0,
+            visibility: 'hidden',
             width: LOUPE_SIZE,
             height: LOUPE_SIZE,
-            left: pos.x - LOUPE_SIZE / 2,
-            top: pos.y - LOUPE_SIZE / 2,
+            transition: 'opacity 0.1s ease',
           }}
         >
           <div
+            ref={innerRef}
             style={{
               position: 'absolute',
-              left: -pos.x * ZOOM_LEVEL + LOUPE_SIZE / 2,
-              top: -pos.y * ZOOM_LEVEL + LOUPE_SIZE / 2,
+              willChange: 'left, top'
             }}
           >
             <Page 
@@ -62,9 +84,16 @@ const MagnifiablePage = ({ pageNumber, width, isActive }: { pageNumber: number, 
               renderTextLayer={false}
               renderAnnotationLayer={false}
               width={width * ZOOM_LEVEL}
-              className="bg-white"
+              className="bg-white pointer-events-none"
             />
           </div>
+          <svg 
+            className="absolute top-1/2 left-1/2 w-[25px] h-[25px] -translate-x-1/2 translate-y-0 text-red-600 drop-shadow-[0_0_5px_rgba(220,38,38,1)] pointer-events-none animate-pulse mt-[2px]"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinejoin="round" d="M12 2 L22 22 L2 22 Z" />
+          </svg>
         </div>
       )}
     </div>
@@ -72,42 +101,61 @@ const MagnifiablePage = ({ pageNumber, width, isActive }: { pageNumber: number, 
 };
 
 const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean }) => {
-  const [pos, setPos] = useState({ x: 0, y: 0 });
-  const [show, setShow] = useState(false);
   const ZOOM_LEVEL = 2;
   const LOUPE_SIZE = 200;
   const imgRef = useRef<HTMLImageElement>(null);
+  const loupeRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isActive || !imgRef.current || !loupeRef.current) return;
+    const rect = imgRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    loupeRef.current.style.display = 'block';
+    loupeRef.current.style.left = `${x - LOUPE_SIZE / 2}px`;
+    loupeRef.current.style.top = `${y - LOUPE_SIZE / 2}px`;
+    loupeRef.current.style.backgroundSize = `${imgRef.current.clientWidth * ZOOM_LEVEL}px ${imgRef.current.clientHeight * ZOOM_LEVEL}px`;
+    loupeRef.current.style.backgroundPosition = `-${x * ZOOM_LEVEL - LOUPE_SIZE / 2}px -${y * ZOOM_LEVEL - LOUPE_SIZE / 2}px`;
+  };
+
+  const handleMouseLeave = () => {
+    if (loupeRef.current) {
+      loupeRef.current.style.display = 'none';
+    }
+  };
 
   return (
     <div 
-      className="relative inline-block max-w-full max-h-[800px]"
-      onMouseEnter={() => isActive && setShow(true)}
-      onMouseLeave={() => setShow(false)}
-      onMouseMove={(e) => {
-        if (!isActive || !imgRef.current) return;
-        const rect = imgRef.current.getBoundingClientRect();
-        setPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-      }}
+      className={`relative inline-block max-w-full max-h-[800px] ${isActive ? 'cursor-none' : ''}`}
+      onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMove}
     >
       <img
         ref={imgRef}
         src={src}
         alt="Patient X-ray"
-        className="max-w-full max-h-[800px] object-contain rounded-xl border border-white/10 bg-black"
+        className={`max-w-full max-h-[800px] object-contain rounded-xl border border-white/10 bg-black ${isActive ? 'cursor-none' : ''}`}
       />
-      {isActive && show && imgRef.current && (
+      {isActive && (
         <div
-          className="absolute pointer-events-none border-4 border-emerald-500 rounded-full shadow-2xl z-50 bg-no-repeat bg-black"
+          ref={loupeRef}
+          className="absolute pointer-events-none border-2 border-emerald-500 rounded-xl shadow-2xl z-50 bg-no-repeat bg-[#111]"
           style={{
+            display: 'none',
             width: LOUPE_SIZE,
             height: LOUPE_SIZE,
-            left: pos.x - LOUPE_SIZE / 2,
-            top: pos.y - LOUPE_SIZE / 2,
             backgroundImage: `url(${src})`,
-            backgroundSize: `${imgRef.current.width * ZOOM_LEVEL}px ${imgRef.current.height * ZOOM_LEVEL}px`,
-            backgroundPosition: `-${pos.x * ZOOM_LEVEL - LOUPE_SIZE / 2}px -${pos.y * ZOOM_LEVEL - LOUPE_SIZE / 2}px`,
           }}
-        />
+        >
+          <svg 
+            className="absolute top-1/2 left-1/2 w-[25px] h-[25px] -translate-x-1/2 translate-y-0 text-red-600 drop-shadow-[0_0_5px_rgba(220,38,38,1)] pointer-events-none animate-pulse mt-[2px]"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path stroke="rgba(255,255,255,0.8)" strokeWidth="2" strokeLinejoin="round" d="M12 2 L22 22 L2 22 Z" />
+          </svg>
+        </div>
       )}
     </div>
   );
@@ -189,7 +237,9 @@ const BRUSH_DATA_GIRL = [
 
 const getInitialDraft = () => {
   try {
-    const saved = localStorage.getItem('dualGP_draft_state');
+    const auth = localStorage.getItem('boneAgeAuth');
+    const key = auth === 'expert' ? 'dualGP_draft_state_expert' : 'dualGP_draft_state_premium';
+    const saved = localStorage.getItem(key);
     if (saved) return JSON.parse(saved);
   } catch (e) {}
   return {};
@@ -222,6 +272,7 @@ const NormalDistributionChart = ({ zScores }: { zScores: { name: string, z: numb
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 20, right: 30, bottom: 0, left: 30 }}>
             {/* Shaded area for -2 to +2 Z-score */}
+            {/* @ts-ignore */}
             <ReferenceArea x1={-2} x2={2} fill="#ecfdf5" fillOpacity={1} />
             
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} vertical={false} />
@@ -391,7 +442,9 @@ export default function App() {
   const [vicenteViewMode, setVicenteViewMode] = useState<'single' | 'duet'>('single');
 
   const [patientRecords, setPatientRecords] = useState<PatientRecord[]>(() => {
-    const saved = localStorage.getItem('dualGP_patients');
+    const auth = localStorage.getItem('boneAgeAuth');
+    const key = auth === 'expert' ? 'dualGP_patients_expert' : 'dualGP_patients_premium';
+    const saved = localStorage.getItem(key);
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { return []; }
     }
@@ -399,8 +452,9 @@ export default function App() {
   });
 
   useEffect(() => {
-    localStorage.setItem('dualGP_patients', JSON.stringify(patientRecords));
-  }, [patientRecords]);
+    const key = isExpertMode ? 'dualGP_patients_expert' : 'dualGP_patients_premium';
+    localStorage.setItem(key, JSON.stringify(patientRecords));
+  }, [patientRecords, isExpertMode]);
 
   const handleSavePatient = () => {
     const record: PatientRecord = {
@@ -647,7 +701,10 @@ export default function App() {
       xrayLocation,
       xrayQuality
     };
-    localStorage.setItem('dualGP_draft_state', JSON.stringify(draft));
+    if (isAuthenticated) {
+      const key = isExpertMode ? 'dualGP_draft_state_expert' : 'dualGP_draft_state_premium';
+      localStorage.setItem(key, JSON.stringify(draft));
+    }
   }, [
     realAgeYears,
     realAgeMonths,
@@ -677,7 +734,9 @@ export default function App() {
     sauvegrainAgeMonths,
     xrayDate,
     xrayLocation,
-    xrayQuality
+    xrayQuality,
+    isAuthenticated,
+    isExpertMode
   ]);
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -698,13 +757,11 @@ export default function App() {
     const val = e.target.value;
     setPasscode(val);
     if (loginTab === 'premium' && val === '6868') {
-      setIsAuthenticated(true);
-      setIsExpertMode(false);
       localStorage.setItem('boneAgeAuth', 'premium');
+      window.location.reload();
     } else if (loginTab === 'expert' && username.toLowerCase() === 'admin' && val === '0984144492') {
-      setIsAuthenticated(true);
-      setIsExpertMode(true);
       localStorage.setItem('boneAgeAuth', 'expert');
+      window.location.reload();
     }
   };
 
@@ -1039,11 +1096,8 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setIsExpertMode(false);
-    setUsername('');
-    setPasscode('');
     localStorage.removeItem('boneAgeAuth');
+    window.location.reload();
   };
 
   const handleReset = () => {
@@ -1284,7 +1338,48 @@ export default function App() {
       }
     }
 
-    return { diffText, significanceText, zScores };
+    let shortDeltaText = '';
+    if (gpAgeMonths > 0 && dbacAgeMonths > 0) {
+      if (gpAgeMonths === dbacAgeMonths) {
+        const rawDiffGm = (gpAgeMonths / 12 - caDecimal) * 12;
+        const zG = rawDiffGm / sd;
+        const diffGm = Math.abs(gpAgeMonths / 12 - caDecimal) * 12;
+        let opG = '~';
+        if (diffGm > twoSd) opG = '>'; else if (diffGm < twoSd) opG = '<';
+        
+        shortDeltaText = `Delta (BA-CA) ~ ${formatSign(rawDiffGm)} tháng (${opG} 2SD GP) (Z-score ~ ${zG.toFixed(2)}).`;
+      } else {
+        const rawDiffGm = (gpAgeMonths / 12 - caDecimal) * 12;
+        const rawDiffDm = (dbacAgeMonths / 12 - caDecimal) * 12;
+        const minDiff = Math.min(rawDiffGm, rawDiffDm);
+        const maxDiff = Math.max(rawDiffGm, rawDiffDm);
+        const zG = rawDiffGm / sd;
+        const zD = rawDiffDm / sd;
+        const minZ = Math.min(zG, zD);
+        const maxZ = Math.max(zG, zD);
+        const maxDiffAbs = Math.max(Math.abs(rawDiffGm), Math.abs(rawDiffDm));
+        const minDiffAbs = Math.min(Math.abs(rawDiffGm), Math.abs(rawDiffDm));
+        let op = '~';
+        if (minDiffAbs > twoSd) {
+          op = '>';
+        } else if (maxDiffAbs < twoSd) {
+          op = '<';
+        }
+
+        shortDeltaText = `Delta (BA-CA) ~ từ ${formatSign(minDiff)} đến ${formatSign(maxDiff)} tháng (${op} 2SD GP) (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}).`;
+      }
+    } else if (gpAgeMonths > 0 || dbacAgeMonths > 0) {
+      let maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
+      const rawDiffMonths = (maxBaMonths / 12 - caDecimal) * 12;
+      const zScore = rawDiffMonths / sd;
+      let op = '~';
+      if (Math.abs(rawDiffMonths) > twoSd) op = '>';
+      else if (Math.abs(rawDiffMonths) < twoSd) op = '<';
+
+      shortDeltaText = `Delta (BA-CA) ~ ${formatSign(rawDiffMonths)} tháng (${op} 2SD GP) (Z-score ~ ${zScore.toFixed(2)}).`;
+    }
+
+    return { diffText, significanceText, zScores, shortDeltaText };
   };
 
   const getExpertConclusion = () => {
@@ -1757,41 +1852,6 @@ export default function App() {
                 </div>
               </>
             )}
-            {!isExpertMode && (
-              <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
-                <label className="text-xs font-semibold text-zinc-400">{'Kết luận'}</label>
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={finalAgeYears} 
-                      onChange={(e) => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        setFinalAgeYears(val === '' ? '' : Number(val));
-                      }}
-                      className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
-                    />
-                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
-                  </div>
-                  <div className="flex-1">
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={finalAgeMonths} 
-                      onChange={(e) => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        setFinalAgeMonths(val === '' ? '' : Number(val));
-                      }}
-                      className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
-                    />
-                    <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
           {isExpertMode && (
             <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
@@ -1821,7 +1881,7 @@ export default function App() {
             <div className="mt-6 flex justify-center pb-2">
               <button 
                 onClick={() => setShowConfirmPopup(true)}
-                disabled={!patientName.trim() || !patientId.trim() || (!dob.trim() && !isAgeManuallySet)}
+                disabled={(isExpertMode && (!patientName.trim() || !patientId.trim())) || (!dob.trim() && !isAgeManuallySet)}
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 Xác nhận & Bắt đầu phân tích
@@ -2775,8 +2835,7 @@ export default function App() {
         )}
 
         {/* Conclusion Section */}
-        {isExpertMode ? (
-          expertBoneAgeYears !== '' && (
+        {isExpertMode && expertBoneAgeYears !== '' && (
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
@@ -2787,6 +2846,36 @@ export default function App() {
                 </div>
               </div>
               
+              {(() => {
+                const devZ = getDeviationAndZScore();
+                if (devZ && devZ.diffText && devZ.significanceText) {
+                  const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
+                  const dbacPopulated = dbacBoneAgeYears !== '';
+                  const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
+                  const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted} (Gaskin et al).`;
+                  const shortText = `${boneAgeSummary} ${devZ.shortDeltaText}`;
+                  return (
+                    <div className="p-4 md:p-6 bg-indigo-50/10 border border-indigo-500/30 rounded-2xl relative group">
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(shortText);
+                          alert('Đã sao chép kết luận rút gọn!');
+                        }}
+                        className="absolute top-4 right-4 p-2 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 rounded-full transition-colors opacity-0 group-hover:opacity-100 shadow-sm"
+                        title="Sao chép kết luận rút gọn"
+                      >
+                        <Copy size={16} />
+                      </button>
+                      <div className="text-indigo-50 leading-relaxed font-sans text-sm md:text-base">
+                        <span className="font-bold text-indigo-300 mr-2">Kết luận rút gọn:</span>
+                        {shortText}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+
               {/* Separate Card for Chart */}
               {(() => {
                 const devZ = getDeviationAndZScore();
@@ -2800,21 +2889,7 @@ export default function App() {
                 return null;
               })()}
             </section>
-          )
-        ) : (
-          finalAgeYears !== '' && finalAgeMonths !== '' && (
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
-              </div>
-              <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group pb-14">
-                <p className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
-                  {getConclusion()}
-                </p>
-              </div>
-            </section>
-          )
-        )}
+          )}
         
 
 
