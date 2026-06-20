@@ -25,14 +25,25 @@ const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds }: { pa
   const loupeRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isActive || !containerRef.current || !loupeRef.current || !innerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    
+    let clientX, clientY;
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
+    }
+    
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
     
     loupeRef.current.style.opacity = '1';
     loupeRef.current.style.visibility = 'visible';
+    loupeRef.current.style.display = 'block';
     
     loupeRef.current.style.left = `${x - LOUPE_SIZE / 2}px`;
     loupeRef.current.style.top = `${y - LOUPE_SIZE / 2}px`;
@@ -45,16 +56,21 @@ const MagnifiablePage = ({ pageNumber, width, isActive, cropTopTwoThirds }: { pa
     if (loupeRef.current) {
       loupeRef.current.style.opacity = '0';
       loupeRef.current.style.visibility = 'hidden';
+      loupeRef.current.style.display = 'none';
     }
   };
 
   return (
     <div 
-      className={`relative ${isActive ? 'cursor-none' : ''} ${cropTopTwoThirds ? 'overflow-hidden' : ''} flex-shrink-0`}
+      className={`relative ${isActive ? 'cursor-none' : ''} ${cropTopTwoThirds ? 'overflow-hidden' : ''} flex-shrink-0 touch-none`}
       style={cropTopTwoThirds ? { height: width * 1.35 * 0.67, width } : { width }}
       ref={containerRef}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
+      onTouchStart={handleMouseMove}
+      onTouchMove={handleMouseMove}
+      onTouchEnd={handleMouseLeave}
+      onTouchCancel={handleMouseLeave}
     >
       <Page 
         pageNumber={pageNumber} 
@@ -109,11 +125,21 @@ const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean })
   const imgRef = useRef<HTMLImageElement>(null);
   const loupeRef = useRef<HTMLDivElement>(null);
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+  const handleMouseMove = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isActive || !imgRef.current || !loupeRef.current) return;
     const rect = imgRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    
+    let clientX, clientY;
+    if ('touches' in e) {
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      clientX = (e as React.MouseEvent).clientX;
+      clientY = (e as React.MouseEvent).clientY;
+    }
+
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
     
     loupeRef.current.style.display = 'block';
     loupeRef.current.style.left = `${x - LOUPE_SIZE / 2}px`;
@@ -130,9 +156,13 @@ const MagnifiableImage = ({ src, isActive }: { src: string, isActive: boolean })
 
   return (
     <div 
-      className={`relative inline-block max-w-full max-h-[800px] ${isActive ? 'cursor-none' : ''}`}
+      className={`relative inline-block max-w-full max-h-[800px] ${isActive ? 'cursor-none' : ''} touch-none`}
       onMouseLeave={handleMouseLeave}
       onMouseMove={handleMouseMove}
+      onTouchStart={handleMouseMove}
+      onTouchMove={handleMouseMove}
+      onTouchEnd={handleMouseLeave}
+      onTouchCancel={handleMouseLeave}
     >
       <img
         ref={imgRef}
@@ -2305,11 +2335,7 @@ export default function App() {
               </button>
               {isGpVisible && isExpertMode && (
                 <button
-                  onClick={() => setVicenteViewMode(prev => {
-                    if (prev === 'single') return isMobile ? 'compare' : 'duet';
-                    if (prev === 'duet') return 'compare';
-                    return 'single';
-                  })}
+                  onClick={() => setVicenteViewMode(prev => prev === 'single' ? 'duet' : prev === 'duet' ? 'compare' : 'single')}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
                 >
                   {vicenteViewMode === 'single' ? <Eye size={16} className="shrink-0" /> : vicenteViewMode === 'duet' ? <BookOpen size={16} className="shrink-0" /> : <Columns size={16} className="shrink-0" />}
@@ -2404,7 +2430,7 @@ export default function App() {
                     animate={isStacked ? { opacity: 1 } : { opacity: 1, rotateY: 0, scale: 1 }}
                     exit={isStacked ? { opacity: 0 } : { opacity: 0, rotateY: -15, scale: 0.95 }}
                     transition={{ duration: 0.4, ease: "easeInOut" }}
-                    className={`flex origin-center ${vicenteViewMode === 'compare' ? (isStacked ? 'flex-col w-full max-w-[600px] gap-4' : 'flex-row w-full max-w-[1200px] gap-4') : 'shadow-2xl bg-white overflow-hidden rounded-xl border border-white/20'}`}
+                    className={`flex origin-center ${vicenteViewMode === 'compare' ? (isStacked ? 'flex-col w-full max-w-[600px] gap-4' : 'flex-row w-full max-w-[1200px] gap-4') : (vicenteViewMode === 'duet' && isStacked ? 'flex-col w-full max-w-[600px] gap-4 bg-transparent border-none' : 'shadow-2xl bg-white overflow-hidden rounded-xl border border-white/20')}`}
                     style={{ transformStyle: vicenteViewMode === 'duet' && !isStacked ? 'preserve-3d' : 'flat' }}
                   >
                     {vicenteViewMode === 'compare' ? (
@@ -2448,8 +2474,8 @@ export default function App() {
                            )}
                         </div>
                       </>
-                    ) : isMobile || vicenteViewMode === 'single' ? (
-                      <div className="relative">
+                    ) : vicenteViewMode === 'single' ? (
+                      <div className="relative shadow-2xl rounded-xl overflow-hidden">
                         <MagnifiablePage 
                           pageNumber={Math.max(1, Math.min(pageNumber, numPages))} 
                           width={isMobile ? window.innerWidth - 20 : 800} 
@@ -2461,32 +2487,32 @@ export default function App() {
                       <>
                         {/* Left Page */}
                         {(pageNumber % 2 === 0 ? pageNumber : pageNumber - 1) > 0 && (pageNumber % 2 === 0 ? pageNumber : pageNumber - 1) <= numPages ? (
-                          <div className="border-r border-zinc-300 relative bg-white">
-                            <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/10 to-transparent z-10 pointer-events-none" />
+                          <div className={`${isStacked ? 'shadow-2xl rounded-xl overflow-hidden mb-4' : 'border-r border-zinc-300'} relative bg-white`}>
+                            {!isStacked && <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-black/10 to-transparent z-10 pointer-events-none" />}
                             <MagnifiablePage 
                               pageNumber={pageNumber % 2 === 0 ? pageNumber : pageNumber - 1} 
-                              width={500}
+                              width={isStacked ? window.innerWidth - 20 : 500}
                               isActive={isMagnifierActive}
-                              cropTopTwoThirds={!isMobile}
+                              cropTopTwoThirds={isMobile ? true : false}
                             />
                           </div>
                         ) : (
-                          <div style={{ width: 500 }} className="bg-zinc-100" />
+                          <div style={{ width: isStacked ? window.innerWidth - 20 : 500 }} className={`bg-zinc-100 ${isStacked ? 'rounded-xl mb-4 h-[300px]' : ''}`} />
                         )}
                         
                         {/* Right Page */}
                         {(pageNumber % 2 === 0 ? pageNumber + 1 : pageNumber) <= numPages ? (
-                          <div className="relative bg-white">
-                            <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/10 to-transparent z-10 pointer-events-none" />
+                          <div className={`${isStacked ? 'shadow-2xl rounded-xl overflow-hidden' : ''} relative bg-white`}>
+                            {!isStacked && <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-black/10 to-transparent z-10 pointer-events-none" />}
                             <MagnifiablePage 
                               pageNumber={pageNumber % 2 === 0 ? pageNumber + 1 : pageNumber} 
-                              width={500}
+                              width={isStacked ? window.innerWidth - 20 : 500}
                               isActive={isMagnifierActive}
-                              cropTopTwoThirds={!isMobile}
+                              cropTopTwoThirds={isMobile ? true : false}
                             />
                           </div>
                         ) : (
-                          <div style={{ width: 500 }} className="bg-zinc-100" />
+                          <div style={{ width: isStacked ? window.innerWidth - 20 : 500 }} className={`bg-zinc-100 ${isStacked ? 'rounded-xl h-[300px]' : ''}`} />
                         )}
                       </>
                     )}
