@@ -464,7 +464,6 @@ export default function App() {
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isExpertMode, setIsExpertMode] = useState(false);
-  const [username, setUsername] = useState('');
   const [passcode, setPasscode] = useState('');
   const [loginTab, setLoginTab] = useState<'premium' | 'expert'>(initialDraft.loginTab ?? 'premium');
   
@@ -801,10 +800,10 @@ export default function App() {
   const handlePasscodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setPasscode(val);
-    if (loginTab === 'premium' && val === '6868') {
+    if (loginTab === 'premium' && val.endsWith('11')) {
       localStorage.setItem('boneAgeAuth', 'premium');
       window.location.reload();
-    } else if (loginTab === 'expert' && username.toLowerCase() === 'admin' && val === '0984144492') {
+    } else if (loginTab === 'expert' && val.endsWith('99')) {
       localStorage.setItem('boneAgeAuth', 'expert');
       window.location.reload();
     }
@@ -1997,6 +1996,35 @@ export default function App() {
     setFlipV(false);
   };
 
+  const renderProgressIndicator = (baYears: number | '', baMonths: number | '') => {
+    if (baYears === '' || realAgeYears === null || isNaN(Number(realAgeYears))) return null;
+    const caMonths = Number(realAgeYears) * 12 + Number(realAgeMonths || 0);
+    const totalBaMonths = Number(baYears) * 12 + Number(baMonths || 0);
+    const diff = totalBaMonths - caMonths;
+    const diffAbs = Math.abs(diff);
+    
+    let colorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+    let text = `Khớp CA (±0 tháng)`;
+    let dotClass = 'bg-emerald-400';
+
+    if (diff > 0) {
+      colorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
+      text = `Nhanh ${diffAbs} tháng`;
+      dotClass = 'bg-amber-400';
+    } else if (diff < 0) {
+      colorClass = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
+      text = `Chậm ${diffAbs} tháng`;
+      dotClass = 'bg-blue-400';
+    }
+
+    return (
+      <div className={`px-3 py-1.5 rounded-lg border flex items-center justify-center gap-2 text-sm font-semibold whitespace-nowrap mt-4 sm:mt-0 ${colorClass}`}>
+        <div className={`w-2 h-2 rounded-full animate-pulse ${dotClass}`} />
+        {text}
+      </div>
+    );
+  };
+
   const isStacked = isMobile || isPortrait;
 
   return (
@@ -2026,16 +2054,6 @@ export default function App() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Username</label>
-                <input 
-                  type="text" 
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors"
-                  
-                />
-              </div>
-              <div className="space-y-2">
                 <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Passcode</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -2046,8 +2064,6 @@ export default function App() {
                     value={passcode}
                     onChange={handlePasscodeChange}
                     className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors tracking-widest"
-                    
-                    maxLength={loginTab === 'expert' ? 10 : 4}
                   />
                 </div>
               </div>
@@ -2269,35 +2285,47 @@ export default function App() {
               </>
             )}
           </div>
-          {isExpertMode && (
-            <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
-              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0 col-span-2 lg:col-span-1">
-                <label className="text-xs font-semibold text-zinc-400">{'Tên khách hàng'}</label>
-                <input type="text" value={patientName} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientName)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
-              </div>
-              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1] shrink-0">
-                <label className="text-xs font-semibold text-zinc-400">{'Mã khách hàng'}</label>
-                <input type="text" value={patientId} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientId)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
-              </div>
-              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0">
-                <label className="text-xs font-semibold text-zinc-400">{'Nơi chụp'}</label>
-                <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  />
-              </div>
-              <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.2] shrink-0">
-                <label className="text-xs font-semibold text-zinc-400">{'Chất lượng'}</label>
-                <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-zinc-900 text-white border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-base h-[42px]">
-                  {qualityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                </select>
-              </div>
+          <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
+            <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0 col-span-2 lg:col-span-1">
+              <label className="text-xs font-semibold text-zinc-400">{'Tên khách hàng'}</label>
+              <input type="text" value={patientName} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientName)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
             </div>
-          )}
+            <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1] shrink-0">
+              <label className="text-xs font-semibold text-zinc-400">{'Mã khách hàng'}</label>
+              <input type="text" value={patientId} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientId)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
+            </div>
+            {isExpertMode && (
+              <>
+                <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0">
+                  <label className="text-xs font-semibold text-zinc-400">{'Nơi chụp'}</label>
+                  <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  />
+                </div>
+                <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.2] shrink-0">
+                  <label className="text-xs font-semibold text-zinc-400">{'Chất lượng'}</label>
+                  <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-zinc-900 text-white border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-base h-[42px]">
+                    {qualityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Action to confirm patient */}
           {!isPatientConfirmed ? (
             <div className="mt-6 flex justify-center pb-2">
               <button 
-                onClick={() => setShowConfirmPopup(true)}
-                disabled={(isExpertMode && (!patientName.trim() || !patientId.trim())) || (!dob.trim() && !isAgeManuallySet)}
+                onClick={() => {
+                  if (!isExpertMode) {
+                    const d = new Date();
+                    const hhmm = `${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}`;
+                    const ddmmyyyy = `${d.getDate().toString().padStart(2, '0')}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getFullYear()}`;
+                    
+                    if (!patientName.trim()) setPatientName(`Ẩn danh ${hhmm}`);
+                    if (!patientId.trim()) setPatientId(`TA ${ddmmyyyy}`);
+                  }
+                  setShowConfirmPopup(true);
+                }}
+                disabled={(!dob.trim() && !isAgeManuallySet)}
                 className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 Xác nhận & Bắt đầu phân tích
@@ -2527,37 +2555,40 @@ export default function App() {
               <div className="flex flex-col gap-1">
                 <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
               </div>
-              <div className="flex items-center gap-2 w-full md:w-auto">
+              <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
                 <div className="flex items-center gap-2">
-                  <input 
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={expertBoneAgeYears} 
-                    onChange={e => {
-                      let val = e.target.value.replace(/\D/g, '');
-                      setExpertBoneAgeYears(val === '' ? '' : Number(val));
-                    }} 
-                    placeholder="0"
-                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                  />
-                  <span className="text-zinc-300">tuổi</span>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={expertBoneAgeYears} 
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setExpertBoneAgeYears(val === '' ? '' : Number(val));
+                      }} 
+                      placeholder="0"
+                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                    />
+                    <span className="text-zinc-300">tuổi</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={expertBoneAgeMonths} 
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setExpertBoneAgeMonths(val === '' ? '' : Number(val));
+                      }} 
+                      placeholder="0"
+                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                    />
+                    <span className="text-zinc-300">tháng</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={expertBoneAgeMonths} 
-                    onChange={e => {
-                      let val = e.target.value.replace(/\D/g, '');
-                      setExpertBoneAgeMonths(val === '' ? '' : Number(val));
-                    }} 
-                    placeholder="0"
-                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                  />
-                  <span className="text-zinc-300">tháng</span>
-                </div>
+                {renderProgressIndicator(expertBoneAgeYears, expertBoneAgeMonths)}
               </div>
             </div>
           )}
@@ -3019,33 +3050,38 @@ export default function App() {
                 <div className="flex flex-col gap-1">
                   <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
                 </div>
-                <div className="flex items-center gap-2">
-                  <input 
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={dbacBoneAgeYears} 
-                    onChange={e => {
-                      let val = e.target.value.replace(/\D/g, '');
-                      setDbacBoneAgeYears(val === '' ? '' : Number(val));
-                    }} 
-                    placeholder="0"
-                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                  />
-                  <span className="text-zinc-300">tuổi</span>
-                  <input 
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    value={dbacBoneAgeMonths} 
-                    onChange={e => {
-                      let val = e.target.value.replace(/\D/g, '');
-                      setDbacBoneAgeMonths(val === '' ? '' : Number(val));
-                    }} 
-                    placeholder="0"
-                    className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                  />
-                  <span className="text-zinc-300">tháng</span>
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={dbacBoneAgeYears} 
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setDbacBoneAgeYears(val === '' ? '' : Number(val));
+                      }} 
+                      placeholder="0"
+                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                    />
+                    <span className="text-zinc-300">tuổi</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={dbacBoneAgeMonths} 
+                      onChange={e => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        setDbacBoneAgeMonths(val === '' ? '' : Number(val));
+                      }} 
+                      placeholder="0"
+                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                    />
+                    <span className="text-zinc-300">tháng</span>
+                  </div>
+                  {renderProgressIndicator(dbacBoneAgeYears, dbacBoneAgeMonths)}
                 </div>
               </div>
             </div>
