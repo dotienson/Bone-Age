@@ -452,8 +452,26 @@ export default function App() {
   const [exportAction, setExportAction] = useState<'docx' | 'pdf' | 'reset' | null>(null);
   const [showExportConfirm, setShowExportConfirm] = useState(false);
 
-  const [patientName, setPatientName] = useState(initialDraft.patientName ?? '');
-  const [patientId, setPatientId] = useState(initialDraft.patientId ?? '');
+  const [patientName, setPatientName] = useState(() => {
+    if (initialDraft.patientName) return initialDraft.patientName;
+    const auth = localStorage.getItem('boneAgeAuth');
+    if (auth === 'premium' || auth === 'expert') {
+      const d = new Date();
+      const hhmm = `${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}`;
+      return `Ẩn danh ${hhmm}`;
+    }
+    return '';
+  });
+  const [patientId, setPatientId] = useState(() => {
+    if (initialDraft.patientId) return initialDraft.patientId;
+    const auth = localStorage.getItem('boneAgeAuth');
+    if (auth === 'premium' || auth === 'expert') {
+      const d = new Date();
+      const ddmmyyyy = `${d.getDate().toString().padStart(2, '0')}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getFullYear()}`;
+      return `TA ${ddmmyyyy}`;
+    }
+    return '';
+  });
   const [dob, setDob] = useState<string>(initialDraft.dob ?? '');
   const [examDate, setExamDate] = useState(() => {
     if (initialDraft.examDate) return initialDraft.examDate;
@@ -1343,7 +1361,7 @@ export default function App() {
         <style>
           @page {
             size: A4;
-            margin: 8mm 12mm;
+            margin: 10mm 12mm;
           }
           body {
             font-family: Arial, sans-serif;
@@ -1380,18 +1398,64 @@ export default function App() {
             text-align: right;
             margin-top: 10mm;
           }
+
+          /* Tùy chỉnh Header lặp lại trên mỗi trang in */
+          table.print-wrapper {
+            width: 100%;
+            border-collapse: collapse;
+            border: none;
+          }
+          thead.print-header {
+            display: table-header-group;
+          }
+          .print-header-content {
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 2mm;
+            margin-bottom: 4mm;
+            font-size: 10pt;
+            color: #555;
+            width: 100%;
+          }
+          .header-table {
+            width: 100%;
+            border: none;
+            border-collapse: collapse;
+          }
+          .header-table td {
+            padding: 0;
+            vertical-align: bottom;
+          }
         </style>
       </head>
       <body>
-        <div class="content-box">
-          <h1>KẾT QUẢ PHÂN TÍCH CHUYÊN SÂU TUỔI XƯƠNG</h1>
-          <div class="subtitle">
-            Bằng phương pháp Greulich & Pyle với 2 Atlas<br/>
-            <i>Gilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)</i>
-          </div>
+        <table class="print-wrapper">
+          <thead class="print-header">
+            <tr>
+              <td>
+                <div class="print-header-content">
+                  <table class="header-table">
+                    <tr>
+                      <td style="text-align: left; width: 40%;"><strong>Khách hàng:</strong> ${patientName || '....................'}</td>
+                      <td style="text-align: center; width: 30%;"><strong>ID:</strong> ${patientId || '....................'}</td>
+                      <td style="text-align: right; width: 30%;"><strong>Ngày chụp:</strong> ${examDate || '....................'}</td>
+                    </tr>
+                  </table>
+                </div>
+              </td>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="content-box">
+                  <h1>KẾT QUẢ PHÂN TÍCH CHUYÊN SÂU TUỔI XƯƠNG</h1>
+                  <div class="subtitle">
+                    Bằng phương pháp Greulich & Pyle với 2 Atlas<br/>
+                    <i>Gilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)</i>
+                  </div>
 
-          <div class="mb-1"><span class="font-bold">Tên khách hàng:</span> ${patientName || '........................................'}</div>
-          <div class="mb-1">Mã khách hàng: ${patientId || '........................................'}</div>
+                  <div class="mb-1"><span class="font-bold">Tên khách hàng:</span> ${patientName || '........................................'}</div>
+                  <div class="mb-1">Mã khách hàng: ${patientId || '........................................'}</div>
           <div class="mb-1">Tuổi thực tế (CA) tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</div>
           <div class="mb-1">Hình thái xương sơ bộ: ${hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}</div>
           <div class="mb-1">Ngày khám: ${examDate || '........................................'}</div>
@@ -1440,6 +1504,10 @@ export default function App() {
             <div style="margin-top: 2mm;">Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}</div>
           </div>
         </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
         <script>
           setTimeout(() => {
             window.print();
@@ -1506,8 +1574,12 @@ export default function App() {
     setAbnormalityDetails('');
     setDbacPageNumber(1);
     setCopied(false);
-    setPatientName('');
-    setPatientId('');
+    
+    const hhmm = `${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}`;
+    const ddmmyyyy = `${d.getDate().toString().padStart(2, '0')}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getFullYear()}`;
+    setPatientName(`Ẩn danh ${hhmm}`);
+    setPatientId(`TA ${ddmmyyyy}`);
+    
     setDob('');
     setIsPatientConfirmed(false);
     setShowConfirmPopup(false);
@@ -2124,12 +2196,7 @@ export default function App() {
                   </>
                 )}
                 <button 
-                  onClick={() => {
-                    if(window.confirm('Bạn có chắc chắn muốn reset để tạo ca mới?')) {
-                      handleReset();
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                  }}
+                  onClick={() => promptExportConfirm('reset')}
                   title="Tạo mới"
                   className="p-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors flex items-center justify-center"
                 >
@@ -2315,14 +2382,6 @@ export default function App() {
             <div className="mt-6 flex justify-center pb-2">
               <button 
                 onClick={() => {
-                  if (!isExpertMode) {
-                    const d = new Date();
-                    const hhmm = `${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}`;
-                    const ddmmyyyy = `${d.getDate().toString().padStart(2, '0')}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getFullYear()}`;
-                    
-                    if (!patientName.trim()) setPatientName(`Ẩn danh ${hhmm}`);
-                    if (!patientId.trim()) setPatientId(`TA ${ddmmyyyy}`);
-                  }
                   setShowConfirmPopup(true);
                 }}
                 disabled={(!dob.trim() && !isAgeManuallySet)}
@@ -3605,30 +3664,36 @@ export default function App() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-zinc-900 border border-zinc-700/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-sm sm:max-w-md w-full relative">
             <h3 className="text-xl font-bold text-white mb-6 text-center">Xác nhận thao tác</h3>
-            <div className="space-y-4 text-sm sm:text-base text-zinc-300">
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
-                <span>Khách hàng:</span>
-                <span className="font-semibold text-white truncate max-w-[200px] text-right">{patientName || '-'}</span>
+            {exportAction === 'reset' ? (
+              <div className="text-center text-zinc-300 py-4">
+                Bạn có chắc chắn muốn reset để tạo ca mới? Toàn bộ dữ liệu hiện tại sẽ bị xóa.
               </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
-                <span>Tuổi lúc chụp (CA):</span>
-                <span className="font-bold text-right">{realAgeYears} tuổi {realAgeMonths} tháng</span>
+            ) : (
+              <div className="space-y-4 text-sm sm:text-base text-zinc-300">
+                <div className="flex justify-between border-b border-zinc-800 pb-2">
+                  <span>Khách hàng:</span>
+                  <span className="font-semibold text-white truncate max-w-[200px] text-right">{patientName || '-'}</span>
+                </div>
+                <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
+                  <span>Tuổi lúc chụp (CA):</span>
+                  <span className="font-bold text-right">{realAgeYears} tuổi {realAgeMonths} tháng</span>
+                </div>
+                <div className="border-b border-zinc-800 pb-2 flex flex-col space-y-1">
+                  <span className="text-zinc-500 text-sm">Kết luận rút gọn:</span>
+                  <span className="font-medium text-white break-words mt-1">
+                    {(() => {
+                      const devZ = getDeviationAndZScore();
+                      if (!devZ) return '-';
+                      const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
+                      const dbacPopulated = dbacBoneAgeYears !== '';
+                      const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
+                      const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted} (Gaskin et al).`;
+                      return `${boneAgeSummary} ${devZ.shortDeltaText}`;
+                    })()}
+                  </span>
+                </div>
               </div>
-              <div className="border-b border-zinc-800 pb-2 flex flex-col space-y-1">
-                <span className="text-zinc-500 text-sm">Kết luận rút gọn:</span>
-                <span className="font-medium text-white break-words mt-1">
-                  {(() => {
-                    const devZ = getDeviationAndZScore();
-                    if (!devZ) return '-';
-                    const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
-                    const dbacPopulated = dbacBoneAgeYears !== '';
-                    const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
-                    const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted} (Gaskin et al).`;
-                    return `${boneAgeSummary} ${devZ.shortDeltaText}`;
-                  })()}
-                </span>
-              </div>
-            </div>
+            )}
             <div className="flex gap-3 mt-8">
               <button
                 onClick={() => {
