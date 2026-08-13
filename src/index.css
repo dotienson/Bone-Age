@@ -16,3 +16,17 @@ input, textarea {
   -webkit-user-select: text;
   user-select: text;
 }
+
+@keyframes marquee {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+.animate-marquee-mobile {
+  display: inline-block;
+  white-space: nowrap;
+}
+@media (max-width: 639px) {
+  .animate-marquee-mobile {
+    animation: marquee 15s linear infinite;
+  }
+}

@@ -268,6 +268,60 @@ const BRUSH_DATA_GIRL = [
   { ageM: 192, sd: 7.31 }
 ];
 
+const BX_CHINA05_CORRECTIONS = [
+  { age: 2.0, boy: 0.0, girl: -0.2 },
+  { age: 2.5, boy: -0.1, girl: -0.2 },
+  { age: 3.0, boy: -0.2, girl: 0.1 },
+  { age: 3.5, boy: -0.2, girl: 0.3 },
+  { age: 4.0, boy: -0.1, girl: 0.4 },
+  { age: 4.5, boy: -0.0, girl: 0.4 },
+  { age: 5.0, boy: 0.0, girl: 0.3 },
+  { age: 5.5, boy: 0.1, girl: 0.1 },
+  { age: 6.0, boy: 0.2, girl: -0.1 },
+  { age: 6.5, boy: 0.3, girl: -0.1 },
+  { age: 7.0, boy: 0.5, girl: 0.2 },
+  { age: 7.5, boy: 0.6, girl: 0.3 },
+  { age: 8.0, boy: 0.5, girl: 0.2 },
+  { age: 8.5, boy: 0.4, girl: 0.1 },
+  { age: 9.0, boy: 0.3, girl: -0.0 },
+  { age: 9.5, boy: 0.2, girl: -0.1 },
+  { age: 10.0, boy: 0.1, girl: -0.1 },
+  { age: 10.5, boy: 0.0, girl: -0.2 },
+  { age: 11.0, boy: -0.1, girl: -0.2 },
+  { age: 11.5, boy: -0.2, girl: -0.3 },
+  { age: 12.0, boy: -0.4, girl: -0.5 },
+  { age: 12.5, boy: -0.5, girl: -0.6 },
+  { age: 13.0, boy: -0.4, girl: -0.7 },
+  { age: 13.5, boy: -0.4, girl: -0.8 },
+  { age: 14.0, boy: -0.4, girl: -0.9 },
+  { age: 14.5, boy: -0.5, girl: -1.0 },
+  { age: 15.0, boy: -0.7, girl: -1.2 },
+  { age: 15.5, boy: -0.9, girl: -1.2 },
+  { age: 16.0, boy: -1.0, girl: -1.1 },
+  { age: 16.5, boy: -1.1, girl: -1.1 },
+  { age: 17.0, boy: -1.2, girl: -1.2 }
+];
+
+function getBxChina05Age(baDecimal: number, gender: 'boy' | 'girl') {
+  if (baDecimal < 2.0) {
+    return baDecimal + BX_CHINA05_CORRECTIONS[0][gender];
+  }
+  if (baDecimal >= 17.0) {
+    return baDecimal + BX_CHINA05_CORRECTIONS[BX_CHINA05_CORRECTIONS.length - 1][gender];
+  }
+  
+  for (let i = 0; i < BX_CHINA05_CORRECTIONS.length - 1; i++) {
+    const lower = BX_CHINA05_CORRECTIONS[i];
+    const upper = BX_CHINA05_CORRECTIONS[i + 1];
+    if (baDecimal >= lower.age && baDecimal <= upper.age) {
+      const fraction = (baDecimal - lower.age) / (upper.age - lower.age);
+      const correction = lower[gender] + fraction * (upper[gender] - lower[gender]);
+      return baDecimal + correction;
+    }
+  }
+  return baDecimal;
+}
+
 const getInitialDraft = () => {
   try {
     const auth = localStorage.getItem('boneAgeAuth');
@@ -1206,6 +1260,21 @@ export default function App() {
               ],
               spacing: { after: 100 }
             }),
+            (() => {
+              const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
+              const bxAge = getBxChina05Age(baDecimal, gender);
+              const bxYears = Math.floor(bxAge);
+              const bxMonths = Math.round((bxAge - bxYears) * 12);
+              const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
+              return new Paragraph({
+                children: [
+                  new TextRun({ text: "- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): ", size: 24, font: "Arial" }),
+                  new TextRun({ text: bxFormatted, size: 24, font: "Arial", bold: true, color: "800020" }),
+                  new TextRun({ text: " (Zhang, Thodberg et al. 2013)", size: 24, font: "Arial" })
+                ],
+                spacing: { after: 100 }
+              });
+            })(),
             ...(yesFeatures.length > 0 ? [
               new Paragraph({
                 children: [new TextRun({ text: "+ Các dấu hiệu được ghi nhận:", size: 24, font: "Arial", bold: true })],
@@ -1307,6 +1376,32 @@ export default function App() {
                 new TextRun({ text: `Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}`, size: 24, font: "Arial" })
              ],
              spacing: { after: 400 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [new TextRun({ text: "Tài liệu tham chiếu:", size: 16, font: "Arial", bold: true })],
+            spacing: { before: 400, after: 100 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.", size: 16, font: "Arial" })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.", size: 16, font: "Arial" })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372", size: 16, font: "Arial" })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.", size: 16, font: "Arial" })],
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570", size: 16, font: "Arial" })],
+            spacing: { after: 200 }
           })
         ]
       }]
@@ -1469,6 +1564,14 @@ export default function App() {
           
           ${dbacPopulated ? `
           <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}</div>
+          ${(() => {
+            const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
+            const bxAge = getBxChina05Age(baDecimal, gender);
+            const bxYears = Math.floor(bxAge);
+            const bxMonths = Math.round((bxAge - bxYears) * 12);
+            const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
+            return `<div class="mb-1">- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): <span class="text-red">${bxFormatted}</span> (Zhang, Thodberg et al. 2013)</div>`;
+          })()}
           
           ${yesFeatures.length > 0 ? `
             <div class="mb-1 font-bold">+ Các dấu hiệu được ghi nhận:</div>
@@ -1502,6 +1605,15 @@ export default function App() {
             <div style="font-style: italic; margin-bottom: 20mm;">Bác sĩ chuyên khoa đánh giá</div>
             <div class="font-bold">ThS.BS. Đỗ Tiến Sơn</div>
             <div style="margin-top: 2mm;">Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}</div>
+          </div>
+          
+          <div style="margin-top: 10mm; font-size: 8pt; text-align: justify; border-top: 1px solid #ccc; padding-top: 2mm;">
+            <div style="font-weight: bold; margin-bottom: 2mm;">Tài liệu tham chiếu:</div>
+            <div style="margin-bottom: 1mm;">1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</div>
+            <div style="margin-bottom: 1mm;">2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</div>
+            <div style="margin-bottom: 1mm;">3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</div>
+            <div style="margin-bottom: 1mm;">4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.</div>
+            <div style="margin-bottom: 1mm;">5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570</div>
           </div>
         </div>
               </td>
@@ -1849,7 +1961,14 @@ export default function App() {
       const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
       
       const dbacFormatted = `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`;
-      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd();
+      const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
+      const bxAge = getBxChina05Age(baDecimal, gender);
+      const bxYears = Math.floor(bxAge);
+      const bxMonths = Math.round((bxAge - bxYears) * 12);
+      const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
+      const bxText = `\n- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): ${bxFormatted} (Zhang, Thodberg et al. 2013)`;
+      
+      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd() + bxText;
       
       let details = '';
       if (yesFeatures.length > 0) {
@@ -1947,6 +2066,14 @@ export default function App() {
         {dbacPopulated && (
           <>
             <p className="whitespace-pre-wrap mt-2">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). {`${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd()}</p>
+            {(() => {
+              const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
+              const bxAge = getBxChina05Age(baDecimal, gender);
+              const bxYears = Math.floor(bxAge);
+              const bxMonths = Math.round((bxAge - bxYears) * 12);
+              const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
+              return <p className="whitespace-pre-wrap mt-2">- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): <span className="font-bold text-[#800020]">{bxFormatted}</span> (Zhang, Thodberg et al. 2013)</p>;
+            })()}
             {yesFeatures.length > 0 && (
               <div className="whitespace-pre-wrap pl-2 mt-2">
                 <span className="font-semibold">+ Các dấu hiệu được ghi nhận:</span> {yesFeatures.join('; ')}
@@ -2150,11 +2277,11 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className={`border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50 transition-transform duration-300 ${isHeaderVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="flex flex-col">
-              <h1 className="text-xl font-bold tracking-tight text-emerald-600 flex items-center">
+              <h1 className="text-lg font-bold tracking-tight text-emerald-600 flex items-center">
                 <Dog size={24} className="mr-2 hidden sm:block" />
                 <span className="hidden sm:inline">ProBA 3.1 - Bác sĩ Sơn</span>
                 <span className="sm:hidden">ProBA 3.1</span>
@@ -2164,7 +2291,6 @@ export default function App() {
                   </span>
                 )}
               </h1>
-              <span className="text-[10px] sm:text-xs text-emerald-600/70 font-medium sm:ml-[32px] -mt-0.5 sm:-mt-1 md:block hidden">Hỗ trợ đọc tuổi xương thủ công</span>
             </div>
           </div>
           <div className="flex gap-2">
@@ -2213,6 +2339,7 @@ export default function App() {
             )}
           </div>
         </div>
+        
       </header>
 
       <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
@@ -3414,8 +3541,16 @@ export default function App() {
                 if (devZ && devZ.diffText && devZ.significanceText) {
                   const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
                   const dbacPopulated = dbacBoneAgeYears !== '';
-                  const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
-                  const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted} (Gaskin et al).`;
+                  let dbacFormatted = '-';
+                  if (dbacPopulated) {
+                    const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
+                    const bxAge = getBxChina05Age(baDecimal, gender);
+                    const bxYears = Math.floor(bxAge);
+                    const bxMonths = Math.round((bxAge - bxYears) * 12);
+                    const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
+                    dbacFormatted = `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng (Gaskin et al); ${bxFormatted} (BX-China05, Zhang et al)`;
+                  }
+                  const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted}.`;
                   const shortText = `${boneAgeSummary} ${devZ.shortDeltaText}`;
                   return (
                     <div className="p-4 md:p-6 bg-indigo-50/10 border border-indigo-500/30 rounded-2xl relative group">
@@ -3593,7 +3728,8 @@ export default function App() {
                   <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
                   <p>3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</p>
                   <p>4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.</p>
-                  <p>5. Diméglio, Alain (2005). Accuracy of the Sauvegrain Method in Determining Skeletal Age During Puberty. The Journal of Bone and Joint Surgery (American), 87(8), 1689–. doi:10.2106/JBJS.D.02418</p>
+                  <p>5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570</p>
+                  <p>6. Diméglio, Alain (2005). Accuracy of the Sauvegrain Method in Determining Skeletal Age During Puberty. The Journal of Bone and Joint Surgery (American), 87(8), 1689–. doi:10.2106/JBJS.D.02418</p>
 
                   <div className="mt-6 space-y-3 text-[11px] md:text-xs text-zinc-500 pt-3 border-t border-white/5">
                     <p><strong>Atlas tuổi xương của Gilsanz và Ratib ["rượu mới bình mới"]:</strong> Hình ảnh "lý tưởng hóa" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.</p>
@@ -3686,8 +3822,16 @@ export default function App() {
                       if (!devZ) return '-';
                       const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
                       const dbacPopulated = dbacBoneAgeYears !== '';
-                      const dbacFormatted = dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-';
-                      const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted} (Gaskin et al).`;
+                      let dbacFormatted = '-';
+                      if (dbacPopulated) {
+                        const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
+                        const bxAge = getBxChina05Age(baDecimal, gender);
+                        const bxYears = Math.floor(bxAge);
+                        const bxMonths = Math.round((bxAge - bxYears) * 12);
+                        const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
+                        dbacFormatted = `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng (Gaskin et al); ${bxFormatted} (BX-China05, Zhang et al)`;
+                      }
+                      const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted}.`;
                       return `${boneAgeSummary} ${devZ.shortDeltaText}`;
                     })()}
                   </span>
@@ -3849,7 +3993,7 @@ export default function App() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-6 mt-12 bg-black/20 backdrop-blur-sm">
+      <footer className="border-t border-white/10 py-6 pb-12 mt-12 bg-black/20 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 text-center space-y-1 text-white/50 text-xs font-medium tracking-wide">
           <p>
             Bản quyền thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors">BS. Đỗ Tiến Sơn</a> &copy; 2026
@@ -3857,6 +4001,11 @@ export default function App() {
           <p>Mọi quyền đều được bảo vệ</p>
         </div>
       </footer>
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-amber-500 text-white text-[10px] sm:text-xs font-semibold py-1 px-4 overflow-hidden flex items-center w-full shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
+  <div className="animate-marquee-mobile sm:w-full sm:text-center w-full">
+    KẾT QUẢ DO BÁC SĨ PHÂN TÍCH THỦ CÔNG - KHÔNG PHẢI SẢN PHẨM CỦA TRÍ TUỆ NHÂN TẠO (AI)
+  </div>
+</div>
     </div>
   );
 }
