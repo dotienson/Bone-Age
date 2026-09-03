@@ -1069,6 +1069,37 @@ export default function App() {
     const devZ = getDeviationAndZScore();
     const sauvegrainPopulated = sauvegrainAgeYears !== '';
 
+    let logoData: Uint8Array | null = null;
+    let logoDimensions = { width: 100, height: 50 };
+    try {
+      const resp = await fetch('/logo.png');
+      if (resp.ok) {
+        const buffer = await resp.arrayBuffer();
+        if (buffer.byteLength > 0) {
+          logoData = new Uint8Array(buffer);
+          
+          // Get natural dimensions
+          const blob = new Blob([buffer], { type: 'image/png' });
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = reject;
+            img.src = url;
+          });
+          const scale = Math.min(150 / img.height, 350 / img.width);
+          logoDimensions = {
+            width: Math.round(img.width * scale),
+            height: Math.round(img.height * scale)
+          };
+          URL.revokeObjectURL(url);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch logo for docx:", e);
+    }
+
+
     let devZPngBuffer: Uint8Array | null = null;
     if (devZ && devZ.zScores && devZ.zScores.length > 0) {
       try {
@@ -1100,6 +1131,21 @@ export default function App() {
           }
         },
         children: [
+
+          ...(logoData ? [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new ImageRun({
+                  data: logoData,
+                  transformation: logoDimensions,
+                  type: "png"
+                })
+              ],
+              spacing: { after: 200 }
+            })
+          ] : []),
+
           new Paragraph({
             alignment: AlignmentType.CENTER,
             children: [
@@ -1529,6 +1575,11 @@ export default function App() {
               <td>
                 <div class="print-header-content">
                   <table class="header-table">
+                    <tr>
+                      <td colspan="3" style="text-align: center; padding-bottom: 5mm;">
+                        <img src="/logo.png" style="max-width: 50%; max-height: 35mm; object-fit: contain;" onerror="this.style.display=\'none\'" />
+                      </td>
+                    </tr>
                     <tr>
                       <td style="text-align: left; width: 40%;"><strong>Khách hàng:</strong> ${patientName || '....................'}</td>
                       <td style="text-align: center; width: 30%;"><strong>ID:</strong> ${patientId || '....................'}</td>
@@ -2231,9 +2282,9 @@ export default function App() {
       {!isAuthenticated && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 backdrop-blur-xl">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-zinc-100 max-w-md w-full mx-4 space-y-6">
-            <div className="text-center space-y-2">
-              <h2 className="text-2xl font-bold text-emerald-600">DualGP Dr. Son 2.0</h2>
-              <p className="text-zinc-500 text-sm">Vui lòng đăng nhập để sử dụng ứng dụng</p>
+            <div className="text-center flex flex-col items-center">
+              <img src="/logo.png" alt="Logo" className="h-24 sm:h-32 w-auto object-contain mb-1" onError={(e) => e.currentTarget.style.display = 'none'} />
+              <p className="text-zinc-500 text-sm mt-2">Vui lòng đăng nhập để sử dụng ứng dụng</p>
             </div>
             
             <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200 mb-6">
@@ -2278,13 +2329,12 @@ export default function App() {
 
       {/* Header */}
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-12 flex items-center justify-between w-full">
+        <div className="max-w-7xl mx-auto px-4 py-0 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <div className="flex flex-col">
               <h1 className="text-lg font-bold tracking-tight text-emerald-600 flex items-center">
-                <Dog size={24} className="mr-2 hidden sm:block" />
-                <span className="hidden sm:inline">ProBA 3.1 - Bác sĩ Sơn</span>
-                <span className="sm:hidden">ProBA 3.1</span>
+                <img src="/logo.png" alt="Logo" className="h-auto w-auto max-h-12 sm:max-h-16 max-w-[65vw] sm:max-w-[300px] mr-2 object-contain py-1" onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextElementSibling) e.currentTarget.nextElementSibling.classList.remove('hidden'); }} />
+                <Dog size={32} className="mr-2 hidden" />
                 {isAuthenticated && (
                   <span className={`hidden sm:inline-block ml-2 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
                     {isExpertMode ? 'PRO' : 'LITE'}
