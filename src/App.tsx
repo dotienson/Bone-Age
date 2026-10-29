@@ -322,6 +322,128 @@ function getBxChina05Age(baDecimal: number, gender: 'boy' | 'girl') {
   return baDecimal;
 }
 
+function getBrushSdInfo(caMonths: number, gender: 'boy' | 'girl'): {
+  sd: number;
+  isInterpolated: boolean;
+  lowerAgeM?: number;
+  upperAgeM?: number;
+} {
+  const brushData = gender === 'boy' ? BRUSH_DATA_BOY : BRUSH_DATA_GIRL;
+  if (caMonths <= brushData[0].ageM) {
+    return { sd: brushData[0].sd, isInterpolated: false };
+  }
+  const last = brushData[brushData.length - 1];
+  if (caMonths >= last.ageM) {
+    return { sd: last.sd, isInterpolated: false };
+  }
+  for (let i = 0; i < brushData.length - 1; i++) {
+    const lower = brushData[i];
+    const upper = brushData[i + 1];
+    if (caMonths === lower.ageM) {
+      return { sd: lower.sd, isInterpolated: false };
+    }
+    if (caMonths === upper.ageM) {
+      return { sd: upper.sd, isInterpolated: false };
+    }
+    if (caMonths > lower.ageM && caMonths < upper.ageM) {
+      const fraction = (caMonths - lower.ageM) / (upper.ageM - lower.ageM);
+      const sd = lower.sd + fraction * (upper.sd - lower.sd);
+      return { sd, isInterpolated: true, lowerAgeM: lower.ageM, upperAgeM: upper.ageM };
+    }
+  }
+  return { sd: last.sd, isInterpolated: false };
+}
+
+function formatMonthsToAgeText(monthsVal: number): string {
+  const clamped = Math.max(0, monthsVal);
+  let y = Math.floor(clamped / 12);
+  let m = Number((clamped - y * 12).toFixed(1));
+  if (m >= 12) {
+    y += 1;
+    m = 0;
+  }
+  const mStr = Number.isInteger(m) ? `${m}` : m.toFixed(1);
+  return y > 0 ? `${y} tuổi ${mStr} tháng` : `${mStr} tháng`;
+}
+
+function getNormalBoneAgeRange(caMonths: number, gender: 'boy' | 'girl') {
+  const { sd, isInterpolated, lowerAgeM, upperAgeM } = getBrushSdInfo(caMonths, gender);
+  const twoSd = 2 * sd;
+  const minMonths = Math.max(0, caMonths - twoSd);
+  const maxMonths = caMonths + twoSd;
+  const minText = formatMonthsToAgeText(minMonths);
+  const maxText = formatMonthsToAgeText(maxMonths);
+  return {
+    sd,
+    twoSd,
+    isInterpolated,
+    lowerAgeM,
+    upperAgeM,
+    minMonths,
+    maxMonths,
+    minText,
+    maxText,
+    rangeText: `${minText} – ${maxText}`
+  };
+}
+
+function getAnatomicalFeatureWeight(featureText: string): {
+  weight: number;
+  label: string;
+  colorClass: string;
+} {
+  const lower = featureText.toLowerCase();
+  if (
+    lower.includes('xương vừng phụ') ||
+    lower.includes('rất thay đổi') ||
+    lower.includes('khá biến thiên') ||
+    lower.includes('biến thể giải phẫu') ||
+    lower.includes('đại diện cho độ tuổi xương thường thấy')
+  ) {
+    return {
+      weight: 0.5,
+      label: 'x0.5 • Biến thiên',
+      colorClass: 'text-zinc-400 bg-zinc-800/90 border-zinc-600/50'
+    };
+  }
+  if (
+    lower.includes('đốt ngón') ||
+    lower.includes('xương đốt') ||
+    lower.includes('sụn tiếp hợp') ||
+    lower.includes('đóng sụn') ||
+    lower.includes('tạo mũ') ||
+    lower.includes('tạo hình mũ') ||
+    lower.includes('hợp nhất') ||
+    lower.includes('đĩa tăng trưởng') ||
+    lower.includes('xương vừng cơ khép')
+  ) {
+    return {
+      weight: 2.0,
+      label: 'x2.0 • Đốt ngón/Sụn',
+      colorClass: 'text-emerald-300 bg-emerald-500/15 border-emerald-500/30'
+    };
+  }
+  if (
+    lower.includes('xương bàn') ||
+    lower.includes('bàn ngón') ||
+    lower.includes('xương quay') ||
+    lower.includes('xương trụ') ||
+    lower.includes('mỏm trâm') ||
+    lower.includes('mỏm châm')
+  ) {
+    return {
+      weight: 1.5,
+      label: 'x1.5 • Bàn/Quay-Trụ',
+      colorClass: 'text-sky-300 bg-sky-500/15 border-sky-500/30'
+    };
+  }
+  return {
+    weight: 1.0,
+    label: 'x1.0 • Cổ tay',
+    colorClass: 'text-indigo-300 bg-indigo-500/15 border-indigo-500/30'
+  };
+}
+
 const getInitialDraft = () => {
   try {
     const auth = localStorage.getItem('boneAgeAuth');
@@ -1862,19 +1984,12 @@ export default function App() {
     const caMonths = realAgeYears * 12 + realAgeMonths;
     const caDecimal = caMonths / 12;
 
-    const brushData = gender === 'boy' ? BRUSH_DATA_BOY : BRUSH_DATA_GIRL;
-    let closestRow = brushData[0];
-    let minDiff = Math.abs(caMonths - closestRow.ageM);
-    for (const row of brushData) {
-      const d = Math.abs(caMonths - row.ageM);
-      if (d < minDiff) {
-        minDiff = d;
-        closestRow = row;
-      }
-    }
-
-    const sd = closestRow.sd;
+    const { sd, isInterpolated } = getBrushSdInfo(caMonths, gender);
     const twoSd = 2 * sd;
+    const normalRange = getNormalBoneAgeRange(caMonths, gender);
+    const sdSourceLabel = isInterpolated
+      ? 'Greulich & Pyle, 1959 - Nội suy tuyến tính theo tuổi'
+      : 'Greulich & Pyle, 1959';
 
     let diffText = '';
     let significanceText = '';
@@ -1908,22 +2023,22 @@ export default function App() {
       if (diffDm > twoSd) opD = '>'; else if (diffDm < twoSd) opD = '<';
 
       if (gpAgeMonths === dbacAgeMonths) {
-        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (đối chiếu 2 atlas) (${opG} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (đối chiếu 2 atlas) (${opG} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (${sdSourceLabel}) | Khoảng tuổi xương bình thường (±2SD): ${normalRange.rangeText}`;
         const isSig = Math.abs(zG) > 2;
         if (isSig) {
-          significanceText = `Kết luận: Tuổi xương ${zG > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zG.toFixed(2)}) (Greulich & Pyle, 1959).`;
+          significanceText = `Kết luận: Tuổi xương ${zG > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zG.toFixed(2)}) (${sdSourceLabel}).`;
         } else {
-          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zG.toFixed(2)}) (Greulich & Pyle, 1959).`;
+          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zG.toFixed(2)}) (${sdSourceLabel}).`;
         }
       } else {
-        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (${sdSourceLabel}) | Khoảng tuổi xương bình thường (±2SD): ${normalRange.rangeText}`;
 
         const isSig = Math.abs(zG) > 2 || Math.abs(zD) > 2;
         const dirText = maxZ > 0 && minZ > 0 ? 'tăng' : (maxZ < 0 && minZ < 0 ? 'giảm' : 'thay đổi');
         if (isSig) {
-          significanceText = `Kết luận: Tuổi xương ${dirText} có ý nghĩa lâm sàng (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+          significanceText = `Kết luận: Tuổi xương ${dirText} có ý nghĩa lâm sàng (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (${sdSourceLabel}).`;
         } else {
-          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (Greulich & Pyle, 1959).`;
+          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (${sdSourceLabel}).`;
         }
       }
     } else {
@@ -1944,16 +2059,17 @@ export default function App() {
       if (diffMonths > twoSd) op = '>';
       else if (diffMonths < twoSd) op = '<';
 
-      diffText = `Delta (BA-CA) = ${formatSign(rawDiffMonths)} tháng (so atlas ${maxAtlasName}) (${op} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (Greulich & Pyle, 1959)`;
+      diffText = `Delta (BA-CA) = ${formatSign(rawDiffMonths)} tháng (so atlas ${maxAtlasName}) (${op} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (${sdSourceLabel}) | Khoảng tuổi xương bình thường (±2SD): ${normalRange.rangeText}`;
       
       if (Math.abs(zScore) > 2) {
-        significanceText = `Kết luận: Tuổi xương ${rawDiffMonths > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zScore.toFixed(2)}) (Greulich & Pyle, 1959).`;
+        significanceText = `Kết luận: Tuổi xương ${rawDiffMonths > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zScore.toFixed(2)}) (${sdSourceLabel}).`;
       } else {
-        significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zScore.toFixed(2)}) (Greulich & Pyle, 1959).`;
+        significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zScore.toFixed(2)}) (${sdSourceLabel}).`;
       }
     }
 
     let shortDeltaText = '';
+    const shortInterpSuffix = isInterpolated ? ' - Nội suy tuyến tính theo tuổi' : '';
     if (gpAgeMonths > 0 && dbacAgeMonths > 0) {
       if (gpAgeMonths === dbacAgeMonths) {
         const rawDiffGm = (gpAgeMonths / 12 - caDecimal) * 12;
@@ -1962,7 +2078,7 @@ export default function App() {
         let opG = '~';
         if (diffGm > twoSd) opG = '>'; else if (diffGm < twoSd) opG = '<';
         
-        shortDeltaText = `Delta (BA-CA) ~ ${formatSign(rawDiffGm)} tháng (${opG} 2SD GP) (Z-score ~ ${zG.toFixed(2)}).`;
+        shortDeltaText = `Delta (BA-CA) ~ ${formatSign(rawDiffGm)} tháng (${opG} 2SD GP) (Z-score ~ ${zG.toFixed(2)}${shortInterpSuffix}).`;
       } else {
         const rawDiffGm = (gpAgeMonths / 12 - caDecimal) * 12;
         const rawDiffDm = (dbacAgeMonths / 12 - caDecimal) * 12;
@@ -1981,7 +2097,7 @@ export default function App() {
           op = '<';
         }
 
-        shortDeltaText = `Delta (BA-CA) ~ từ ${formatSign(minDiff)} đến ${formatSign(maxDiff)} tháng (${op} 2SD GP) (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}).`;
+        shortDeltaText = `Delta (BA-CA) ~ từ ${formatSign(minDiff)} đến ${formatSign(maxDiff)} tháng (${op} 2SD GP) (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}${shortInterpSuffix}).`;
       }
     } else if (gpAgeMonths > 0 || dbacAgeMonths > 0) {
       let maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
@@ -1991,7 +2107,7 @@ export default function App() {
       if (Math.abs(rawDiffMonths) > twoSd) op = '>';
       else if (Math.abs(rawDiffMonths) < twoSd) op = '<';
 
-      shortDeltaText = `Delta (BA-CA) ~ ${formatSign(rawDiffMonths)} tháng (${op} 2SD GP) (Z-score ~ ${zScore.toFixed(2)}).`;
+      shortDeltaText = `Delta (BA-CA) ~ ${formatSign(rawDiffMonths)} tháng (${op} 2SD GP) (Z-score ~ ${zScore.toFixed(2)}${shortInterpSuffix}).`;
     }
 
     return { diffText, significanceText, zScores, shortDeltaText };
@@ -2252,25 +2368,41 @@ export default function App() {
     const totalBaMonths = Number(baYears) * 12 + Number(baMonths || 0);
     const diff = totalBaMonths - caMonths;
     const diffAbs = Math.abs(diff);
+    const { sd, isInterpolated } = getBrushSdInfo(caMonths, gender);
+    const zScore = sd > 0 ? diff / sd : 0;
+    const zAbs = Math.abs(zScore);
+    const zStr = zScore > 0 ? `+${zScore.toFixed(2)}` : zScore.toFixed(2);
     
-    let colorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-    let text = `Khớp CA (±0 tháng)`;
+    let colorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
     let dotClass = 'bg-emerald-400';
+    let statusLabel = 'Bình thường';
 
-    if (diff > 0) {
-      colorClass = 'text-amber-400 bg-amber-500/10 border-amber-500/20';
-      text = `Nhanh ${diffAbs} tháng`;
+    if (zAbs > 2.0) {
+      colorClass = 'text-rose-300 bg-rose-500/20 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.25)]';
+      dotClass = 'bg-rose-400';
+      statusLabel = 'Lệch > 2SD!';
+    } else if (zAbs > 1.0) {
+      colorClass = 'text-amber-300 bg-amber-500/15 border-amber-500/40';
       dotClass = 'bg-amber-400';
-    } else if (diff < 0) {
-      colorClass = 'text-blue-400 bg-blue-500/10 border-blue-500/20';
-      text = `Chậm ${diffAbs} tháng`;
-      dotClass = 'bg-blue-400';
+      statusLabel = 'Trong ±2SD';
     }
 
+    const diffText = diff === 0
+      ? 'Khớp CA (±0 tháng)'
+      : `${diff > 0 ? 'Nhanh' : 'Chậm'} ${diffAbs} tháng`;
+
     return (
-      <div className={`px-3 py-1.5 rounded-lg border flex items-center justify-center gap-2 text-sm font-semibold whitespace-nowrap mt-4 sm:mt-0 ${colorClass}`}>
-        <div className={`w-2 h-2 rounded-full animate-pulse ${dotClass}`} />
-        {text}
+      <div
+        title={`1SD = ${sd.toFixed(2)} tháng | 2SD = ${(2 * sd).toFixed(2)} tháng${isInterpolated ? ' (Nội suy tuyến tính theo tuổi)' : ' (Chuẩn Brush Foundation)'}`}
+        className={`px-3 py-1.5 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold whitespace-nowrap mt-3 sm:mt-0 ${colorClass}`}
+      >
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full animate-pulse ${dotClass}`} />
+          <span>{diffText}</span>
+        </div>
+        <span className="px-2 py-0.5 rounded-md bg-black/30 text-[11px] sm:text-xs font-mono font-bold tracking-tight">
+          Z = {zStr} ({statusLabel}{isInterpolated ? ' • Nội suy' : ''})
+        </span>
       </div>
     );
   };
@@ -2554,9 +2686,33 @@ export default function App() {
             )}
           </div>
 
+          {/* Real-time Normal Bone Age Range (±2SD) Banner */}
+          {totalRealAgeMonths > 0 && (() => {
+            const normalRange = getNormalBoneAgeRange(totalRealAgeMonths, gender);
+            return (
+              <div className="mt-1 px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm">
+                <div className="flex items-center gap-2 text-emerald-300 font-medium flex-wrap">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                  <span>Khoảng tuổi xương bình thường (±2SD):</span>
+                  <span className="font-bold text-white bg-emerald-600/40 px-2.5 py-0.5 rounded-lg border border-emerald-400/30">
+                    {normalRange.minText} – {normalRange.maxText}
+                  </span>
+                </div>
+                <div className="text-[11px] sm:text-xs text-zinc-300 flex items-center gap-2 flex-wrap">
+                  <span>1SD = <strong className="text-white">{normalRange.sd.toFixed(2)} tháng</strong></span>
+                  <span>•</span>
+                  <span>±2SD = <strong className="text-white">±{normalRange.twoSd.toFixed(2)} tháng</strong></span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${normalRange.isInterpolated ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-zinc-700/60 text-zinc-300 border-white/10'}`}>
+                    {normalRange.isInterpolated ? 'Nội suy tuyến tính theo tuổi' : 'Mốc chuẩn G&P 1959'}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Action to confirm patient */}
           {!isPatientConfirmed ? (
-            <div className="mt-6 flex justify-center pb-2">
+            <div className="mt-4 flex justify-center pb-2">
               <button 
                 onClick={() => {
                   setShowConfirmPopup(true);
@@ -2568,7 +2724,7 @@ export default function App() {
               </button>
             </div>
           ) : (
-            <div className="mt-6 flex justify-center pb-2">
+            <div className="mt-4 flex justify-center pb-2">
               <button
                 onClick={() => setIsPatientConfirmed(false)}
                 className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-sm transition-colors border border-white/10"
@@ -2619,9 +2775,29 @@ export default function App() {
                 </div>
               )}
               {isGpVisible && (
-                <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                <div className="flex items-center gap-2 text-sm font-medium text-white/70 flex-wrap">
                   {selectedEntry && (
-                    <span className="bg-white/10 px-2 py-1 rounded-md">{selectedEntry.labelVi}</span>
+                    <>
+                      <span className="bg-white/10 px-2.5 py-1 rounded-md text-white font-semibold">{selectedEntry.labelVi}</span>
+                      <button
+                        onClick={() => {
+                          const y = Math.floor(selectedEntry.ageMonths / 12);
+                          const m = selectedEntry.ageMonths % 12;
+                          if (isExpertMode) {
+                            setExpertBoneAgeYears(y);
+                            setExpertBoneAgeMonths(m);
+                          } else {
+                            setFinalAgeYears(y);
+                            setFinalAgeMonths(m);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-900/30 transition-all active:scale-95"
+                        title="Chốt nhanh tuổi xương theo trang Atlas đang mở"
+                      >
+                        <Check size={15} />
+                        <span>Chốt trang này ({selectedEntry.labelVi})</span>
+                      </button>
+                    </>
                   )}
                 </div>
               )}
@@ -2787,44 +2963,77 @@ export default function App() {
           </div>
 
           {isExpertMode && (
-            <div className="mt-6 bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
-              </div>
-              <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={expertBoneAgeYears} 
-                      onChange={e => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        setExpertBoneAgeYears(val === '' ? '' : Number(val));
-                      }} 
-                      placeholder="0"
-                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                    />
-                    <span className="text-zinc-300">tuổi</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={expertBoneAgeMonths} 
-                      onChange={e => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        setExpertBoneAgeMonths(val === '' ? '' : Number(val));
-                      }} 
-                      placeholder="0"
-                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                    />
-                    <span className="text-zinc-300">tháng</span>
+            <div className="mt-6 bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedEntry && (
+                      <button
+                        onClick={() => {
+                          setExpertBoneAgeYears(Math.floor(selectedEntry.ageMonths / 12));
+                          setExpertBoneAgeMonths(selectedEntry.ageMonths % 12);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all active:scale-95"
+                      >
+                        <Check size={14} />
+                        Chốt theo trang đang mở ({selectedEntry.labelVi})
+                      </button>
+                    )}
+                    {[-6, -3, 3, 6].map(deltaM => (
+                      <button
+                        key={deltaM}
+                        onClick={() => {
+                          const baseM = expertBoneAgeYears !== ''
+                            ? Number(expertBoneAgeYears) * 12 + Number(expertBoneAgeMonths || 0)
+                            : (selectedEntry ? selectedEntry.ageMonths : totalRealAgeMonths);
+                          const nextM = Math.max(0, baseM + deltaM);
+                          setExpertBoneAgeYears(Math.floor(nextM / 12));
+                          setExpertBoneAgeMonths(nextM % 12);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-700 text-zinc-300 border border-white/10 text-xs font-medium transition-colors"
+                        title="Cộng/trừ nhanh số tháng tuổi xương"
+                      >
+                        {deltaM > 0 ? `+${deltaM} tháng` : `${deltaM} tháng`}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                {renderProgressIndicator(expertBoneAgeYears, expertBoneAgeMonths)}
+                <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={expertBoneAgeYears} 
+                        onChange={e => {
+                          let val = e.target.value.replace(/\D/g, '');
+                          setExpertBoneAgeYears(val === '' ? '' : Number(val));
+                        }} 
+                        placeholder="0"
+                        className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                      />
+                      <span className="text-zinc-300">tuổi</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        value={expertBoneAgeMonths} 
+                        onChange={e => {
+                          let val = e.target.value.replace(/\D/g, '');
+                          setExpertBoneAgeMonths(val === '' ? '' : Number(val));
+                        }} 
+                        placeholder="0"
+                        className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                      />
+                      <span className="text-zinc-300">tháng</span>
+                    </div>
+                  </div>
+                  {renderProgressIndicator(expertBoneAgeYears, expertBoneAgeMonths)}
+                </div>
               </div>
             </div>
           )}
@@ -2862,8 +3071,22 @@ export default function App() {
                   </div>
                 )}
                 {isGaskinVisible && (
-                  <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-                    <span className="bg-white/10 px-2 py-1 rounded-md">{currentDbacData[dbacIndex]?.label || ''}</span>
+                  <div className="flex items-center gap-2 text-sm font-medium text-white/70 flex-wrap">
+                    <span className="bg-white/10 px-2.5 py-1 rounded-md text-white font-semibold">{currentDbacData[dbacIndex]?.label || ''}</span>
+                    {currentDbacData[dbacIndex] && (
+                      <button
+                        onClick={() => {
+                          const ageM = currentDbacData[dbacIndex].ageMonths;
+                          setDbacBoneAgeYears(Math.floor(ageM / 12));
+                          setDbacBoneAgeMonths(ageM % 12);
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-900/30 transition-all active:scale-95"
+                        title="Chốt nhanh tuổi xương Gaskin theo trang đang mở"
+                      >
+                        <Check size={15} />
+                        <span>Chốt trang này ({currentDbacData[dbacIndex].label})</span>
+                      </button>
+                    )}
                   </div>
                 )}
                 {isGaskinVisible && (
@@ -3007,10 +3230,16 @@ export default function App() {
                   {currentDbacData[dbacIndex].features.map((feature, idx) => {
                     const sKey = `${dbacIndex}-${idx}`;
                     const val = dbacSelections[sKey];
+                    const weightInfo = getAnatomicalFeatureWeight(feature);
                     return (
                       <li key={idx} className={`relative flex items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border ${val ? 'border-white/5' : 'border-transparent'}`}>
                         {!val && <div className="absolute inset-0 rounded-xl border border-red-500/50 animate-pulse pointer-events-none" style={{ animationDuration: '2s' }}></div>}
-                        <span className="text-zinc-200 text-[11px] sm:text-xs leading-relaxed flex-1 break-words">{feature}</span>
+                        <div className="flex flex-col gap-1 flex-1 min-w-0">
+                          <span className="text-zinc-200 text-[11px] sm:text-xs leading-relaxed break-words">{feature}</span>
+                          <span className={`inline-flex items-center self-start px-2 py-0.5 rounded text-[10px] font-semibold border ${weightInfo.colorClass}`}>
+                            {weightInfo.label}
+                          </span>
+                        </div>
                         <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 gap-1 ml-auto relative z-10">
                           <button
                             onClick={() => setDbacSelections(prev => {
@@ -3083,7 +3312,7 @@ export default function App() {
                   });
                   const summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
                   
-                  // Auto-suggestion logic
+                  // Auto-suggestion logic with Anatomical Weighting
                   let minEval = currentDbacData.length;
                   let maxEval = -1;
                   const scores = new Array(currentDbacData.length).fill(0);
@@ -3094,22 +3323,24 @@ export default function App() {
                      const total = m.features.length;
                      if (total === 0) continue;
                      
-                     let yesCount = 0;
-                     let maybeCount = 0;
+                     let weightedEarned = 0;
+                     let weightedTotal = 0;
                      let evaluated = false;
                      
                      for (let j = 0; j < total; j++) {
+                        const fw = getAnatomicalFeatureWeight(m.features[j]).weight;
+                        weightedTotal += fw;
                         const val = dbacSelections[`${i}-${j}`];
                         if (val !== undefined) evaluated = true;
-                        if (val === 'yes') yesCount++;
-                        else if (val === 'maybe') maybeCount++;
+                        if (val === 'yes') weightedEarned += fw;
+                        else if (val === 'maybe') weightedEarned += fw * 0.5;
                      }
                      
-                     if (evaluated) {
+                     if (evaluated && weightedTotal > 0) {
                         isEvaluated[i] = true;
                         if (i < minEval) minEval = i;
                         if (i > maxEval) maxEval = i;
-                        scores[i] = (yesCount + maybeCount * 0.5) / total;
+                        scores[i] = weightedEarned / weightedTotal;
                      }
                   }
                   
@@ -3196,11 +3427,16 @@ export default function App() {
                     <div className="space-y-4">
                       {maxEval !== -1 && estM > 0 && (
                         <div className={`border rounded-xl p-4 ${illogicalWarning ? 'bg-amber-500/10 border-amber-500/30' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
-                          <div className="flex items-center gap-2 mb-2">
-                            {illogicalWarning ? <Info className="text-amber-400" size={20} /> : <CheckCheck className="text-indigo-400" size={20} />}
-                            <h4 className={`font-semibold ${illogicalWarning ? "text-amber-300" : "text-indigo-300"}`}>
-                              {illogicalWarning ? "Cảnh báo logic dữ liệu" : "Tự động đề xuất tuổi xương"}
-                            </h4>
+                          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              {illogicalWarning ? <Info className="text-amber-400" size={20} /> : <CheckCheck className="text-indigo-400" size={20} />}
+                              <h4 className={`font-semibold ${illogicalWarning ? "text-amber-300" : "text-indigo-300"}`}>
+                                {illogicalWarning ? "Cảnh báo logic dữ liệu" : "Tự động đề xuất tuổi xương (Trọng số giải phẫu)"}
+                              </h4>
+                            </div>
+                            <span className="text-[11px] text-indigo-300/80 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded-md">
+                              Ưu tiên hệ xương ống & sụn tiếp hợp (x2.0) • Bàn/Quay-Trụ (x1.5) • Cổ tay (x1.0)
+                            </span>
                           </div>
                           
                           {illogicalWarning ? (
@@ -3208,9 +3444,9 @@ export default function App() {
                           ) : (
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-1 gap-3">
                               <p className="text-white text-sm">
-                                <span className="hidden sm:inline">Tuổi xương ước tính (không chính thức): <span className="font-bold text-lg text-emerald-400">{estLabel}</span></span>
+                                <span className="hidden sm:inline">Tuổi xương ước tính (có trọng số giải phẫu): <span className="font-bold text-lg text-emerald-400">{estLabel}</span></span>
                                 <span className="sm:hidden block">
-                                  Tuổi xương ước tính (không chính thức): <br />
+                                  Tuổi xương ước tính (có trọng số giải phẫu): <br />
                                   <span className="font-bold text-lg text-emerald-400 uppercase">{estLabel}</span>
                                 </span>
                               </p>
@@ -3282,42 +3518,78 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl w-full">
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
-                </div>
-                <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={dbacBoneAgeYears} 
-                      onChange={e => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        setDbacBoneAgeYears(val === '' ? '' : Number(val));
-                      }} 
-                      placeholder="0"
-                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                    />
-                    <span className="text-zinc-300">tuổi</span>
+              <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl w-full">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {currentDbacData[dbacIndex] && (
+                        <button
+                          onClick={() => {
+                            const ageM = currentDbacData[dbacIndex].ageMonths;
+                            setDbacBoneAgeYears(Math.floor(ageM / 12));
+                            setDbacBoneAgeMonths(ageM % 12);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all active:scale-95"
+                        >
+                          <Check size={14} />
+                          Chốt theo trang đang mở ({currentDbacData[dbacIndex].label})
+                        </button>
+                      )}
+                      {[-6, -3, 3, 6].map(deltaM => (
+                        <button
+                          key={deltaM}
+                          onClick={() => {
+                            const baseM = dbacBoneAgeYears !== ''
+                              ? Number(dbacBoneAgeYears) * 12 + Number(dbacBoneAgeMonths || 0)
+                              : (currentDbacData[dbacIndex] ? currentDbacData[dbacIndex].ageMonths : totalRealAgeMonths);
+                            const nextM = Math.max(0, baseM + deltaM);
+                            setDbacBoneAgeYears(Math.floor(nextM / 12));
+                            setDbacBoneAgeMonths(nextM % 12);
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-700 text-zinc-300 border border-white/10 text-xs font-medium transition-colors"
+                          title="Cộng/trừ nhanh số tháng tuổi xương"
+                        >
+                          {deltaM > 0 ? `+${deltaM} tháng` : `${deltaM} tháng`}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <input 
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      value={dbacBoneAgeMonths} 
-                      onChange={e => {
-                        let val = e.target.value.replace(/\D/g, '');
-                        setDbacBoneAgeMonths(val === '' ? '' : Number(val));
-                      }} 
-                      placeholder="0"
-                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
-                    />
-                    <span className="text-zinc-300">tháng</span>
+                  <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={dbacBoneAgeYears} 
+                          onChange={e => {
+                            let val = e.target.value.replace(/\D/g, '');
+                            setDbacBoneAgeYears(val === '' ? '' : Number(val));
+                          }} 
+                          placeholder="0"
+                          className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                        />
+                        <span className="text-zinc-300">tuổi</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={dbacBoneAgeMonths} 
+                          onChange={e => {
+                            let val = e.target.value.replace(/\D/g, '');
+                            setDbacBoneAgeMonths(val === '' ? '' : Number(val));
+                          }} 
+                          placeholder="0"
+                          className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                        />
+                        <span className="text-zinc-300">tháng</span>
+                      </div>
+                    </div>
+                    {renderProgressIndicator(dbacBoneAgeYears, dbacBoneAgeMonths)}
                   </div>
-                  {renderProgressIndicator(dbacBoneAgeYears, dbacBoneAgeMonths)}
                 </div>
               </div>
             </div>
@@ -3821,6 +4093,20 @@ export default function App() {
                 <span>Tuổi lúc chụp (CA):</span>
                 <span className="font-bold">{realAgeYears} tuổi {realAgeMonths} tháng</span>
               </div>
+              {totalRealAgeMonths > 0 && (() => {
+                const nr = getNormalBoneAgeRange(totalRealAgeMonths, gender);
+                return (
+                  <div className="flex flex-col border-b border-zinc-800 pb-2 -mx-4 px-4 py-2 bg-emerald-500/10 text-emerald-300 rounded text-xs sm:text-sm gap-1">
+                    <div className="flex justify-between items-center">
+                      <span>Khoảng bình thường (±2SD):</span>
+                      <span className="font-bold text-white">{nr.rangeText}</span>
+                    </div>
+                    <div className="text-[11px] text-zinc-400 text-right">
+                      2SD = {nr.twoSd.toFixed(2)} tháng {nr.isInterpolated ? '(Nội suy tuyến tính theo tuổi)' : '(Chuẩn G&P 1959)'}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex gap-3 mt-8">
               <button
