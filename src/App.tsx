@@ -673,6 +673,8 @@ export default function App() {
   const [isDbacMagnifierActive, setIsDbacMagnifierActive] = useState(false);
   const [isConsultation, setIsConsultation] = useState<boolean>(initialDraft.isConsultation ?? false);
   const [isLetterMode, setIsLetterMode] = useState<boolean>(initialDraft.isLetterMode ?? false);
+  const [morphologyEnabled, setMorphologyEnabled] = useState<boolean>(initialDraft.morphologyEnabled ?? false);
+  const [morphologyStates, setMorphologyStates] = useState<Record<string, boolean>>(initialDraft.morphologyStates ?? {});
   
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const lastScrollY = useRef(0);
@@ -869,6 +871,8 @@ export default function App() {
       setSauvegrainScore4('');
       setSauvegrainAgeYears('');
       setSauvegrainAgeMonths('');
+      setMorphologyEnabled(false);
+      setMorphologyStates({});
       setPendingAdminChange(null);
     }
   };
@@ -941,7 +945,9 @@ export default function App() {
       xrayLocation,
       xrayQuality,
       isConsultation,
-      isLetterMode
+      isLetterMode,
+      morphologyEnabled,
+      morphologyStates
     };
     if (isAuthenticated) {
       const key = isExpertMode ? 'dualGP_draft_state_expert' : 'dualGP_draft_state_premium';
@@ -979,6 +985,8 @@ export default function App() {
     xrayQuality,
     isConsultation,
     isLetterMode,
+    morphologyEnabled,
+    morphologyStates,
     isAuthenticated,
     isExpertMode
   ]);
@@ -1065,6 +1073,34 @@ export default function App() {
     };
 
     const softwareCreditLine = 'Phần mềm hỗ trợ phiên giải thủ công độc quyền: OmniProBA phiên bản Expert 2.1.9';
+
+    const MORPHOLOGY_CHECKLIST_ITEMS = [
+      'Loãng xương lan toả',
+      'Đường Harris',
+      'Đường Frankel',
+      'Ngắn nhiều xương bàn',
+      'Xương bàn IV ngắn',
+      'Bàn tay “đinh ba”',
+      'Biến dạng Madelung',
+      'Hành xương bất thường (lõm chén, nham nhở, loe rộng…)'
+    ];
+
+    const getMorphologyConclusionData = () => {
+      if (!morphologyEnabled) return null;
+      const presentSigns = MORPHOLOGY_CHECKLIST_ITEMS.filter(item => !!morphologyStates[item]);
+      const absentSigns = MORPHOLOGY_CHECKLIST_ITEMS.filter(item => !morphologyStates[item]);
+      const parts: string[] = [];
+      if (presentSigns.length > 0) {
+        const presentPrefix = presentSigns.length > 1 ? 'Hiện thấy các dấu hiệu:' : 'Hiện thấy dấu hiệu:';
+        parts.push(`${presentPrefix} ${presentSigns.join('; ')}.`);
+      }
+      if (absentSigns.length > 0) {
+        const absentPrefix = absentSigns.length > 1 ? 'Hiện chưa ghi nhận các dấu hiệu:' : 'Hiện chưa ghi nhận dấu hiệu:';
+        parts.push(`${absentPrefix} ${absentSigns.join('; ')}.`);
+      }
+      const fullText = `* Về hình thái xương: ${parts.join('  ')}`;
+      return { presentSigns, absentSigns, bodyText: parts.join('  '), fullText };
+    };
 
   const getZScoreChartSVGString = (zScores?: {name: string, z: number, color: string}[]) => {
     if (!zScores || zScores.length === 0) return '';
@@ -1487,6 +1523,19 @@ export default function App() {
               });
             })()
           ] : []),
+          ...(() => {
+            const morphData = getMorphologyConclusionData();
+            if (!morphData) return [];
+            return [
+              new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
+                children: [
+                  new TextRun({ text: morphData.fullText, size: 21, font: wordFont })
+                ],
+                spacing: { after: 50 }
+              })
+            ];
+          })(),
           ...(sauvegrainPopulated ? [
             new Paragraph({
               alignment: AlignmentType.JUSTIFIED,
@@ -1924,6 +1973,12 @@ export default function App() {
             })()}
             ` : ''}
 
+            ${(() => {
+              const morphData = getMorphologyConclusionData();
+              if (!morphData) return '';
+              return `<div class="mb-1">${morphData.fullText}</div>`;
+            })()}
+
             ${sauvegrainPopulated ? `
               <div class="mb-1">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span class="text-red">${sauvegrainAgeYears} tuổi${sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = ${(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</div>
             ` : ''}
@@ -2072,6 +2127,8 @@ export default function App() {
     setDbacOtherFeatures('');
     setHasAbnormality(false);
     setAbnormalityDetails('');
+    setMorphologyEnabled(false);
+    setMorphologyStates({});
     setDbacPageNumber(1);
     setCopied(false);
     
@@ -2366,6 +2423,11 @@ export default function App() {
       vText += vDbac;
     }
 
+    const morphData = getMorphologyConclusionData();
+    if (morphData) {
+      vText += `\n${morphData.fullText}`;
+    }
+
     const devZ = getDeviationAndZScore();
     if (devZ) {
       vText += `\n\n${devZ.diffText}\n${devZ.significanceText}`;
@@ -2498,6 +2560,16 @@ export default function App() {
             })()}
           </>
         )}
+
+        {(() => {
+          const morphData = getMorphologyConclusionData();
+          if (!morphData) return null;
+          return (
+            <p className="whitespace-pre-wrap mt-2 text-justify">
+              {morphData.fullText}
+            </p>
+          );
+        })()}
 
         {sauvegrainPopulated && (
           <p className="whitespace-pre-wrap mt-2 text-justify">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span className="font-bold text-[#800020]">{sauvegrainAgeYears} tuổi{sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = {(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</p>
@@ -4101,6 +4173,126 @@ export default function App() {
               <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
                 <div className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
                   {renderExpertConclusionDisplay()}
+                </div>
+              </div>
+
+              {/* Horizontal Bone Morphology Checklist with On/Off toggles */}
+              <div className="p-4 md:p-5 bg-zinc-800/90 border border-white/10 rounded-2xl shadow-sm space-y-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={morphologyEnabled}
+                      onClick={() => {
+                        setMorphologyEnabled(prev => !prev);
+                      }}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        morphologyEnabled ? 'bg-emerald-500' : 'bg-zinc-600'
+                      }`}
+                      title="Bật/Tắt đưa nhận xét hình thái xương vào kết luận"
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          morphologyEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                    <span className="text-sm md:text-base font-semibold text-white">
+                      Đánh giá hình thái xương
+                    </span>
+                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium border ${
+                      morphologyEnabled
+                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                        : 'bg-zinc-700/60 text-zinc-400 border-white/10'
+                    }`}>
+                      {morphologyEnabled ? 'Đang bật trong kết luận' : 'Chưa chọn (Ẩn)'}
+                    </span>
+                  </div>
+
+                  {morphologyEnabled && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMorphologyStates({});
+                        }}
+                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-zinc-700/70 hover:bg-zinc-700 text-zinc-200 border border-white/10 transition-colors"
+                      >
+                        Tất cả Không (Off)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMorphologyEnabled(false);
+                          setMorphologyStates({});
+                        }}
+                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 transition-colors"
+                      >
+                        Bỏ chọn
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {MORPHOLOGY_CHECKLIST_ITEMS.map((item) => {
+                    const isOn = morphologyEnabled && !!morphologyStates[item];
+                    return (
+                      <div
+                        key={item}
+                        onClick={() => {
+                          const nextVal = !(morphologyEnabled && !!morphologyStates[item]);
+                          setMorphologyEnabled(true);
+                          setMorphologyStates(prev => ({
+                            ...prev,
+                            [item]: nextVal
+                          }));
+                        }}
+                        className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer select-none transition-all ${
+                          !morphologyEnabled
+                            ? 'bg-zinc-900/50 border-white/10 text-zinc-400 hover:border-white/20 hover:text-zinc-200'
+                            : isOn
+                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200 shadow-sm'
+                            : 'bg-zinc-900/80 border-white/10 text-zinc-300 hover:border-white/20'
+                        }`}
+                      >
+                        <span className="text-xs sm:text-sm font-medium leading-snug flex-1">
+                          {item}
+                        </span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                            !morphologyEnabled ? 'text-zinc-500' : isOn ? 'text-emerald-400' : 'text-zinc-400'
+                          }`}>
+                            {isOn ? 'ON' : 'OFF'}
+                          </span>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={isOn}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const nextVal = !(morphologyEnabled && !!morphologyStates[item]);
+                              setMorphologyEnabled(true);
+                              setMorphologyStates(prev => ({
+                                ...prev,
+                                [item]: nextVal
+                              }));
+                            }}
+                            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                              isOn ? 'bg-emerald-500' : morphologyEnabled ? 'bg-zinc-600' : 'bg-zinc-700'
+                            }`}
+                          >
+                            <span
+                              className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                                isOn ? 'translate-x-4' : 'translate-x-0'
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
               
