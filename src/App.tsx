@@ -2244,10 +2244,23 @@ export default function App() {
         ? gpFormatted
         : `${gpFormatted} hoặc ${dbacFormatted}`;
 
-      isSignificant = Math.abs(zG) > 2 || Math.abs(zD) > 2;
-      significanceText = isSignificant
-        ? `Vì thế, tuổi xương (${baConclusionLabel}) ngoài khoảng cho phép theo tuổi`
-        : `Vì thế, tuổi xương (${baConclusionLabel}) trong khoảng cho phép theo tuổi`;
+      const gpOutOfRange = Math.abs(zG) > 2;
+      const dbacOutOfRange = Math.abs(zD) > 2;
+      isSignificant = gpOutOfRange || dbacOutOfRange;
+
+      if (gpOutOfRange !== dbacOutOfRange) {
+        const inRangeLabel = !gpOutOfRange
+          ? `${gpFormatted} theo Gilsanz & Ratib`
+          : `${dbacFormatted} theo Gaskin`;
+        const outOfRangeLabel = gpOutOfRange
+          ? `${gpFormatted} theo Gilsanz & Ratib`
+          : `${dbacFormatted} theo Gaskin`;
+        significanceText = `Vì thế, tuổi xương (${inRangeLabel}) trong khoảng cho phép nhưng tuổi xương (${outOfRangeLabel}) ngoài khoảng, cần đánh giá cụ thể của bác sĩ chuyên khoa.`;
+      } else {
+        significanceText = isSignificant
+          ? `Vì thế, tuổi xương (${baConclusionLabel}) ngoài khoảng cho phép theo tuổi`
+          : `Vì thế, tuổi xương (${baConclusionLabel}) trong khoảng cho phép theo tuổi`;
+      }
     } else {
       const maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
       const maxAtlasName = gpAgeMonths > 0 ? 'Gilsanz & Ratib' : 'Gaskin';
