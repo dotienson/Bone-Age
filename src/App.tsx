@@ -403,7 +403,7 @@ function getAnatomicalFeatureWeight(featureText: string): {
     return {
       weight: 0.5,
       label: 'x0.5 • Biến thiên',
-      colorClass: 'text-zinc-400 bg-zinc-800/90 border-zinc-600/50'
+      colorClass: 'text-zinc-400 bg-zinc-800 border-white/10'
     };
   }
   if (
@@ -420,7 +420,7 @@ function getAnatomicalFeatureWeight(featureText: string): {
     return {
       weight: 2.0,
       label: 'x2.0 • Đốt ngón/Sụn',
-      colorClass: 'text-emerald-300 bg-emerald-500/15 border-emerald-500/30'
+      colorClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
     };
   }
   if (
@@ -434,13 +434,13 @@ function getAnatomicalFeatureWeight(featureText: string): {
     return {
       weight: 1.5,
       label: 'x1.5 • Bàn/Quay-Trụ',
-      colorClass: 'text-sky-300 bg-sky-500/15 border-sky-500/30'
+      colorClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20'
     };
   }
   return {
     weight: 1.0,
     label: 'x1.0 • Cổ tay',
-    colorClass: 'text-indigo-300 bg-indigo-500/15 border-indigo-500/30'
+    colorClass: 'text-indigo-300 bg-indigo-500/10 border-indigo-500/20'
   };
 }
 
@@ -671,6 +671,8 @@ export default function App() {
   const [dbacNumPages, setDbacNumPages] = useState<number | null>(null);
   const [dbacPageNumber, setDbacPageNumber] = useState<number>(1);
   const [isDbacMagnifierActive, setIsDbacMagnifierActive] = useState(false);
+  const [isConsultation, setIsConsultation] = useState<boolean>(initialDraft.isConsultation ?? false);
+  const [isLetterMode, setIsLetterMode] = useState<boolean>(initialDraft.isLetterMode ?? false);
   
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const lastScrollY = useRef(0);
@@ -937,7 +939,9 @@ export default function App() {
       sauvegrainAgeMonths,
       xrayDate,
       xrayLocation,
-      xrayQuality
+      xrayQuality,
+      isConsultation,
+      isLetterMode
     };
     if (isAuthenticated) {
       const key = isExpertMode ? 'dualGP_draft_state_expert' : 'dualGP_draft_state_premium';
@@ -973,6 +977,8 @@ export default function App() {
     xrayDate,
     xrayLocation,
     xrayQuality,
+    isConsultation,
+    isLetterMode,
     isAuthenticated,
     isExpertMode
   ]);
@@ -1011,6 +1017,7 @@ export default function App() {
         Object.entries(dbacSelections).forEach(([key, val]) => {
           const [mIdx, fIdx] = key.split('-').map(Number);
           const milestone = currentDbacData[mIdx];
+          if (!milestone) return;
           const feature = milestone.features[fIdx];
           if (val === 'yes') yesFeatures.push(`${feature} [${milestone.label}]`);
           if (val === 'maybe') yesFeatures.push(`${feature} [${milestone.label}] [chưa rõ ràng]`);
@@ -1026,26 +1033,44 @@ export default function App() {
           grouped[mIdx].push({ val: val as 'yes' | 'maybe' | 'no' });
         });
         const summaryParts: string[] = [];
-        Object.entries(grouped).forEach(([mIdxStr, items]) => {
-          const mIdx = Number(mIdxStr);
-          const milestone = currentDbacData[mIdx];
-          if (items.length === milestone.features.length) {
-            const yesCount = items.filter(x => x.val === 'yes' || x.val === 'maybe').length;
-            summaryParts.push(`${yesCount}/${milestone.features.length} tiêu chuẩn mốc ${milestone.label}`);
-          }
-        });
+        Object.keys(grouped)
+          .map(Number)
+          .sort((a, b) => a - b)
+          .forEach((mIdx) => {
+            const items = grouped[mIdx];
+            const milestone = currentDbacData[mIdx];
+            if (milestone && items.length > 0) {
+              const yesCount = items.filter(x => x.val === 'yes' || x.val === 'maybe').length;
+              summaryParts.push(`${yesCount}/${milestone.features.length} tiêu chuẩn mốc ${milestone.label}`);
+            }
+          });
         if (summaryParts.length > 0) {
-           summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
+          summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join(', ')}.`;
         }
       }
       return { yesFeatures, noFeatures, summaryText };
     };
 
+    const getDoctorSignatureLine = () => {
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, '0');
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      const day = now.getDate().toString().padStart(2, '0');
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const year = now.getFullYear();
+      const rolePrefix = isConsultation
+        ? 'Bác sĩ hội chẩn từ xa về tuổi xương'
+        : 'Bác sĩ lâm sàng đọc tuổi xương';
+      return `${rolePrefix}: ThS.BS. Đỗ Tiến Sơn lúc ${hours} giờ ${minutes} phút ngày ${day}/${month}/${year}`;
+    };
+
+    const softwareCreditLine = 'Phần mềm hỗ trợ phiên giải thủ công độc quyền: OmniProBA phiên bản Expert 2.1.9';
+
   const getZScoreChartSVGString = (zScores?: {name: string, z: number, color: string}[]) => {
     if (!zScores || zScores.length === 0) return '';
-    const width = 500;
-    const height = 220;
-    const padding = { top: 20, right: 30, bottom: 110, left: 30 };
+    const width = 540;
+    const height = 176;
+    const padding = { top: 15, right: 24, bottom: 58, left: 24 };
     const innerWidth = width - padding.left - padding.right;
     const innerHeight = height - padding.top - padding.bottom;
     
@@ -1078,11 +1103,12 @@ export default function App() {
 
     const ticks = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
     const escapeXML = (str: string) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const svgFont = "'Lexend', 'Plus Jakarta Sans', 'Segoe UI', sans-serif";
 
     const ticksHtml = ticks.map(tick => `
       <line x1="${getX(tick)}" y1="${padding.top + innerHeight}" x2="${getX(tick)}" y2="${padding.top + innerHeight + 5}" stroke="#000" stroke-width="1.5" />
-      <text x="${getX(tick)}" y="${padding.top + innerHeight + 17}" text-anchor="middle" font-size="11" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick}</text>
-      ${Math.abs(tick) === 2 ? `<text x="${getX(tick)}" y="${padding.top + innerHeight + 30}" text-anchor="middle" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${tick > 0 ? '+2SD' : '-2SD'}</text>` : ''}
+      <text x="${getX(tick)}" y="${padding.top + innerHeight + 16}" text-anchor="middle" font-size="11" font-weight="bold" fill="#000" font-family="${svgFont}">${tick}</text>
+      ${Math.abs(tick) === 2 ? `<text x="${getX(tick)}" y="${padding.top + innerHeight + 28}" text-anchor="middle" font-size="11.5" font-weight="bold" fill="#000" font-family="${svgFont}">${tick > 0 ? '+2SD' : '-2SD'}</text>` : ''}
     `).join('');
 
     let dotsHtml = zScores.map((zObj) => {
@@ -1091,11 +1117,11 @@ export default function App() {
       const isGaskin = zObj.name === 'Gaskin';
       if (isGaskin) {
         return `
-          <circle cx="${x}" cy="${y}" r="6.5" fill="#fff" stroke="#000" stroke-width="2.5" />
+          <circle cx="${x}" cy="${y}" r="6.2" fill="#fff" stroke="#000" stroke-width="2.5" />
         `;
       }
       return `
-        <circle cx="${x}" cy="${y}" r="6.5" fill="#000" stroke="none" />
+        <circle cx="${x}" cy="${y}" r="6.2" fill="#000" stroke="none" />
       `;
     }).join('');
 
@@ -1107,26 +1133,28 @@ export default function App() {
       return `<line x1="${x}" y1="${y}" x2="${x}" y2="${padding.top + innerHeight}" stroke="#666" stroke-width="1.5" stroke-dasharray="3,3" />`;
     }).join('');
     
-    const baseLegendY = padding.top + innerHeight + 50;
-    
+    const legendY = padding.top + innerHeight + 41;
     const legendHtml = zScores.map((zObj, idx) => {
       const isGaskin = zObj.name === 'Gaskin';
-      const curLegendY = baseLegendY + (idx * 20);
-      const startX = (width / 2) - 80; // center manually
+      const startX = zScores.length === 1
+        ? (width / 2) - 65
+        : idx === 0
+          ? (width / 2) - 152
+          : (width / 2) + 20;
       const iconSvg = isGaskin 
-        ? `<circle cx="${startX + 10}" cy="${curLegendY - 4}" r="5" fill="#fff" stroke="#000" stroke-width="2.5"/>`
-        : `<circle cx="${startX + 10}" cy="${curLegendY - 4}" r="5.5" fill="#000" stroke="none"/>`;
+        ? `<circle cx="${startX + 8}" cy="${legendY - 4}" r="5" fill="#fff" stroke="#000" stroke-width="2.3"/>`
+        : `<circle cx="${startX + 8}" cy="${legendY - 4}" r="5.4" fill="#000" stroke="none"/>`;
       return `
         ${iconSvg}
-        <text x="${startX + 22}" y="${curLegendY}" font-size="12" font-weight="bold" fill="#000" font-family="Arial, sans-serif">${escapeXML(zObj.name)} (Z = ${zObj.z.toFixed(2)})</text>
+        <text x="${startX + 19}" y="${legendY}" font-size="11.5" font-weight="bold" fill="#000" font-family="${svgFont}">${escapeXML(zObj.name)} (Z = ${zObj.z.toFixed(2)})</text>
       `;
     }).join('');
 
-    const footerY = baseLegendY + (zScores.length * 20) + 10;
-    const footerHtml = `<text x="${width/2}" y="${footerY}" text-anchor="middle" font-size="11" fill="#444" font-style="italic" font-family="Arial, sans-serif">Z-Score dựa vào Brush data, Stanford (Greulich &amp; Pyle, 1959)</text>`;
+    const footerY = padding.top + innerHeight + 55;
+    const footerHtml = `<text x="${width/2}" y="${footerY}" text-anchor="middle" font-size="10.5" fill="#444" font-style="italic" font-family="${svgFont}">Z-Score dựa vào Brush data, Stanford (Greulich &amp; Pyle, 1959)</text>`;
 
     return `
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="background-color: white; font-family: Arial, sans-serif;">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" style="width: 100%; height: auto; display: block; background-color: white; font-family: ${svgFont};">
         <defs>
           <pattern id="diagonalHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
             <line x1="0" y1="0" x2="0" y2="6" stroke="#000" stroke-width="1" stroke-opacity="0.2" />
@@ -1188,151 +1216,147 @@ export default function App() {
     // Parse findings
     const dbacPopulated = dbacBoneAgeYears !== '';
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
+    const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
     const devZ = getDeviationAndZScore();
     const sauvegrainPopulated = sauvegrainAgeYears !== '';
-
-    let logoData: Uint8Array | null = null;
-    let logoDimensions = { width: 100, height: 50 };
-    try {
-      const resp = await fetch('/logo.png');
-      if (resp.ok) {
-        const buffer = await resp.arrayBuffer();
-        if (buffer.byteLength > 0) {
-          logoData = new Uint8Array(buffer);
-          
-          // Get natural dimensions
-          const blob = new Blob([buffer], { type: 'image/png' });
-          const url = URL.createObjectURL(blob);
-          const img = new Image();
-          await new Promise((resolve, reject) => {
-            img.onload = resolve;
-            img.onerror = reject;
-            img.src = url;
-          });
-          const scale = Math.min(150 / img.height, 350 / img.width);
-          logoDimensions = {
-            width: Math.round(img.width * scale),
-            height: Math.round(img.height * scale)
-          };
-          URL.revokeObjectURL(url);
-        }
-      }
-    } catch (e) {
-      console.error("Failed to fetch logo for docx:", e);
-    }
-
+    const doctorLine = getDoctorSignatureLine();
+    const wordFont = "Segoe UI";
 
     let devZPngBuffer: Uint8Array | null = null;
     if (devZ && devZ.zScores && devZ.zScores.length > 0) {
       try {
         const svgStr = getZScoreChartSVGString(devZ.zScores);
         if (svgStr) {
-          devZPngBuffer = await svgToPngUint8Array(svgStr, 500, 220);
+          devZPngBuffer = await svgToPngUint8Array(svgStr, 540, 176);
         }
       } catch (err) {
         console.error("Failed to generate PNG for docx:", err);
       }
     }
 
+    const appendixReferences = [
+      "1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.",
+      "2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.",
+      "3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372",
+      "4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.",
+      "5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570"
+    ];
+
+    const createBlankLine = (afterSpacing = 40) => new Paragraph({
+      children: [new TextRun({ text: "", size: 21, font: wordFont })],
+      spacing: { before: 0, after: afterSpacing }
+    });
+
     const doc = new DocxDocument({
       sections: [{
         properties: {
           type: SectionType.CONTINUOUS,
           page: {
-            margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
+            margin: { top: 680, right: 850, bottom: 680, left: 850 },
             borders: {
               pageBorders: {
                 display: PageBorderDisplay.ALL_PAGES,
                 offsetFrom: PageBorderOffsetFrom.PAGE,
               },
-              pageBorderTop: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
-              pageBorderRight: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
-              pageBorderBottom: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
-              pageBorderLeft: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 24 },
+              pageBorderTop: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 18 },
+              pageBorderRight: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 18 },
+              pageBorderBottom: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 18 },
+              pageBorderLeft: { style: BorderStyle.SINGLE, size: 12, color: "000000", space: 18 },
             }
           }
         },
         children: [
-
-          ...(logoData ? [
+          ...(isLetterMode ? [
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new TextRun({ text: "THS.BS. ĐỖ TIẾN SƠN", bold: true, size: 20, font: wordFont })
+              ],
+              spacing: { after: 20 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new TextRun({ text: "Bệnh viện Đa khoa Tâm Anh Hà Nội", size: 20, font: wordFont })
+              ],
+              spacing: { after: 20 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new TextRun({ text: "108 Hoàng Như Tiếp, Bồ Đề, Hà Nội", size: 20, font: wordFont })
+              ],
+              spacing: { after: 20 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.RIGHT,
+              children: [
+                new TextRun({ text: "Tel: 024 3872 3872", size: 20, font: wordFont })
+              ],
+              spacing: { after: 80 }
+            }),
+          ] : []),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new TextRun({ text: "THƯ DIỄN GIẢI KẾT QUẢ TUỔI XƯƠNG", bold: true, size: 30, font: wordFont })
+            ],
+            spacing: { after: isLetterMode ? 100 : 45 }
+          }),
+          ...(!isLetterMode ? [
             new Paragraph({
               alignment: AlignmentType.CENTER,
               children: [
-                new ImageRun({
-                  data: logoData,
-                  transformation: logoDimensions,
-                  type: "png"
-                })
+                new TextRun({ text: "Bằng phương pháp Greulich & Pyle với 2 Atlas", size: 21, font: wordFont })
               ],
-              spacing: { after: 200 }
-            })
-          ] : []),
-
+              spacing: { after: 20 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({ text: "Gilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)", size: 21, font: wordFont, italics: true })
+              ],
+              spacing: { after: 95 }
+            }),
+          ] : [
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [
+                new TextRun({ text: "Kính gửi Quý khách hàng,", size: 21, font: wordFont, italics: true })
+              ],
+              spacing: { after: 45 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [
+                new TextRun({ text: "Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.", size: 21, font: wordFont, italics: true })
+              ],
+              spacing: { after: 80 }
+            }),
+          ]),
           new Paragraph({
-            alignment: AlignmentType.CENTER,
+            alignment: AlignmentType.JUSTIFIED,
             children: [
-              new TextRun({ text: "KẾT QUẢ PHÂN TÍCH CHUYÊN SÂU TUỔI XƯƠNG", bold: true, size: 36, font: "Arial" })
+              new TextRun({ text: `Tên khách hàng: ${patientName || '........................................'}`, size: 21, font: wordFont, bold: true }),
+              new TextRun({ text: `        Giới: ${gender === 'boy' ? 'Nam' : 'Nữ'}`, size: 21, font: wordFont }),
             ],
-            spacing: { after: 200 }
+            spacing: { after: 50 }
           }),
           new Paragraph({
-            alignment: AlignmentType.CENTER,
+            alignment: AlignmentType.JUSTIFIED,
             children: [
-              new TextRun({ text: "Bằng phương pháp Greulich & Pyle với 2 Atlas", size: 24, font: "Arial" })
+              new TextRun({ text: `Tuổi theo ngày sinh tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)`, size: 21, font: wordFont }),
             ],
-            spacing: { after: 100 }
+            spacing: { after: 50 }
           }),
           new Paragraph({
-            alignment: AlignmentType.CENTER,
+            alignment: AlignmentType.JUSTIFIED,
             children: [
-              new TextRun({ text: "Gilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)", size: 24, font: "Arial", italics: true })
+              new TextRun({ text: `Ngày tư vấn: ${examDate || '....................'}        Phim chụp tại: ${xrayLocation || '....................'}        Chất lượng phim: ${xrayQuality || 'Đạt'}`, size: 21, font: wordFont }),
             ],
-            spacing: { after: 400 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Tên khách hàng: ${patientName || '........................................'}`, size: 24, font: "Arial", bold: true }),
-            ],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Mã khách hàng: ${patientId || '........................................'}`, size: 24, font: "Arial" }),
-            ],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Tuổi thực tế (CA) tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)`, size: 24, font: "Arial" }),
-            ],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Hình thái xương sơ bộ: ${hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}`, size: 24, font: "Arial" }),
-            ],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Ngày khám: ${examDate || '........................................'}`, size: 24, font: "Arial" }),
-            ],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Lý do đánh giá (Lâm sàng): ${clinicalReason || '........................................'}`, size: 24, font: "Arial" }),
-            ],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
-            children: [
-              new TextRun({ text: `Chất lượng phim: ${xrayQuality || 'Đạt'}`, size: 24, font: "Arial" }),
-            ],
-            spacing: { after: 400 }
+            spacing: { after: 80 }
           }),
           
-          // Inject exact conclusion
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
@@ -1340,11 +1364,13 @@ export default function App() {
                 children: [
                   new TableCell({
                     verticalAlign: VerticalAlign.CENTER,
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Atlas tham chiếu", bold: true, size: 24, font: "Arial" })] })],
+                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Atlas tham chiếu", bold: true, size: 21, font: wordFont })] })],
                   }),
                   new TableCell({
                     verticalAlign: VerticalAlign.CENTER,
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Kết quả đánh giá", bold: true, size: 24, font: "Arial" })] })],
+                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Kết quả đánh giá", bold: true, size: 21, font: wordFont })] })],
                   }),
                 ]
               }),
@@ -1352,14 +1378,16 @@ export default function App() {
                 children: [
                   new TableCell({
                     verticalAlign: VerticalAlign.CENTER,
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "V.Gilsanz và O.Ratib", size: 24, font: "Arial" })] })],
+                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "V.Gilsanz và O.Ratib", size: 21, font: wordFont })] })],
                   }),
                   new TableCell({
                     verticalAlign: VerticalAlign.CENTER,
+                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
                     children: [
                       new Paragraph({ alignment: AlignmentType.CENTER, children: [
-                        new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
-                        new TextRun({ text: " ± 0.5", size: 20, font: "Arial", color: "666666" })
+                        new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" }),
+                        new TextRun({ text: " ± 0.5", size: 20, font: wordFont, color: "666666" })
                       ] })
                     ],
                   }),
@@ -1369,14 +1397,16 @@ export default function App() {
                 children: [
                   new TableCell({
                     verticalAlign: VerticalAlign.CENTER,
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Cree M. Gaskin và cộng sự", size: 24, font: "Arial" })] })],
+                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Cree M. Gaskin và cộng sự", size: 21, font: wordFont })] })],
                   }),
                   new TableCell({
                     verticalAlign: VerticalAlign.CENTER,
+                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
                     children: [
                       new Paragraph({ alignment: AlignmentType.CENTER, children: [
-                        new TextRun({ text: dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
-                        new TextRun({ text: " ± 0.5", size: 20, font: "Arial", color: "666666" })
+                        new TextRun({ text: dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" }),
+                        new TextRun({ text: " ± 0.5", size: 20, font: wordFont, color: "666666" })
                       ] })
                     ],
                   }),
@@ -1387,13 +1417,15 @@ export default function App() {
                   children: [
                     new TableCell({
                       verticalAlign: VerticalAlign.CENTER,
-                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Sauvegrain (Diméglio cải tiến)", size: 24, font: "Arial" })] })],
+                      margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Sauvegrain (Diméglio cải tiến)", size: 21, font: wordFont })] })],
                     }),
                     new TableCell({
                       verticalAlign: VerticalAlign.CENTER,
+                      margins: { top: 50, bottom: 50, left: 100, right: 100 },
                       children: [
                         new Paragraph({ alignment: AlignmentType.CENTER, children: [
-                          new TextRun({ text: sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" })
+                          new TextRun({ text: sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" })
                         ] })
                       ],
                     }),
@@ -1402,31 +1434,41 @@ export default function App() {
               ] : [])
             ]
           }),
-          new Paragraph({ text: "", spacing: { after: 200 } }),
           new Paragraph({
-            children: [new TextRun({ text: "KẾT QUẢ:", bold: true, size: 24, font: "Arial" })],
-            spacing: { after: 100 }
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "KẾT QUẢ:", bold: true, size: 21, font: wordFont })],
+            spacing: { before: 80, after: 45 }
+          }),
+          ...(!isLetterMode ? [
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [new TextRun({ text: "Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.", size: 21, font: wordFont, italics: true })],
+              spacing: { after: 50 }
+            }),
+          ] : []),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [new TextRun({ text: "Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:", size: 21, font: wordFont })],
+            spacing: { after: 50 }
           }),
           new Paragraph({
-            children: [new TextRun({ text: "Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:", size: 24, font: "Arial" })],
-            spacing: { after: 100 }
-          }),
-          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
             children: [
-              new TextRun({ text: "- Tuổi xương ước tính: ", size: 24, font: "Arial" }),
-              new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 24, font: "Arial", bold: true, color: "800020" }),
-              new TextRun({ text: " ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).", size: 24, font: "Arial" })
+              new TextRun({ text: "- Tuổi xương ước tính: ", size: 21, font: wordFont }),
+              new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" }),
+              new TextRun({ text: " ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).", size: 21, font: wordFont })
             ],
-            spacing: { after: 100 }
+            spacing: { after: 50 }
           }),
           ...(dbacPopulated ? [
             new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
               children: [
-                new TextRun({ text: "- Tuổi xương ước tính: ", size: 24, font: "Arial" }),
-                new TextRun({ text: `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`, size: 24, font: "Arial", bold: true, color: "800020" }),
-                new TextRun({ text: ` ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd(), size: 24, font: "Arial" })
+                new TextRun({ text: "- Tuổi xương ước tính: ", size: 21, font: wordFont }),
+                new TextRun({ text: `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`, size: 21, font: wordFont, bold: true, color: "800020" }),
+                new TextRun({ text: ` ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}`, size: 21, font: wordFont })
               ],
-              spacing: { after: 100 }
+              spacing: { after: 50 }
             }),
             (() => {
               const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
@@ -1435,142 +1477,167 @@ export default function App() {
               const bxMonths = Math.round((bxAge - bxYears) * 12);
               const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
               return new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
                 children: [
-                  new TextRun({ text: "- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): ", size: 24, font: "Arial" }),
-                  new TextRun({ text: bxFormatted, size: 24, font: "Arial", bold: true, color: "800020" }),
-                  new TextRun({ text: " (Zhang, Thodberg et al. 2013)", size: 24, font: "Arial" })
+                  new TextRun({ text: "- Quy đổi cho trẻ em gốc Á (tham khảo): ", size: 21, font: wordFont }),
+                  new TextRun({ text: bxFormatted, size: 21, font: wordFont, bold: true, color: "800020" }),
+                  new TextRun({ text: " (Zhang, Thodberg et al. 2013)", size: 21, font: wordFont })
                 ],
-                spacing: { after: 100 }
+                spacing: { after: 50 }
               });
-            })(),
-            ...(yesFeatures.length > 0 ? [
-              new Paragraph({
-                children: [new TextRun({ text: "+ Các dấu hiệu được ghi nhận:", size: 24, font: "Arial", bold: true })],
-                spacing: { after: 100 }
-              }),
-              ...yesFeatures.map(f => new Paragraph({
-                children: [new TextRun({ text: `  ${f}`, size: 24, font: "Arial" })],
-                spacing: { after: 100 }
-              }))
-            ] : []),
-            ...(noFeatures.length > 0 ? [
-              new Paragraph({
-                children: [
-                   new TextRun({ text: "+ Hiện ", size: 24, font: "Arial", bold: true }),
-                   new TextRun({ text: "chưa thấy rõ", size: 24, font: "Arial", bold: true, underline: { type: UnderlineType.SINGLE } }),
-                   new TextRun({ text: " các dấu hiệu sau:", size: 24, font: "Arial", bold: true })
-                ],
-                spacing: { after: 100 }
-              }),
-              ...noFeatures.map(f => new Paragraph({
-                children: [new TextRun({ text: `  ${f}`, size: 24, font: "Arial" })],
-                spacing: { after: 100 }
-              }))
-            ] : []),
-            ...(hasAbnormality ? [
-              new Paragraph({
-                children: [new TextRun({ text: `+ Bất thường hình thái xương: Có`, size: 24, font: "Arial", bold: true })],
-                spacing: { after: 100 }
-              }),
-              ...(abnormalityDetails ? [new Paragraph({
-                children: [new TextRun({ text: `  Chi tiết: ${abnormalityDetails}`, size: 24, font: "Arial" })],
-                spacing: { after: 100 }
-              })] : [])
-            ] : [])
+            })()
           ] : []),
           ...(sauvegrainPopulated ? [
             new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
               children: [
-                new TextRun({ text: `- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương `, size: 24, font: "Arial" }),
-                new TextRun({ text: `${sauvegrainAgeYears} tuổi${sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}`, size: 24, font: "Arial", bold: true, color: "800020" }),
-                new TextRun({ text: ` (tổng điểm = ${(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).`, size: 24, font: "Arial" }),
+                new TextRun({ text: `- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương `, size: 21, font: wordFont }),
+                new TextRun({ text: `${sauvegrainAgeYears} tuổi${sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}`, size: 21, font: wordFont, bold: true, color: "800020" }),
+                new TextRun({ text: ` (tổng điểm = ${(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).`, size: 21, font: wordFont }),
               ],
-              spacing: { after: 100 }
-            })
-          ] : []),
-          ...(devZ ? [
-            new Paragraph({ text: "", spacing: { after: 100 } }),
-            ...devZ.diffText.split('\n').map(line => new Paragraph({
-              children: [new TextRun({ text: line, size: 24, font: "Arial", bold: true })],
-              spacing: { after: 100 }
-            })),
-            new Paragraph({
-              children: [new TextRun({ text: devZ.significanceText, size: 24, font: "Arial", bold: true })],
-              spacing: { after: 100 }
+              spacing: { after: 50 }
             })
           ] : []),
           ...(devZPngBuffer ? [
+            createBlankLine(20),
             new Paragraph({
               alignment: AlignmentType.CENTER,
               children: [
                 new ImageRun({
                   data: devZPngBuffer,
                   transformation: {
-                    width: 500,
-                    height: 220,
+                    width: 525,
+                    height: 171,
                   },
                   type: "png",
                 })
               ],
-              spacing: { before: 200, after: 200 }
-            })
+              spacing: { before: 20, after: 20 }
+            }),
+            createBlankLine(20),
           ] : []),
-          new Paragraph({ text: "", spacing: { after: 100 } }),
+          ...(devZ ? [
+            ...devZ.diffText.split('\n').map(line => new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [new TextRun({ text: line, size: 21, font: wordFont, italics: true })],
+              spacing: { after: 45 }
+            })),
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [new TextRun({ text: devZ.significanceText, size: 21, font: wordFont, bold: true })],
+              spacing: { after: 30 }
+            }),
+            createBlankLine(20),
+          ] : []),
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.", size: 24, font: "Arial", italics: true })],
-            spacing: { after: 100 }
+            children: [new TextRun({ text: "Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.", size: 18, font: wordFont, italics: true })],
+            spacing: { after: 60 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [
+              new TextRun({ text: doctorLine, size: 21, font: wordFont, bold: true })
+            ],
+            spacing: { after: 25 }
+          }),
+          new Paragraph({
+            alignment: AlignmentType.JUSTIFIED,
+            children: [
+              new TextRun({ text: softwareCreditLine, size: 19, font: wordFont, italics: true })
+            ],
+            spacing: { after: 0 }
           }),
 
-          new Paragraph({ text: "", spacing: { after: 200 } }),
-
-          new Paragraph({
-             alignment: AlignmentType.RIGHT,
-             children: [
-                new TextRun({ text: "Bác sĩ chuyên khoa đánh giá", size: 24, font: "Arial", italics: true })
-             ],
-             spacing: { after: 1200 }
-          }),
-          new Paragraph({
-             alignment: AlignmentType.RIGHT,
-             children: [
-                new TextRun({ text: "ThS.BS. Đỗ Tiến Sơn", size: 24, font: "Arial", bold: true })
-             ],
-             spacing: { after: 100 }
-          }),
-          new Paragraph({
-             alignment: AlignmentType.RIGHT,
-             children: [
-                new TextRun({ text: `Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}`, size: 24, font: "Arial" })
-             ],
-             spacing: { after: 400 }
-          }),
-          new Paragraph({
-            alignment: AlignmentType.LEFT,
-            children: [new TextRun({ text: "Tài liệu tham chiếu:", size: 16, font: "Arial", bold: true })],
-            spacing: { before: 400, after: 100 }
-          }),
-          new Paragraph({
-            alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.", size: 16, font: "Arial" })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.", size: 16, font: "Arial" })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372", size: 16, font: "Arial" })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.", size: 16, font: "Arial" })],
-          }),
-          new Paragraph({
-            alignment: AlignmentType.JUSTIFIED,
-            children: [new TextRun({ text: "5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570", size: 16, font: "Arial" })],
-            spacing: { after: 200 }
-          })
+          // Page 2: Phụ lục A
+          ...(hasDbacDetails ? [
+            new Paragraph({
+              pageBreakBefore: true,
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({ text: "Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin", bold: true, size: 28, font: wordFont })
+              ],
+              spacing: { after: 160 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [
+                new TextRun({
+                  text: `Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText || 'Phim tuổi xương của trẻ đã được đối chiếu chi tiết theo các mốc chuẩn.'}`,
+                  size: 21,
+                  font: wordFont
+                })
+              ],
+              spacing: { after: 100 }
+            }),
+            ...(yesFeatures.length > 0 ? [
+              new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
+                children: [
+                  new TextRun({ text: "+ Các dấu hiệu được ghi nhận: ", size: 21, font: wordFont, bold: true }),
+                  new TextRun({ text: yesFeatures.join('; '), size: 21, font: wordFont })
+                ],
+                spacing: { after: 100 }
+              })
+            ] : []),
+            ...(noFeatures.length > 0 ? [
+              new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
+                children: [
+                  new TextRun({ text: "+ Hiện ", size: 21, font: wordFont, bold: true }),
+                  new TextRun({ text: "chưa thấy rõ", size: 21, font: wordFont, bold: true, underline: { type: UnderlineType.SINGLE } }),
+                  new TextRun({ text: " các dấu hiệu sau: ", size: 21, font: wordFont, bold: true }),
+                  new TextRun({ text: noFeatures.join('; '), size: 21, font: wordFont })
+                ],
+                spacing: { after: 100 }
+              })
+            ] : []),
+            ...(hasAbnormality ? [
+              new Paragraph({
+                alignment: AlignmentType.JUSTIFIED,
+                children: [
+                  new TextRun({ text: `+ Bất thường hình thái xương: Có`, size: 21, font: wordFont, bold: true }),
+                  ...(abnormalityDetails ? [new TextRun({ text: `; Chi tiết: ${abnormalityDetails}`, size: 21, font: wordFont })] : [])
+                ],
+                spacing: { after: 100 }
+              })
+            ] : []),
+            createBlankLine(60),
+            createBlankLine(60),
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [
+                new TextRun({ text: "Tài liệu tham khảo và Nguyên lí đánh giá", bold: true, size: 22, font: wordFont })
+              ],
+              spacing: { before: 40, after: 80 }
+            }),
+            ...appendixReferences.map(ref => new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [new TextRun({ text: ref, size: 19, font: wordFont })],
+              spacing: { after: 55 }
+            })),
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [
+                new TextRun({ text: "Atlas tuổi xương của Gilsanz và Ratib: ", bold: true, size: 19, font: wordFont }),
+                new TextRun({ text: "Hình ảnh \"lý tưởng hóa\" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.", size: 19, font: wordFont })
+              ],
+              spacing: { before: 50, after: 60 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [
+                new TextRun({ text: "Atlas tuổi xương của Gaskin: ", bold: true, size: 19, font: wordFont }),
+                new TextRun({ text: "Chỉnh sửa kỹ thuật số từng phần xương (digitally edited standards); Nhóm tác giả của Gaskin đã lấy dữ liệu từ các phim chụp X-quang kỹ thuật số (CR/DR) chất lượng cao của bệnh nhi thời hiện đại (trước 2011). Với tiêu chí kế thừa trực tiếp hệ thống phân loại của G&P, dữ liệu nền tảng của Gaskin vẫn dựa trên tiêu chuẩn cốt hoá của nghiên cứu Brush Foundation (tiến hành từ 1931-1942 trên gần 1.000 trẻ em da trắng, thuộc tầng lớp trung lưu tại Ohio, Mỹ).", size: 19, font: wordFont })
+              ],
+              spacing: { after: 100 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [new TextRun({ text: "Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.", size: 18, font: wordFont, italics: true })],
+              spacing: { before: 60, after: 0 }
+            })
+          ] : [])
         ]
       }]
     });
@@ -1594,18 +1661,23 @@ export default function App() {
     // Parse findings
     const dbacPopulated = dbacBoneAgeYears !== '';
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
+    const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
     const devZ = getDeviationAndZScore();
     const sauvegrainPopulated = sauvegrainAgeYears !== '';
+    const doctorLine = getDoctorSignatureLine();
+    const showSauvegrainRow = (realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy');
 
     const renderZScoreChartHTML = (zScores?: {name: string, z: number, color: string}[]) => {
       const svgStr = getZScoreChartSVGString(zScores);
       if (!svgStr) return '';
       return `
-        <div style="margin-top: 5mm; margin-bottom: 5mm; text-align:center;">
-          <div style="width:100%; max-width:500px; margin:0 auto;">
+        <div class="blank-line"></div>
+        <div class="z-chart-wrap" style="text-align:center;">
+          <div class="z-chart-inner" style="width:100%; max-width:540px; margin:0 auto;">
             ${svgStr}
           </div>
         </div>
+        <div class="blank-line"></div>
       `;
     };
 
@@ -1621,183 +1693,300 @@ export default function App() {
       <html>
       <head>
         <title>Ket qua Tuoi xuong - ${patientName}</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Lexend:ital,wght@0,300..700;1,300..700&family=Plus+Jakarta+Sans:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
         <style>
           @page {
-            size: A4;
-            margin: 10mm 12mm;
+            size: A4 portrait;
+            margin: 0;
           }
-          body {
-            font-family: Arial, sans-serif;
-            line-height: 1.25;
-            color: #000;
+          html, body {
             margin: 0;
             padding: 0;
-            font-size: 11.5pt;
+            font-family: 'Lexend', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+            line-height: 1.42;
+            color: #111;
+            font-size: 10.5pt;
+            text-align: justify;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
           }
-          .content-box {
-            padding: 2mm 0;
+          .page-sheet {
+            width: 210mm;
+            min-height: 297mm;
+            padding: 15mm 18mm;
             box-sizing: border-box;
+            background: #fff;
+            position: relative;
+          }
+          @media screen {
+            body {
+              background: #e4e4e7;
+              padding: 8mm 0;
+            }
+            .page-sheet {
+              margin: 0 auto 8mm auto;
+              box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+            }
+          }
+          @media print {
+            body {
+              background: #fff;
+              padding: 0;
+            }
+            .page-sheet {
+              margin: 0;
+              box-shadow: none;
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+          }
+          .page-sheet.page-break {
+            page-break-before: always;
+            break-before: page;
+          }
+          .page-content {
+            width: 100%;
+            box-sizing: border-box;
+          }
+          .letter-header {
+            text-align: right;
+            font-size: 9.8pt;
+            line-height: 1.3;
+            margin-bottom: 3mm;
           }
           h1 {
             text-align: center;
-            font-size: 14pt;
-            font-weight: bold;
-            margin-bottom: 3mm;
+            font-size: 14.5pt;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 1.5mm;
+            letter-spacing: -0.01em;
+          }
+          h2.appendix-title {
+            text-align: center;
+            font-size: 13.5pt;
+            font-weight: 700;
+            margin-top: 0;
+            margin-bottom: 4mm;
           }
           .subtitle {
             text-align: center;
+            font-size: 10.2pt;
+            margin-bottom: 3.5mm;
+          }
+          .blank-line {
+            height: 3.6mm;
+          }
+          .mb-1 { margin-bottom: 1.4mm; text-align: justify; }
+          .mb-2 { margin-bottom: 2.2mm; text-align: justify; }
+          .mb-3 { margin-bottom: 3mm; text-align: justify; }
+          .mb-4 { margin-bottom: 3.8mm; text-align: justify; }
+          .font-bold { font-weight: 700; }
+          .text-red { color: #800020; font-weight: 700; }
+          .text-gray { color: #555; font-size: 9.8pt; }
+          .underline { text-decoration: underline; font-weight: 700; }
+          .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 2.2mm 0 3mm 0;
             font-size: 10.5pt;
-            margin-bottom: 4mm;
           }
-          .subtitle i { font-style: italic; }
-          .mb-1 { margin-bottom: 1.5mm; }
-          .mb-3 { margin-bottom: 3mm; }
-          .mb-5 { margin-bottom: 4mm; }
-          .font-bold { font-weight: bold; }
-          .text-red { color: #800020; font-weight: bold; }
-          .text-gray { color: #666; font-size: 10pt; }
-          .underline { text-decoration: underline; font-weight: bold; }
-          .signature-section {
-            text-align: right;
-            margin-top: 10mm;
+          .result-table th, .result-table td {
+            border: 1px solid #333;
+            padding: 1.8mm 3mm;
+            text-align: center;
           }
-
-          /* Tùy chỉnh Header lặp lại trên mỗi trang in */
-          table.print-wrapper {
-            width: 100%;
-            border-collapse: collapse;
-            border: none;
+          .result-table th {
+            background-color: #f4f4f5;
+            font-weight: 700;
           }
-          thead.print-header {
-            display: table-header-group;
+          .ref-section {
+            padding-top: 3mm;
+            border-top: 0.75pt solid #ccc;
+            font-size: 9.2pt;
+            line-height: 1.36;
           }
-          .print-header-content {
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 2mm;
-            margin-bottom: 4mm;
+          .ref-title {
+            font-weight: 700;
             font-size: 10pt;
-            color: #555;
-            width: 100%;
+            margin-bottom: 1.8mm;
           }
-          .header-table {
-            width: 100%;
-            border: none;
-            border-collapse: collapse;
+          .ref-item {
+            margin-bottom: 1.3mm;
+            text-align: justify;
           }
-          .header-table td {
-            padding: 0;
-            vertical-align: bottom;
+          /* Subtle compact adjustment only if all optional blocks are active at once */
+          .page-sheet.compact-fit {
+            padding: 12mm 16mm;
+            line-height: 1.33;
+            font-size: 10pt;
           }
+          .page-sheet.compact-fit .blank-line { height: 2.6mm; }
+          .page-sheet.compact-fit .mb-1 { margin-bottom: 1mm; }
+          .page-sheet.compact-fit .mb-2 { margin-bottom: 1.5mm; }
+          .page-sheet.compact-fit .result-table { margin: 1.5mm 0 2mm 0; }
+          .page-sheet.compact-fit .result-table th,
+          .page-sheet.compact-fit .result-table td { padding: 1.3mm 2.5mm; }
+          .page-sheet.compact-fit .z-chart-inner { max-width: 480px !important; }
         </style>
       </head>
       <body>
-        <table class="print-wrapper">
-          <thead class="print-header">
-            <tr>
-              <td>
-                <div class="print-header-content">
-                  <table class="header-table">
-                    <tr>
-                      <td colspan="3" style="text-align: center; padding-bottom: 5mm;">
-                        <img src="/logo.png" style="max-width: 50%; max-height: 35mm; object-fit: contain;" onerror="this.style.display=\'none\'" />
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style="text-align: left; width: 40%;"><strong>Khách hàng:</strong> ${patientName || '....................'}</td>
-                      <td style="text-align: center; width: 30%;"><strong>ID:</strong> ${patientId || '....................'}</td>
-                      <td style="text-align: right; width: 30%;"><strong>Ngày chụp:</strong> ${examDate || '....................'}</td>
-                    </tr>
-                  </table>
-                </div>
-              </td>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>
-                <div class="content-box">
-                  <h1>KẾT QUẢ PHÂN TÍCH CHUYÊN SÂU TUỔI XƯƠNG</h1>
-                  <div class="subtitle">
-                    Bằng phương pháp Greulich & Pyle với 2 Atlas<br/>
-                    <i>Gilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)</i>
-                  </div>
+        <div class="page-sheet">
+          <div class="page-content">
+            ${isLetterMode ? `
+              <div class="letter-header">
+                <div class="font-bold">THS.BS. ĐỖ TIẾN SƠN</div>
+                <div>Bệnh viện Đa khoa Tâm Anh Hà Nội</div>
+                <div>108 Hoàng Như Tiếp, Bồ Đề, Hà Nội</div>
+                <div>Tel: 024 3872 3872</div>
+              </div>
+            ` : ''}
 
-                  <div class="mb-1"><span class="font-bold">Tên khách hàng:</span> ${patientName || '........................................'}</div>
-                  <div class="mb-1">Mã khách hàng: ${patientId || '........................................'}</div>
-          <div class="mb-1">Tuổi thực tế (CA) tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</div>
-          <div class="mb-1">Hình thái xương sơ bộ: ${hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}</div>
-          <div class="mb-1">Ngày khám: ${examDate || '........................................'}</div>
-          <div class="mb-1">Lý do đánh giá (Lâm sàng): ${clinicalReason || '........................................'}</div>
-          <div class="mb-5">Chất lượng phim: ${xrayQuality || 'Đạt'}</div>
+            <h1>THƯ DIỄN GIẢI KẾT QUẢ TUỔI XƯƠNG</h1>
 
-          <div class="mb-1 font-bold">KẾT QUẢ:</div>
-          <div class="mb-3">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</div>
-          
-          <div class="mb-1">- Tuổi xương ước tính: ${expertBoneAgeYears !== '' ? `<span class="text-red">${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng</span>` : '-'} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</div>
-          
-          ${dbacPopulated ? `
-          <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}</div>
-          ${(() => {
-            const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
-            const bxAge = getBxChina05Age(baDecimal, gender);
-            const bxYears = Math.floor(bxAge);
-            const bxMonths = Math.round((bxAge - bxYears) * 12);
-            const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
-            return `<div class="mb-1">- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): <span class="text-red">${bxFormatted}</span> (Zhang, Thodberg et al. 2013)</div>`;
-          })()}
-          
-          ${yesFeatures.length > 0 ? `
-            <div class="mb-1 font-bold">+ Các dấu hiệu được ghi nhận:</div>
-            ${yesFeatures.map(f => `<div class="mb-1" style="padding-left: 20px;">${f}</div>`).join('')}
-          ` : ''}
+            ${!isLetterMode ? `
+              <div class="subtitle">
+                Bằng phương pháp Greulich &amp; Pyle với 2 Atlas<br/>
+                <i>Gilsanz &amp; Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)</i>
+              </div>
+            ` : `
+              <div style="margin-top: 2.5mm;" class="mb-1"><i>Kính gửi Quý khách hàng,</i></div>
+              <div class="mb-2" style="font-style: italic;">Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.</div>
+            `}
 
-          ${noFeatures.length > 0 ? `
-            <div class="mb-1">+ Hiện <span class="underline">chưa thấy rõ</span> các dấu hiệu sau:</div>
-            ${noFeatures.map(f => `<div class="mb-1" style="padding-left: 20px;">${f}</div>`).join('')}
-          ` : ''}
+            <div class="mb-1"><span class="font-bold">Tên khách hàng:</span> ${patientName || '........................................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Giới: ${gender === 'boy' ? 'Nam' : 'Nữ'}</div>
+            <div class="mb-1">Tuổi theo ngày sinh tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</div>
+            <div class="mb-2">Ngày tư vấn: ${examDate || '....................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Phim chụp tại: ${xrayLocation || '....................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Chất lượng phim: ${xrayQuality || 'Đạt'}</div>
 
-          ${hasAbnormality ? `
-            <div class="mb-1 font-bold">+ Bất thường hình thái xương: Có</div>
-            ${abnormalityDetails ? `<div class="mb-1" style="padding-left: 20px;">Chi tiết: ${abnormalityDetails}</div>` : ''}
-          ` : ''}
-          ` : ''}
+            <table class="result-table">
+              <thead>
+                <tr>
+                  <th>Atlas tham chiếu</th>
+                  <th>Kết quả đánh giá</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>V.Gilsanz và O.Ratib</td>
+                  <td><span class="text-red">${expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-'}</span> <span class="text-gray">± 0.5</span></td>
+                </tr>
+                <tr>
+                  <td>Cree M. Gaskin và cộng sự</td>
+                  <td><span class="text-red">${dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-'}</span> <span class="text-gray">± 0.5</span></td>
+                </tr>
+                ${showSauvegrainRow ? `
+                <tr>
+                  <td>Sauvegrain (Diméglio cải tiến)</td>
+                  <td><span class="text-red">${sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-'}</span></td>
+                </tr>
+                ` : ''}
+              </tbody>
+            </table>
 
-          ${sauvegrainPopulated ? `
-            <div class="mb-3">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span class="text-red">${sauvegrainAgeYears} tuổi${sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = ${(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</div>
-          ` : ''}
+            <div class="mb-1 font-bold">KẾT QUẢ:</div>
+            ${!isLetterMode ? `
+              <div class="mb-2" style="font-style: italic;">Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.</div>
+            ` : ''}
+            <div class="mb-2">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</div>
+            
+            <div class="mb-1">- Tuổi xương ước tính: ${expertBoneAgeYears !== '' ? `<span class="text-red">${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng</span>` : '-'} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</div>
+            
+            ${dbacPopulated ? `
+            <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}</div>
+            ${(() => {
+              const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
+              const bxAge = getBxChina05Age(baDecimal, gender);
+              const bxYears = Math.floor(bxAge);
+              const bxMonths = Math.round((bxAge - bxYears) * 12);
+              const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
+              return `<div class="mb-1">- Quy đổi cho trẻ em gốc Á (tham khảo): <span class="text-red">${bxFormatted}</span> (Zhang, Thodberg et al. 2013)</div>`;
+            })()}
+            ` : ''}
 
-          ${devZ ? `
-            <div class="mb-1 font-bold" style="margin-top: 5mm;">${devZ.diffText.replace(/\n/g, '<br/>')}</div>
-            <div class="mb-3 font-bold">${devZ.significanceText}</div>
-            ${renderZScoreChartHTML(devZ.zScores)}
-          ` : ''}
+            ${sauvegrainPopulated ? `
+              <div class="mb-1">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span class="text-red">${sauvegrainAgeYears} tuổi${sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = ${(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</div>
+            ` : ''}
 
-          <div class="mb-5" style="text-align: justify; font-style: italic;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
+            ${devZ ? `
+              ${renderZScoreChartHTML(devZ.zScores)}
+              <div class="mb-1" style="font-style: italic; font-weight: normal; text-align: justify;">${devZ.diffText.replace(/\n/g, '<br/>')}</div>
+              <div class="mb-1 font-bold" style="text-align: justify;">${devZ.significanceText}</div>
+              <div class="blank-line"></div>
+            ` : ''}
 
-          <div class="signature-section">
-            <div style="font-style: italic; margin-bottom: 20mm;">Bác sĩ chuyên khoa đánh giá</div>
-            <div class="font-bold">ThS.BS. Đỗ Tiến Sơn</div>
-            <div style="margin-top: 2mm;">Ngày đánh giá: ${new Date().toLocaleDateString('vi-VN')}</div>
-          </div>
-          
-          <div style="margin-top: 10mm; font-size: 8pt; text-align: justify; border-top: 1px solid #ccc; padding-top: 2mm;">
-            <div style="font-weight: bold; margin-bottom: 2mm;">Tài liệu tham chiếu:</div>
-            <div style="margin-bottom: 1mm;">1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</div>
-            <div style="margin-bottom: 1mm;">2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</div>
-            <div style="margin-bottom: 1mm;">3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</div>
-            <div style="margin-bottom: 1mm;">4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.</div>
-            <div style="margin-bottom: 1mm;">5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570</div>
+            <div class="page-footer">
+              <div class="mb-1" style="text-align: justify; font-style: italic; font-size: 8.8pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
+              <div class="font-bold" style="font-size: 10.2pt; margin-top: 1.5mm; text-align: justify;">${doctorLine}</div>
+              <div style="font-size: 9.5pt; font-style: italic; font-weight: normal; margin-top: 0.6mm; text-align: justify; color: #222;">${softwareCreditLine}</div>
+            </div>
           </div>
         </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+
+        ${hasDbacDetails ? `
+        <div class="page-sheet page-break">
+          <div class="page-content">
+            <h2 class="appendix-title">Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin</h2>
+            <div class="mb-2" style="text-align: justify;">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText || 'Phim tuổi xương của trẻ đã được đối chiếu chi tiết theo các mốc chuẩn.'}</div>
+
+            ${yesFeatures.length > 0 ? `
+              <div class="mb-2" style="text-align: justify;"><span class="font-bold">+ Các dấu hiệu được ghi nhận:</span> ${yesFeatures.join('; ')}</div>
+            ` : ''}
+
+            ${noFeatures.length > 0 ? `
+              <div class="mb-2" style="margin-top: 1.5mm; text-align: justify;"><span class="font-bold">+ Hiện <span class="underline">chưa thấy rõ</span> các dấu hiệu sau:</span> ${noFeatures.join('; ')}</div>
+            ` : ''}
+
+            ${hasAbnormality ? `
+              <div class="mb-2" style="margin-top: 1.5mm; text-align: justify;"><span class="font-bold">+ Bất thường hình thái xương: Có</span>${abnormalityDetails ? `; Chi tiết: ${abnormalityDetails}` : ''}</div>
+            ` : ''}
+
+            <div class="blank-line"></div>
+            <div class="blank-line"></div>
+
+            <div class="ref-section">
+              <div class="ref-title">Tài liệu tham khảo và Nguyên lí đánh giá</div>
+              <div class="ref-item">1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., &amp; Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</div>
+              <div class="ref-item">2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</div>
+              <div class="ref-item">3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., &amp; Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</div>
+              <div class="ref-item">4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.</div>
+              <div class="ref-item">5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570</div>
+              <div class="ref-item" style="margin-top: 1.8mm;"><span class="font-bold">Atlas tuổi xương của Gilsanz và Ratib:</span> Hình ảnh "lý tưởng hóa" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.</div>
+              <div class="ref-item"><span class="font-bold">Atlas tuổi xương của Gaskin:</span> Chỉnh sửa kỹ thuật số từng phần xương (digitally edited standards); Nhóm tác giả của Gaskin đã lấy dữ liệu từ các phim chụp X-quang kỹ thuật số (CR/DR) chất lượng cao của bệnh nhi thời hiện đại (trước 2011). Với tiêu chí kế thừa trực tiếp hệ thống phân loại của G&amp;P, dữ liệu nền tảng của Gaskin vẫn dựa trên tiêu chuẩn cốt hoá của nghiên cứu Brush Foundation (tiến hành từ 1931-1942 trên gần 1.000 trẻ em da trắng, thuộc tầng lớp trung lưu tại Ohio, Mỹ).</div>
+            </div>
+
+            <div class="page-footer" style="margin-top: 4mm;">
+              <div style="text-align: justify; font-style: italic; font-size: 8.8pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
+            </div>
+          </div>
+        </div>
+        ` : ''}
         <script>
-          setTimeout(() => {
-            window.print();
-            window.onfocus = function () { window.close(); }
-          }, 500);
+          function checkCompactFit() {
+            const sheets = document.querySelectorAll('.page-sheet');
+            // 297mm in px at 96dpi is ~1122px
+            const maxPageHeightPx = 1118;
+            sheets.forEach((sheet) => {
+              if (sheet.scrollHeight > maxPageHeightPx) {
+                sheet.classList.add('compact-fit');
+              }
+            });
+          }
+          window.onload = () => {
+            const triggerPrint = () => {
+              checkCompactFit();
+              setTimeout(() => {
+                window.print();
+                window.onfocus = function () { window.close(); };
+              }, 250);
+            };
+            if (document.fonts && document.fonts.ready) {
+              document.fonts.ready.then(triggerPrint).catch(triggerPrint);
+            } else {
+              triggerPrint();
+            }
+          };
         </script>
       </body>
       </html>
@@ -1987,22 +2176,24 @@ export default function App() {
     const { sd, isInterpolated } = getBrushSdInfo(caMonths, gender);
     const twoSd = 2 * sd;
     const normalRange = getNormalBoneAgeRange(caMonths, gender);
-    const sdSourceLabel = isInterpolated
-      ? 'Greulich & Pyle, 1959 - Nội suy tuyến tính theo tuổi'
-      : 'Greulich & Pyle, 1959';
+    const gpSourceShort = isInterpolated
+      ? 'G&P - Nội suy tuyến tính theo tuổi'
+      : 'G&P';
 
     let diffText = '';
     let significanceText = '';
+    let isSignificant = false;
     let zScores: { name: string, z: number, color: string }[] = [];
 
     const formatSign = (val: number) => val > 0 ? `+${val.toFixed(1)}` : val.toFixed(1);
+    const formatZ = (val: number) => val > 0 ? `+${val.toFixed(2)}` : val.toFixed(2);
+
+    const gpFormatted = gpAgeMonths > 0 ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '';
+    const dbacFormatted = dbacAgeMonths > 0 ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '';
 
     if (gpAgeMonths > 0 && dbacAgeMonths > 0) {
       const gDec = gpAgeMonths / 12;
       const dbDec = dbacAgeMonths / 12;
-
-      const diffGm = Math.abs(gDec - caDecimal) * 12;
-      const diffDm = Math.abs(dbDec - caDecimal) * 12;
 
       const rawDiffGm = (gDec - caDecimal) * 12;
       const rawDiffDm = (dbDec - caDecimal) * 12;
@@ -2015,57 +2206,48 @@ export default function App() {
         { name: 'Gaskin', z: zD, color: '#10b981' }
       ];
 
-      const minZ = Math.min(zG, zD);
-      const maxZ = Math.max(zG, zD);
+      const z2SdSeparator = isInterpolated ? '\n' : '      ';
 
-      let opG = '~', opD = '~';
-      if (diffGm > twoSd) opG = '>'; else if (diffGm < twoSd) opG = '<';
-      if (diffDm > twoSd) opD = '>'; else if (diffDm < twoSd) opD = '<';
+      diffText = [
+        `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (G&R) và ${formatSign(rawDiffDm)} tháng (Gaskin)`,
+        `Z-Score BA = ${formatZ(zG)} (G&R) và ${formatZ(zD)} (Gaskin)${z2SdSeparator}Khoảng 2SD ở tuổi này = ${twoSd.toFixed(2)} tháng (${gpSourceShort})`,
+        `Khoảng BA tham chiếu (±2SD): ${normalRange.rangeText}`
+      ].join('\n');
 
-      if (gpAgeMonths === dbacAgeMonths) {
-        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (đối chiếu 2 atlas) (${opG} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (${sdSourceLabel}) | Khoảng tuổi xương bình thường (±2SD): ${normalRange.rangeText}`;
-        const isSig = Math.abs(zG) > 2;
-        if (isSig) {
-          significanceText = `Kết luận: Tuổi xương ${zG > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zG.toFixed(2)}) (${sdSourceLabel}).`;
-        } else {
-          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zG.toFixed(2)}) (${sdSourceLabel}).`;
-        }
-      } else {
-        diffText = `Delta (BA-CA) = ${formatSign(rawDiffGm)} tháng (so atlas Gilsanz & Ratib) (${opG} 2SD) và ${formatSign(rawDiffDm)} tháng (so atlas Gaskin) (${opD} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (${sdSourceLabel}) | Khoảng tuổi xương bình thường (±2SD): ${normalRange.rangeText}`;
+      const baConclusionLabel = gpAgeMonths === dbacAgeMonths
+        ? gpFormatted
+        : `${gpFormatted} hoặc ${dbacFormatted}`;
 
-        const isSig = Math.abs(zG) > 2 || Math.abs(zD) > 2;
-        const dirText = maxZ > 0 && minZ > 0 ? 'tăng' : (maxZ < 0 && minZ < 0 ? 'giảm' : 'thay đổi');
-        if (isSig) {
-          significanceText = `Kết luận: Tuổi xương ${dirText} có ý nghĩa lâm sàng (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (${sdSourceLabel}).`;
-        } else {
-          significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}) (${sdSourceLabel}).`;
-        }
-      }
+      isSignificant = Math.abs(zG) > 2 || Math.abs(zD) > 2;
+      significanceText = isSignificant
+        ? `Vì thế, tuổi xương (${baConclusionLabel}) ngoài khoảng cho phép theo tuổi`
+        : `Vì thế, tuổi xương (${baConclusionLabel}) trong khoảng cho phép theo tuổi`;
     } else {
-      let maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
-      let maxAtlasName = gpAgeMonths > 0 ? 'Gilsanz & Ratib' : 'Gaskin';
+      const maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
+      const maxAtlasName = gpAgeMonths > 0 ? 'Gilsanz & Ratib' : 'Gaskin';
+      const shortAtlasName = gpAgeMonths > 0 ? 'G&R' : 'Gaskin';
+      const singleBaLabel = gpAgeMonths > 0 ? gpFormatted : dbacFormatted;
 
       const maxBaDecimal = maxBaMonths / 12;
-      const diffMonths = Math.abs(maxBaDecimal - caDecimal) * 12;
       const rawDiffMonths = (maxBaDecimal - caDecimal) * 12;
-
       const zScore = rawDiffMonths / sd;
       
       zScores = [
         { name: maxAtlasName, z: zScore, color: maxAtlasName === 'Gaskin' ? '#10b981' : '#3b82f6' }
       ];
 
-      let op = '~';
-      if (diffMonths > twoSd) op = '>';
-      else if (diffMonths < twoSd) op = '<';
+      const z2SdSeparator = isInterpolated ? '\n' : '      ';
 
-      diffText = `Delta (BA-CA) = ${formatSign(rawDiffMonths)} tháng (so atlas ${maxAtlasName}) (${op} 2SD)\nGiá trị 2SD theo tuổi = ${twoSd.toFixed(2)} tháng (${sdSourceLabel}) | Khoảng tuổi xương bình thường (±2SD): ${normalRange.rangeText}`;
-      
-      if (Math.abs(zScore) > 2) {
-        significanceText = `Kết luận: Tuổi xương ${rawDiffMonths > 0 ? 'tăng' : 'giảm'} có ý nghĩa lâm sàng (Z-score = ${zScore.toFixed(2)}) (${sdSourceLabel}).`;
-      } else {
-        significanceText = `Kết luận: Tuổi xương trong khoảng cho phép (Z-score = ${zScore.toFixed(2)}) (${sdSourceLabel}).`;
-      }
+      diffText = [
+        `Delta (BA-CA) = ${formatSign(rawDiffMonths)} tháng (${shortAtlasName})`,
+        `Z-Score BA = ${formatZ(zScore)} (${shortAtlasName})${z2SdSeparator}Khoảng 2SD ở tuổi này = ${twoSd.toFixed(2)} tháng (${gpSourceShort})`,
+        `Khoảng BA tham chiếu (±2SD): ${normalRange.rangeText}`
+      ].join('\n');
+
+      isSignificant = Math.abs(zScore) > 2;
+      significanceText = isSignificant
+        ? `Vì thế, tuổi xương (${singleBaLabel}) ngoài khoảng cho phép theo tuổi`
+        : `Vì thế, tuổi xương (${singleBaLabel}) trong khoảng cho phép theo tuổi`;
     }
 
     let shortDeltaText = '';
@@ -2100,7 +2282,7 @@ export default function App() {
         shortDeltaText = `Delta (BA-CA) ~ từ ${formatSign(minDiff)} đến ${formatSign(maxDiff)} tháng (${op} 2SD GP) (Z-score ~ ${minZ.toFixed(2)} đến ${maxZ.toFixed(2)}${shortInterpSuffix}).`;
       }
     } else if (gpAgeMonths > 0 || dbacAgeMonths > 0) {
-      let maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
+      const maxBaMonths = gpAgeMonths > 0 ? gpAgeMonths : dbacAgeMonths;
       const rawDiffMonths = (maxBaMonths / 12 - caDecimal) * 12;
       const zScore = rawDiffMonths / sd;
       let op = '~';
@@ -2110,65 +2292,73 @@ export default function App() {
       shortDeltaText = `Delta (BA-CA) ~ ${formatSign(rawDiffMonths)} tháng (${op} 2SD GP) (Z-score ~ ${zScore.toFixed(2)}${shortInterpSuffix}).`;
     }
 
-    return { diffText, significanceText, zScores, shortDeltaText };
+    return { diffText, significanceText, isSignificant, zScores, shortDeltaText };
   };
 
   const getExpertConclusion = () => {
     if (expertBoneAgeYears === '') return '';
-    const dateText = xrayDate ? xrayDate : '....';
     const locationText = xrayLocation ? xrayLocation : '....';
     const qualityText = xrayQuality ? xrayQuality : '...';
+    const nameText = patientName ? patientName : '........................................';
+    const consultDateText = examDate ? examDate : '....................';
     
     const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
+    const boneAgeIntro = 'Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.';
     
-    let vText = `KẾT QUẢ PHIÊN GIẢI TUỔI XƯƠNG\nPhim chụp ngày ${dateText} tại ${locationText} (Chất lượng phim: ${qualityText})\nTuổi thực tế (CA) tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)\nHình thái xương sơ bộ: ${hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}\nKẾT QUẢ:\n\nÁp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:\n- Tuổi xương ước tính: ${formattedBoneAge} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).`;
+    const headerBlock = isLetterMode
+      ? `THS.BS. ĐỖ TIẾN SƠN\nBệnh viện Đa khoa Tâm Anh Hà Nội\n108 Hoàng Như Tiếp, Bồ Đề, Hà Nội\nTel: 024 3872 3872\n\nTHƯ DIỄN GIẢI KẾT QUẢ TUỔI XƯƠNG\n\nKính gửi Quý khách hàng,\n${boneAgeIntro}`
+      : `THƯ DIỄN GIẢI KẾT QUẢ TUỔI XƯƠNG\nBằng phương pháp Greulich & Pyle với 2 Atlas\nGilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)`;
+
+    let vText = `${headerBlock}\nTên khách hàng: ${nameText}        Giới: ${gender === 'boy' ? 'Nam' : 'Nữ'}\nTuổi theo ngày sinh tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)\nNgày tư vấn: ${consultDateText}        Phim chụp tại: ${locationText}        Chất lượng phim: ${qualityText}\nKẾT QUẢ:${!isLetterMode ? `\n${boneAgeIntro}` : ''}\nÁp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:\n- Tuổi xương ước tính: ${formattedBoneAge} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).`;
 
     const dbacPopulated = dbacBoneAgeYears !== '';
+    const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
+    const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
     if (dbacPopulated) {
-      const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
-      
       const dbacFormatted = `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`;
       const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
       const bxAge = getBxChina05Age(baDecimal, gender);
       const bxYears = Math.floor(bxAge);
       const bxMonths = Math.round((bxAge - bxYears) * 12);
       const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
-      const bxText = `\n- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): ${bxFormatted} (Zhang, Thodberg et al. 2013)`;
+      const bxText = `\n- Quy đổi cho trẻ em gốc Á (tham khảo): ${bxFormatted} (Zhang, Thodberg et al. 2013)`;
       
-      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd() + bxText;
-      
-      let details = '';
-      if (yesFeatures.length > 0) {
-        details += `\n+ Các dấu hiệu được ghi nhận: ${yesFeatures.join('; ')}`;
-      }
-      if (noFeatures.length > 0) {
-        details += `\n+ Hiện chưa thấy rõ các dấu hiệu sau: ${noFeatures.join('; ')}`;
-      }
-      if (hasAbnormality) {
-        details += `\n+ Bất thường hình thái xương: Có`;
-        if (abnormalityDetails) {
-            details += `\n  Chi tiết: ${abnormalityDetails}`;
-        }
-      }
-      
-      vText += vDbac + details;
+      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}`.trimEnd() + bxText;
+      vText += vDbac;
     }
-
-    const disclaimerVi = '\n\nLưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.';
 
     const devZ = getDeviationAndZScore();
     if (devZ) {
       vText += `\n\n${devZ.diffText}\n${devZ.significanceText}`;
     }
 
-    return vText + disclaimerVi;
+    const disclaimerVi = '\n\nLưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.';
+    vText += disclaimerVi + `\n${getDoctorSignatureLine()}\n${softwareCreditLine}`;
+
+    if (hasDbacDetails) {
+      vText += `\n\n--- Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin ---\nKhi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText}`;
+      if (yesFeatures.length > 0) {
+        vText += `\n+ Các dấu hiệu được ghi nhận: ${yesFeatures.join('; ')}`;
+      }
+      if (noFeatures.length > 0) {
+        vText += `\n+ Hiện chưa thấy rõ các dấu hiệu sau: ${noFeatures.join('; ')}`;
+      }
+      if (hasAbnormality) {
+        vText += `\n+ Bất thường hình thái xương: Có${abnormalityDetails ? `; Chi tiết: ${abnormalityDetails}` : ''}`;
+      }
+      vText += `\n\nTài liệu tham khảo và Nguyên lí đánh giá\n1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.\n2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.\n3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372\n4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.\n5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570\nAtlas tuổi xương của Gilsanz và Ratib: Hình ảnh "lý tưởng hóa" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.\nAtlas tuổi xương của Gaskin: Chỉnh sửa kỹ thuật số từng phần xương (digitally edited standards); Nhóm tác giả của Gaskin đã lấy dữ liệu từ các phim chụp X-quang kỹ thuật số (CR/DR) chất lượng cao của bệnh nhi thời hiện đại (trước 2011). Với tiêu chí kế thừa trực tiếp hệ thống phân loại của G&P, dữ liệu nền tảng của Gaskin vẫn dựa trên tiêu chuẩn cốt hoá của nghiên cứu Brush Foundation (tiến hành từ 1931-1942 trên gần 1.000 trẻ em da trắng, thuộc tầng lớp trung lưu tại Ohio, Mỹ).`;
+      vText += '\nLưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.';
+    }
+
+    return vText;
   };
 
   const renderExpertConclusionDisplay = () => {
     if (expertBoneAgeYears === '') return null;
-    const dateText = xrayDate ? xrayDate : '....';
     const locationText = xrayLocation ? xrayLocation : '....';
     const qualityText = xrayQuality ? xrayQuality : '...';
+    const nameText = patientName ? patientName : '........................................';
+    const consultDateText = examDate ? examDate : '....................';
     
     const formattedBoneAge = expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-';
     const dbacPopulated = dbacBoneAgeYears !== '';
@@ -2177,14 +2367,37 @@ export default function App() {
     const sauvegrainFormatted = sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-';
 
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
+    const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
 
     return (
-      <div className="space-y-4">
-        <p className="font-bold whitespace-pre-wrap">KẾT QUẢ PHIÊN GIẢI TUỔI XƯƠNG</p>
-        <p className="whitespace-pre-wrap">Phim chụp ngày {dateText} tại {locationText} (Chất lượng phim: {qualityText})<br/>Tuổi thực tế (CA) tại ngày chụp: {realAgeYears} tuổi {realAgeMonths} tháng ({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)<br/>Hình thái xương sơ bộ: {hasAbnormality ? `Bất thường${abnormalityDetails ? ` (${abnormalityDetails})` : ''}` : 'Chưa ghi nhận bất thường hình thái'}</p>
+      <div className="space-y-3 text-justify">
+        {isLetterMode && (
+          <div className="text-right text-xs sm:text-sm text-zinc-700 leading-snug mb-2">
+            <p className="font-bold text-zinc-900">THS.BS. ĐỖ TIẾN SƠN</p>
+            <p>Bệnh viện Đa khoa Tâm Anh Hà Nội</p>
+            <p>108 Hoàng Như Tiếp, Bồ Đề, Hà Nội</p>
+            <p>Tel: 024 3872 3872</p>
+          </div>
+        )}
+        <div className="text-center">
+          <p className="font-bold whitespace-pre-wrap">THƯ DIỄN GIẢI KẾT QUẢ TUỔI XƯƠNG</p>
+          {!isLetterMode && (
+            <>
+              <p className="text-sm text-zinc-700">Bằng phương pháp Greulich &amp; Pyle với 2 Atlas</p>
+              <p className="italic text-sm text-zinc-700">Gilsanz &amp; Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)</p>
+            </>
+          )}
+        </div>
+        {isLetterMode && (
+          <div className="pt-2 space-y-1.5">
+            <p className="italic text-justify">Kính gửi Quý khách hàng,</p>
+            <p className="italic text-justify">Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.</p>
+          </div>
+        )}
+        <p className="whitespace-pre-wrap"><span className="font-bold">Tên khách hàng:</span> {nameText}      Giới: {gender === 'boy' ? 'Nam' : 'Nữ'}<br/>Tuổi theo ngày sinh tại ngày chụp: {realAgeYears} tuổi {realAgeMonths} tháng ({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)<br/>Ngày tư vấn: {consultDateText}      Phim chụp tại: {locationText}      Chất lượng phim: {qualityText}</p>
         <p className="mt-4 font-bold">KẾT QUẢ:</p>
         
-        <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-4 mb-6">
+        <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-3 mb-4">
           <table className="w-full text-center text-sm text-zinc-800">
             <thead className="bg-[#800020]/10 border-b border-[#800020]/20">
               <tr>
@@ -2227,47 +2440,34 @@ export default function App() {
           </table>
         </div>
 
-        <p className="whitespace-pre-wrap">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</p>
-        <p className="whitespace-pre-wrap">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{formattedBoneAge}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</p>
+        {!isLetterMode && (
+          <p className="italic text-justify">Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.</p>
+        )}
+        <p className="whitespace-pre-wrap text-justify">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</p>
+        <p className="whitespace-pre-wrap text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{formattedBoneAge}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</p>
         
         {dbacPopulated && (
           <>
-            <p className="whitespace-pre-wrap mt-2">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). {`${summaryText ? summaryText + ' ' : ''}${(yesFeatures.length > 0 || noFeatures.length > 0) ? 'Cụ thể như sau:' : ''}`.trimEnd()}</p>
+            <p className="whitespace-pre-wrap mt-2 text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).{hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}</p>
             {(() => {
               const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
               const bxAge = getBxChina05Age(baDecimal, gender);
               const bxYears = Math.floor(bxAge);
               const bxMonths = Math.round((bxAge - bxYears) * 12);
               const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
-              return <p className="whitespace-pre-wrap mt-2">- Tuổi xương quy đổi theo trẻ em châu Á đương thời (BX-China05): <span className="font-bold text-[#800020]">{bxFormatted}</span> (Zhang, Thodberg et al. 2013)</p>;
+              return <p className="whitespace-pre-wrap mt-2 text-justify">- Quy đổi cho trẻ em gốc Á (tham khảo): <span className="font-bold text-[#800020]">{bxFormatted}</span> (Zhang, Thodberg et al. 2013)</p>;
             })()}
-            {yesFeatures.length > 0 && (
-              <div className="whitespace-pre-wrap pl-2 mt-2">
-                <span className="font-semibold">+ Các dấu hiệu được ghi nhận:</span> {yesFeatures.join('; ')}
-              </div>
-            )}
-            {noFeatures.length > 0 && (
-              <div className="whitespace-pre-wrap pl-2 mt-2">
-                <span className="font-semibold">+ Hiện chưa thấy rõ các dấu hiệu sau:</span> {noFeatures.join('; ')}
-              </div>
-            )}
-            {hasAbnormality && (
-              <div className="whitespace-pre-wrap pl-2 mt-2">
-                <span className="font-semibold">+ Bất thường hình thái xương: Có</span>
-                {abnormalityDetails && <div>  Chi tiết: {abnormalityDetails}</div>}
-              </div>
-            )}
           </>
         )}
 
         {sauvegrainPopulated && (
-          <p className="whitespace-pre-wrap mt-2">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span className="font-bold text-[#800020]">{sauvegrainAgeYears} tuổi{sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = {(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</p>
+          <p className="whitespace-pre-wrap mt-2 text-justify">- Dựa theo phương pháp đánh giá tuổi xương dựa trên khớp khuỷu tay trái của Sauvegrain (Diméglio cải tiến), tuổi xương của trẻ hiện tương đương <span className="font-bold text-[#800020]">{sauvegrainAgeYears} tuổi{sauvegrainAgeMonths ? ` ${sauvegrainAgeMonths} tháng` : ''}</span> (tổng điểm = {(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}).</p>
         )}
         
         {(() => {
           const devZ = getDeviationAndZScore();
           if (!devZ) return null;
-          const isSignificant = devZ.significanceText.includes('có ý nghĩa lâm sàng');
+          const isSignificant = devZ.isSignificant;
           return (
             <div className={`mt-4 p-4 rounded-xl border ${isSignificant ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
               <div className="flex items-center gap-2 mb-1">
@@ -2276,13 +2476,49 @@ export default function App() {
                    {isSignificant ? 'Bất thường / Chú ý' : 'Bình thường'}
                  </span>
               </div>
-              <p className="font-semibold whitespace-pre-wrap">{devZ.diffText}</p>
-              <p className="mt-1 font-medium">{devZ.significanceText}</p>
+              <p className="italic font-normal whitespace-pre-wrap text-justify">{devZ.diffText}</p>
+              <p className="mt-1 font-bold text-justify">{devZ.significanceText}</p>
             </div>
           );
         })()}
 
-        <p className="whitespace-pre-wrap mt-6 text-sm italic text-zinc-600 text-justify">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</p>
+        <p className="whitespace-pre-wrap mt-6 text-xs italic text-zinc-600 text-justify">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</p>
+        <p className="whitespace-pre-wrap font-semibold text-sm text-zinc-800 text-justify">{getDoctorSignatureLine()}</p>
+        <p className="whitespace-pre-wrap italic font-normal text-xs text-zinc-700 text-justify -mt-1">{softwareCreditLine}</p>
+
+        {hasDbacDetails && (
+          <div className="mt-6 pt-6 border-t border-yellow-300/80 space-y-2 text-justify">
+            <p className="font-bold text-[#800020] text-center">Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin</p>
+            <p className="whitespace-pre-wrap text-sm text-justify">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). {summaryText}</p>
+            {yesFeatures.length > 0 && (
+              <p className="whitespace-pre-wrap text-sm text-justify">
+                <span className="font-semibold">+ Các dấu hiệu được ghi nhận:</span> {yesFeatures.join('; ')}
+              </p>
+            )}
+            {noFeatures.length > 0 && (
+              <p className="whitespace-pre-wrap text-sm text-justify">
+                <span className="font-semibold">+ Hiện <span className="underline">chưa thấy rõ</span> các dấu hiệu sau:</span> {noFeatures.join('; ')}
+              </p>
+            )}
+            {hasAbnormality && (
+              <p className="whitespace-pre-wrap text-sm text-justify">
+                <span className="font-semibold">+ Bất thường hình thái xương: Có</span>
+                {abnormalityDetails && <span>; Chi tiết: {abnormalityDetails}</span>}
+              </p>
+            )}
+            <div className="pt-3 mt-2 border-t border-yellow-200/80 space-y-1.5 text-xs text-zinc-700 text-justify">
+              <p className="font-bold text-zinc-900">Tài liệu tham khảo và Nguyên lí đánh giá</p>
+              <p>1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., &amp; Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</p>
+              <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
+              <p>3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., &amp; Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</p>
+              <p>4. Greulich WW, Pyle SI. Radiographic Atlas of Skeletal Development of the Hand and Wrist, 2nd ed. Stanford, CA: Stanford University Press and London, UK: Oxford University Press, 1959.</p>
+              <p>5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570</p>
+              <p className="pt-1"><span className="font-semibold text-zinc-800">Atlas tuổi xương của Gilsanz và Ratib:</span> Hình ảnh &quot;lý tưởng hóa&quot; (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.</p>
+              <p><span className="font-semibold text-zinc-800">Atlas tuổi xương của Gaskin:</span> Chỉnh sửa kỹ thuật số từng phần xương (digitally edited standards); Nhóm tác giả của Gaskin đã lấy dữ liệu từ các phim chụp X-quang kỹ thuật số (CR/DR) chất lượng cao của bệnh nhi thời hiện đại (trước 2011). Với tiêu chí kế thừa trực tiếp hệ thống phân loại của G&amp;P, dữ liệu nền tảng của Gaskin vẫn dựa trên tiêu chuẩn cốt hoá của nghiên cứu Brush Foundation (tiến hành từ 1931-1942 trên gần 1.000 trẻ em da trắng, thuộc tầng lớp trung lưu tại Ohio, Mỹ).</p>
+            </div>
+            <p className="whitespace-pre-wrap text-xs italic text-zinc-600 text-justify pt-2">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</p>
+          </div>
+        )}
       </div>
     );
   };
@@ -2373,35 +2609,31 @@ export default function App() {
     const zAbs = Math.abs(zScore);
     const zStr = zScore > 0 ? `+${zScore.toFixed(2)}` : zScore.toFixed(2);
     
-    let colorClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
+    let colorClass = 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
     let dotClass = 'bg-emerald-400';
-    let statusLabel = 'Bình thường';
 
     if (zAbs > 2.0) {
-      colorClass = 'text-rose-300 bg-rose-500/20 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.25)]';
-      dotClass = 'bg-rose-400';
-      statusLabel = 'Lệch > 2SD!';
+      colorClass = 'text-red-400 bg-red-400/10 border-red-400/20';
+      dotClass = 'bg-red-400';
     } else if (zAbs > 1.0) {
-      colorClass = 'text-amber-300 bg-amber-500/15 border-amber-500/40';
+      colorClass = 'text-amber-400 bg-amber-400/10 border-amber-400/20';
       dotClass = 'bg-amber-400';
-      statusLabel = 'Trong ±2SD';
     }
 
     const diffText = diff === 0
-      ? 'Khớp CA (±0 tháng)'
+      ? 'Bằng tuổi thực'
       : `${diff > 0 ? 'Nhanh' : 'Chậm'} ${diffAbs} tháng`;
 
     return (
       <div
         title={`1SD = ${sd.toFixed(2)} tháng | 2SD = ${(2 * sd).toFixed(2)} tháng${isInterpolated ? ' (Nội suy tuyến tính theo tuổi)' : ' (Chuẩn Brush Foundation)'}`}
-        className={`px-3 py-1.5 rounded-xl border flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-semibold whitespace-nowrap mt-3 sm:mt-0 ${colorClass}`}
+        className={`px-3 py-1.5 rounded-lg border flex items-center justify-center gap-2 text-sm font-semibold whitespace-nowrap mt-4 sm:mt-0 ${colorClass}`}
       >
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full animate-pulse ${dotClass}`} />
-          <span>{diffText}</span>
-        </div>
-        <span className="px-2 py-0.5 rounded-md bg-black/30 text-[11px] sm:text-xs font-mono font-bold tracking-tight">
-          Z = {zStr} ({statusLabel}{isInterpolated ? ' • Nội suy' : ''})
+        <div className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${dotClass}`} />
+        <span>{diffText}</span>
+        <span className="opacity-30">•</span>
+        <span className="font-mono text-xs sm:text-sm">
+          Z = {zStr}{zAbs > 2.0 ? ' (>2SD)' : ''}
         </span>
       </div>
     );
@@ -2686,23 +2918,22 @@ export default function App() {
             )}
           </div>
 
-          {/* Real-time Normal Bone Age Range (±2SD) Banner */}
+          {/* Real-time Normal Bone Age Range (±2SD) Bar */}
           {totalRealAgeMonths > 0 && (() => {
             const normalRange = getNormalBoneAgeRange(totalRealAgeMonths, gender);
             return (
-              <div className="mt-1 px-3.5 py-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs sm:text-sm">
-                <div className="flex items-center gap-2 text-emerald-300 font-medium flex-wrap">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                  <span>Khoảng tuổi xương bình thường (±2SD):</span>
-                  <span className="font-bold text-white bg-emerald-600/40 px-2.5 py-0.5 rounded-lg border border-emerald-400/30">
+              <div className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-zinc-400 font-semibold">Khoảng tuổi xương bình thường (±2SD):</span>
+                  <span className="text-emerald-400 font-semibold text-xs sm:text-sm">
                     {normalRange.minText} – {normalRange.maxText}
                   </span>
                 </div>
-                <div className="text-[11px] sm:text-xs text-zinc-300 flex items-center gap-2 flex-wrap">
-                  <span>1SD = <strong className="text-white">{normalRange.sd.toFixed(2)} tháng</strong></span>
-                  <span>•</span>
-                  <span>±2SD = <strong className="text-white">±{normalRange.twoSd.toFixed(2)} tháng</strong></span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${normalRange.isInterpolated ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' : 'bg-zinc-700/60 text-zinc-300 border-white/10'}`}>
+                <div className="text-[11px] text-zinc-400 flex items-center gap-2 flex-wrap">
+                  <span>1SD = <strong className="text-zinc-200 font-medium">{normalRange.sd.toFixed(2)} tháng</strong></span>
+                  <span className="text-zinc-600">•</span>
+                  <span>±2SD = <strong className="text-zinc-200 font-medium">±{normalRange.twoSd.toFixed(2)} tháng</strong></span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${normalRange.isInterpolated ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'}`}>
                     {normalRange.isInterpolated ? 'Nội suy tuyến tính theo tuổi' : 'Mốc chuẩn G&P 1959'}
                   </span>
                 </div>
@@ -2775,30 +3006,35 @@ export default function App() {
                 </div>
               )}
               {isGpVisible && (
-                <div className="flex items-center gap-2 text-sm font-medium text-white/70 flex-wrap">
-                  {selectedEntry && (
-                    <>
-                      <span className="bg-white/10 px-2.5 py-1 rounded-md text-white font-semibold">{selectedEntry.labelVi}</span>
-                      <button
-                        onClick={() => {
-                          const y = Math.floor(selectedEntry.ageMonths / 12);
-                          const m = selectedEntry.ageMonths % 12;
-                          if (isExpertMode) {
-                            setExpertBoneAgeYears(y);
-                            setExpertBoneAgeMonths(m);
-                          } else {
-                            setFinalAgeYears(y);
-                            setFinalAgeMonths(m);
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-900/30 transition-all active:scale-95"
-                        title="Chốt nhanh tuổi xương theo trang Atlas đang mở"
-                      >
-                        <Check size={15} />
-                        <span>Chốt trang này ({selectedEntry.labelVi})</span>
-                      </button>
-                    </>
-                  )}
+                <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                  {selectedEntry && (() => {
+                    const selY = Math.floor(selectedEntry.ageMonths / 12);
+                    const selM = selectedEntry.ageMonths % 12;
+                    const isSynced = isExpertMode
+                      ? (expertBoneAgeYears === selY && Number(expertBoneAgeMonths || 0) === selM)
+                      : (finalAgeYears === selY && Number(finalAgeMonths || 0) === selM);
+                    return (
+                      <>
+                        <span className="bg-white/10 px-2 py-1 rounded-md text-white">{selectedEntry.labelVi}</span>
+                        <button
+                          onClick={() => {
+                            if (isExpertMode) {
+                              setExpertBoneAgeYears(selY);
+                              setExpertBoneAgeMonths(selM);
+                            } else {
+                              setFinalAgeYears(selY);
+                              setFinalAgeMonths(selM);
+                            }
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isSynced ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                          title="Chọn nhanh tuổi xương từ trang Atlas đang mở"
+                        >
+                          <Check size={16} className="shrink-0" />
+                          <span className="hidden sm:inline">Chọn mốc này</span>
+                        </button>
+                      </>
+                    );
+                  })()}
                 </div>
               )}
               {isGpVisible && (
@@ -2965,38 +3201,21 @@ export default function App() {
           {isExpertMode && (
             <div className="mt-6 bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
                     {selectedEntry && (
                       <button
                         onClick={() => {
                           setExpertBoneAgeYears(Math.floor(selectedEntry.ageMonths / 12));
                           setExpertBoneAgeMonths(selectedEntry.ageMonths % 12);
                         }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 text-xs font-semibold transition-all active:scale-95"
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
                       >
-                        <Check size={14} />
-                        Chốt theo trang đang mở ({selectedEntry.labelVi})
+                        <Check size={13} />
+                        <span>Chọn mốc này ({selectedEntry.labelVi})</span>
                       </button>
                     )}
-                    {[-6, -3, 3, 6].map(deltaM => (
-                      <button
-                        key={deltaM}
-                        onClick={() => {
-                          const baseM = expertBoneAgeYears !== ''
-                            ? Number(expertBoneAgeYears) * 12 + Number(expertBoneAgeMonths || 0)
-                            : (selectedEntry ? selectedEntry.ageMonths : totalRealAgeMonths);
-                          const nextM = Math.max(0, baseM + deltaM);
-                          setExpertBoneAgeYears(Math.floor(nextM / 12));
-                          setExpertBoneAgeMonths(nextM % 12);
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-700 text-zinc-300 border border-white/10 text-xs font-medium transition-colors"
-                        title="Cộng/trừ nhanh số tháng tuổi xương"
-                      >
-                        {deltaM > 0 ? `+${deltaM} tháng` : `${deltaM} tháng`}
-                      </button>
-                    ))}
                   </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
@@ -3071,22 +3290,27 @@ export default function App() {
                   </div>
                 )}
                 {isGaskinVisible && (
-                  <div className="flex items-center gap-2 text-sm font-medium text-white/70 flex-wrap">
-                    <span className="bg-white/10 px-2.5 py-1 rounded-md text-white font-semibold">{currentDbacData[dbacIndex]?.label || ''}</span>
-                    {currentDbacData[dbacIndex] && (
-                      <button
-                        onClick={() => {
-                          const ageM = currentDbacData[dbacIndex].ageMonths;
-                          setDbacBoneAgeYears(Math.floor(ageM / 12));
-                          setDbacBoneAgeMonths(ageM % 12);
-                        }}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500 hover:bg-indigo-400 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-900/30 transition-all active:scale-95"
-                        title="Chốt nhanh tuổi xương Gaskin theo trang đang mở"
-                      >
-                        <Check size={15} />
-                        <span>Chốt trang này ({currentDbacData[dbacIndex].label})</span>
-                      </button>
-                    )}
+                  <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                    <span className="bg-white/10 px-2 py-1 rounded-md text-white">{currentDbacData[dbacIndex]?.label || ''}</span>
+                    {currentDbacData[dbacIndex] && (() => {
+                      const ageM = currentDbacData[dbacIndex].ageMonths;
+                      const selY = Math.floor(ageM / 12);
+                      const selM = ageM % 12;
+                      const isSynced = dbacBoneAgeYears === selY && Number(dbacBoneAgeMonths || 0) === selM;
+                      return (
+                        <button
+                          onClick={() => {
+                            setDbacBoneAgeYears(selY);
+                            setDbacBoneAgeMonths(selM);
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isSynced ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                          title="Chọn nhanh tuổi xương từ trang Atlas đang mở"
+                        >
+                          <Check size={16} className="shrink-0" />
+                          <span className="hidden sm:inline">Chọn mốc này</span>
+                        </button>
+                      );
+                    })()}
                   </div>
                 )}
                 {isGaskinVisible && (
@@ -3234,12 +3458,12 @@ export default function App() {
                     return (
                       <li key={idx} className={`relative flex items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border ${val ? 'border-white/5' : 'border-transparent'}`}>
                         {!val && <div className="absolute inset-0 rounded-xl border border-red-500/50 animate-pulse pointer-events-none" style={{ animationDuration: '2s' }}></div>}
-                        <div className="flex flex-col gap-1 flex-1 min-w-0">
-                          <span className="text-zinc-200 text-[11px] sm:text-xs leading-relaxed break-words">{feature}</span>
-                          <span className={`inline-flex items-center self-start px-2 py-0.5 rounded text-[10px] font-semibold border ${weightInfo.colorClass}`}>
+                        <span className="text-zinc-200 text-[11px] sm:text-xs leading-relaxed flex-1">
+                          {feature}
+                          <span className={`inline-block ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium border align-middle ${weightInfo.colorClass}`}>
                             {weightInfo.label}
                           </span>
-                        </div>
+                        </span>
                         <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 gap-1 ml-auto relative z-10">
                           <button
                             onClick={() => setDbacSelections(prev => {
@@ -3427,15 +3651,15 @@ export default function App() {
                     <div className="space-y-4">
                       {maxEval !== -1 && estM > 0 && (
                         <div className={`border rounded-xl p-4 ${illogicalWarning ? 'bg-amber-500/10 border-amber-500/30' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
-                          <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
                             <div className="flex items-center gap-2">
                               {illogicalWarning ? <Info className="text-amber-400" size={20} /> : <CheckCheck className="text-indigo-400" size={20} />}
                               <h4 className={`font-semibold ${illogicalWarning ? "text-amber-300" : "text-indigo-300"}`}>
-                                {illogicalWarning ? "Cảnh báo logic dữ liệu" : "Tự động đề xuất tuổi xương (Trọng số giải phẫu)"}
+                                {illogicalWarning ? "Cảnh báo logic dữ liệu" : "Tự động đề xuất tuổi xương"}
                               </h4>
                             </div>
-                            <span className="text-[11px] text-indigo-300/80 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded-md">
-                              Ưu tiên hệ xương ống & sụn tiếp hợp (x2.0) • Bàn/Quay-Trụ (x1.5) • Cổ tay (x1.0)
+                            <span className="text-[11px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded font-medium">
+                              Trọng số: Đốt ngón/Sụn (x2.0) • Bàn/Quay-Trụ (x1.5) • Cổ tay (x1.0)
                             </span>
                           </div>
                           
@@ -3520,9 +3744,9 @@ export default function App() {
 
               <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl w-full">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       {currentDbacData[dbacIndex] && (
                         <button
                           onClick={() => {
@@ -3530,29 +3754,12 @@ export default function App() {
                             setDbacBoneAgeYears(Math.floor(ageM / 12));
                             setDbacBoneAgeMonths(ageM % 12);
                           }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 border border-indigo-500/30 text-xs font-semibold transition-all active:scale-95"
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
                         >
-                          <Check size={14} />
-                          Chốt theo trang đang mở ({currentDbacData[dbacIndex].label})
+                          <Check size={13} />
+                          <span>Chọn mốc này ({currentDbacData[dbacIndex].label})</span>
                         </button>
                       )}
-                      {[-6, -3, 3, 6].map(deltaM => (
-                        <button
-                          key={deltaM}
-                          onClick={() => {
-                            const baseM = dbacBoneAgeYears !== ''
-                              ? Number(dbacBoneAgeYears) * 12 + Number(dbacBoneAgeMonths || 0)
-                              : (currentDbacData[dbacIndex] ? currentDbacData[dbacIndex].ageMonths : totalRealAgeMonths);
-                            const nextM = Math.max(0, baseM + deltaM);
-                            setDbacBoneAgeYears(Math.floor(nextM / 12));
-                            setDbacBoneAgeMonths(nextM % 12);
-                          }}
-                          className="px-2.5 py-1 rounded-lg bg-zinc-900 hover:bg-zinc-700 text-zinc-300 border border-white/10 text-xs font-medium transition-colors"
-                          title="Cộng/trừ nhanh số tháng tuổi xương"
-                        >
-                          {deltaM > 0 ? `+${deltaM} tháng` : `${deltaM} tháng`}
-                        </button>
-                      ))}
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
@@ -3889,6 +4096,30 @@ export default function App() {
                         >
                           <Copy size={16} />
                         </button>
+                        <label
+                          className="inline-flex items-center gap-1.5 ml-3 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
+                          title="Tick để đổi dòng ký bác sĩ thành Bác sĩ hội chẩn từ xa về tuổi xương"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isConsultation}
+                            onChange={e => setIsConsultation(e.target.checked)}
+                            className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
+                          />
+                          <span>Hội chẩn</span>
+                        </label>
+                        <label
+                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
+                          title="Tick để tạo báo cáo dạng Thư diễn giải gửi khách hàng"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isLetterMode}
+                            onChange={e => setIsLetterMode(e.target.checked)}
+                            className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
+                          />
+                          <span>Tạo thư</span>
+                        </label>
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-indigo-500/20">
@@ -4096,14 +4327,11 @@ export default function App() {
               {totalRealAgeMonths > 0 && (() => {
                 const nr = getNormalBoneAgeRange(totalRealAgeMonths, gender);
                 return (
-                  <div className="flex flex-col border-b border-zinc-800 pb-2 -mx-4 px-4 py-2 bg-emerald-500/10 text-emerald-300 rounded text-xs sm:text-sm gap-1">
-                    <div className="flex justify-between items-center">
-                      <span>Khoảng bình thường (±2SD):</span>
-                      <span className="font-bold text-white">{nr.rangeText}</span>
-                    </div>
-                    <div className="text-[11px] text-zinc-400 text-right">
-                      2SD = {nr.twoSd.toFixed(2)} tháng {nr.isInterpolated ? '(Nội suy tuyến tính theo tuổi)' : '(Chuẩn G&P 1959)'}
-                    </div>
+                  <div className="flex justify-between items-baseline border-b border-zinc-800 pb-2 gap-2">
+                    <span className="shrink-0">Bình thường (±2SD):</span>
+                    <span className="font-semibold text-emerald-400 text-right text-xs sm:text-sm">
+                      {nr.rangeText}
+                    </span>
                   </div>
                 );
               })()}
