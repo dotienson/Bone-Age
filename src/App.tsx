@@ -1672,8 +1672,8 @@ export default function App() {
       if (!svgStr) return '';
       return `
         <div class="blank-line"></div>
-        <div class="z-chart-wrap" style="text-align:center;">
-          <div class="z-chart-inner" style="width:100%; max-width:540px; margin:0 auto;">
+        <div class="z-chart-wrap" style="text-align:center; page-break-inside:avoid; break-inside:avoid;">
+          <div class="z-chart-inner" style="width:100%; max-width:520px; margin:0 auto;">
             ${svgStr}
           </div>
         </div>
@@ -1692,6 +1692,8 @@ export default function App() {
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Ket qua Tuoi xuong - ${patientName}</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1699,26 +1701,18 @@ export default function App() {
         <style>
           @page {
             size: A4 portrait;
-            margin: 0;
+            margin: 12mm 15mm;
           }
           html, body {
             margin: 0;
             padding: 0;
             font-family: 'Lexend', 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-            line-height: 1.42;
+            line-height: 1.38;
             color: #111;
-            font-size: 10.5pt;
+            font-size: 10.3pt;
             text-align: justify;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;
-          }
-          .page-sheet {
-            width: 210mm;
-            min-height: 297mm;
-            padding: 15mm 18mm;
-            box-sizing: border-box;
-            background: #fff;
-            position: relative;
           }
           @media screen {
             body {
@@ -1726,25 +1720,42 @@ export default function App() {
               padding: 8mm 0;
             }
             .page-sheet {
+              width: 210mm;
+              min-height: 297mm;
+              padding: 12mm 15mm;
               margin: 0 auto 8mm auto;
+              background: #fff;
+              box-sizing: border-box;
               box-shadow: 0 4px 24px rgba(0,0,0,0.12);
             }
           }
           @media print {
-            body {
-              background: #fff;
-              padding: 0;
+            html, body {
+              width: 100%;
+              height: auto !important;
+              min-height: 0 !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #fff !important;
             }
             .page-sheet {
-              margin: 0;
-              box-shadow: none;
-              page-break-inside: avoid;
-              break-inside: avoid;
+              width: 100% !important;
+              max-width: 100% !important;
+              min-height: 0 !important;
+              height: auto !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              box-shadow: none !important;
+              background: transparent !important;
             }
-          }
-          .page-sheet.page-break {
-            page-break-before: always;
-            break-before: page;
+            .page-sheet.page-break {
+              page-break-before: always !important;
+              break-before: page !important;
+            }
+            .page-sheet:last-of-type {
+              page-break-after: avoid !important;
+              break-after: avoid !important;
+            }
           }
           .page-content {
             width: 100%;
@@ -1752,13 +1763,13 @@ export default function App() {
           }
           .letter-header {
             text-align: right;
-            font-size: 9.8pt;
-            line-height: 1.3;
-            margin-bottom: 3mm;
+            font-size: 9.6pt;
+            line-height: 1.28;
+            margin-bottom: 2.5mm;
           }
           h1 {
             text-align: center;
-            font-size: 14.5pt;
+            font-size: 14.2pt;
             font-weight: 700;
             margin-top: 0;
             margin-bottom: 1.5mm;
@@ -1766,36 +1777,38 @@ export default function App() {
           }
           h2.appendix-title {
             text-align: center;
-            font-size: 13.5pt;
+            font-size: 13.2pt;
             font-weight: 700;
             margin-top: 0;
-            margin-bottom: 4mm;
+            margin-bottom: 3.5mm;
           }
           .subtitle {
             text-align: center;
-            font-size: 10.2pt;
-            margin-bottom: 3.5mm;
+            font-size: 10pt;
+            margin-bottom: 3mm;
           }
           .blank-line {
-            height: 3.6mm;
+            height: 3.2mm;
           }
-          .mb-1 { margin-bottom: 1.4mm; text-align: justify; }
-          .mb-2 { margin-bottom: 2.2mm; text-align: justify; }
-          .mb-3 { margin-bottom: 3mm; text-align: justify; }
-          .mb-4 { margin-bottom: 3.8mm; text-align: justify; }
+          .mb-1 { margin-bottom: 1.2mm; text-align: justify; }
+          .mb-2 { margin-bottom: 1.8mm; text-align: justify; }
+          .mb-3 { margin-bottom: 2.5mm; text-align: justify; }
+          .mb-4 { margin-bottom: 3.2mm; text-align: justify; }
           .font-bold { font-weight: 700; }
           .text-red { color: #800020; font-weight: 700; }
-          .text-gray { color: #555; font-size: 9.8pt; }
+          .text-gray { color: #555; font-size: 9.6pt; }
           .underline { text-decoration: underline; font-weight: 700; }
           .result-table {
             width: 100%;
             border-collapse: collapse;
-            margin: 2.2mm 0 3mm 0;
-            font-size: 10.5pt;
+            margin: 1.8mm 0 2.5mm 0;
+            font-size: 10.2pt;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .result-table th, .result-table td {
             border: 1px solid #333;
-            padding: 1.8mm 3mm;
+            padding: 1.5mm 3mm;
             text-align: center;
           }
           .result-table th {
@@ -1803,33 +1816,36 @@ export default function App() {
             font-weight: 700;
           }
           .ref-section {
-            padding-top: 3mm;
+            padding-top: 2.8mm;
             border-top: 0.75pt solid #ccc;
-            font-size: 9.2pt;
-            line-height: 1.36;
+            font-size: 9pt;
+            line-height: 1.34;
           }
           .ref-title {
             font-weight: 700;
-            font-size: 10pt;
-            margin-bottom: 1.8mm;
+            font-size: 9.8pt;
+            margin-bottom: 1.5mm;
           }
           .ref-item {
-            margin-bottom: 1.3mm;
+            margin-bottom: 1.1mm;
             text-align: justify;
           }
-          /* Subtle compact adjustment only if all optional blocks are active at once */
-          .page-sheet.compact-fit {
-            padding: 12mm 16mm;
-            line-height: 1.33;
-            font-size: 10pt;
+          .page-footer {
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
-          .page-sheet.compact-fit .blank-line { height: 2.6mm; }
-          .page-sheet.compact-fit .mb-1 { margin-bottom: 1mm; }
-          .page-sheet.compact-fit .mb-2 { margin-bottom: 1.5mm; }
-          .page-sheet.compact-fit .result-table { margin: 1.5mm 0 2mm 0; }
+          /* Compact mode if content approaches mobile US-Letter / A4 single-page threshold */
+          .page-sheet.compact-fit {
+            line-height: 1.28;
+            font-size: 9.7pt;
+          }
+          .page-sheet.compact-fit .blank-line { height: 2.2mm; }
+          .page-sheet.compact-fit .mb-1 { margin-bottom: 0.8mm; }
+          .page-sheet.compact-fit .mb-2 { margin-bottom: 1.2mm; }
+          .page-sheet.compact-fit .result-table { margin: 1.2mm 0 1.6mm 0; font-size: 9.7pt; }
           .page-sheet.compact-fit .result-table th,
-          .page-sheet.compact-fit .result-table td { padding: 1.3mm 2.5mm; }
-          .page-sheet.compact-fit .z-chart-inner { max-width: 480px !important; }
+          .page-sheet.compact-fit .result-table td { padding: 1.1mm 2.2mm; }
+          .page-sheet.compact-fit .z-chart-inner { max-width: 450px !important; }
         </style>
       </head>
       <body>
@@ -1852,7 +1868,7 @@ export default function App() {
                 <i>Gilsanz &amp; Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)</i>
               </div>
             ` : `
-              <div style="margin-top: 2.5mm;" class="mb-1"><i>Kính gửi Quý khách hàng,</i></div>
+              <div style="margin-top: 2mm;" class="mb-1"><i>Kính gửi Quý khách hàng,</i></div>
               <div class="mb-2" style="font-style: italic;">Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.</div>
             `}
 
@@ -1918,8 +1934,8 @@ export default function App() {
 
             <div class="page-footer">
               <div class="mb-1" style="text-align: justify; font-style: italic; font-size: 8.8pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
-              <div class="font-bold" style="font-size: 10.2pt; margin-top: 1.5mm; text-align: justify;">${doctorLine}</div>
-              <div style="font-size: 9.5pt; font-style: italic; font-weight: normal; margin-top: 0.6mm; text-align: justify; color: #222;">${softwareCreditLine}</div>
+              <div class="font-bold" style="font-size: 10pt; margin-top: 1.2mm; text-align: justify;">${doctorLine}</div>
+              <div style="font-size: 9.3pt; font-style: italic; font-weight: normal; margin-top: 0.4mm; text-align: justify; color: #222;">${softwareCreditLine}</div>
             </div>
           </div>
         </div>
@@ -1956,7 +1972,7 @@ export default function App() {
               <div class="ref-item"><span class="font-bold">Atlas tuổi xương của Gaskin:</span> Chỉnh sửa kỹ thuật số từng phần xương (digitally edited standards); Nhóm tác giả của Gaskin đã lấy dữ liệu từ các phim chụp X-quang kỹ thuật số (CR/DR) chất lượng cao của bệnh nhi thời hiện đại (trước 2011). Với tiêu chí kế thừa trực tiếp hệ thống phân loại của G&amp;P, dữ liệu nền tảng của Gaskin vẫn dựa trên tiêu chuẩn cốt hoá của nghiên cứu Brush Foundation (tiến hành từ 1931-1942 trên gần 1.000 trẻ em da trắng, thuộc tầng lớp trung lưu tại Ohio, Mỹ).</div>
             </div>
 
-            <div class="page-footer" style="margin-top: 4mm;">
+            <div class="page-footer" style="margin-top: 3.5mm;">
               <div style="text-align: justify; font-style: italic; font-size: 8.8pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
             </div>
           </div>
@@ -1965,14 +1981,17 @@ export default function App() {
         <script>
           function checkCompactFit() {
             const sheets = document.querySelectorAll('.page-sheet');
-            // 297mm in px at 96dpi is ~1122px
-            const maxPageHeightPx = 1118;
+            // Measure actual .page-content height (excluding 297mm screen card min-height).
+            // 920px (~243mm) safely fits inside both A4 (273mm printable) and mobile default US Letter (255mm printable).
+            const maxContentHeightPx = 920;
             sheets.forEach((sheet) => {
-              if (sheet.scrollHeight > maxPageHeightPx) {
+              const content = sheet.querySelector('.page-content');
+              if (content && content.scrollHeight > maxContentHeightPx) {
                 sheet.classList.add('compact-fit');
               }
             });
           }
+          window.addEventListener('beforeprint', checkCompactFit);
           window.onload = () => {
             const triggerPrint = () => {
               checkCompactFit();
