@@ -1448,33 +1448,38 @@ export default function App() {
           
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
+            columnWidths: [4670, 4670],
             rows: [
               new TableRow({
                 children: [
                   new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
                     verticalAlign: VerticalAlign.CENTER,
-                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Atlas tham chiếu", bold: true, size: 21, font: wordFont })] })],
+                    margins: { top: 0, bottom: 0, left: 90, right: 90 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [new TextRun({ text: "Atlas tham chiếu", bold: true, size: 21, font: wordFont })] })],
                   }),
                   new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
                     verticalAlign: VerticalAlign.CENTER,
-                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Kết quả đánh giá", bold: true, size: 21, font: wordFont })] })],
+                    margins: { top: 0, bottom: 0, left: 90, right: 90 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [new TextRun({ text: "Kết quả đánh giá", bold: true, size: 21, font: wordFont })] })],
                   }),
                 ]
               }),
               new TableRow({
                 children: [
                   new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
                     verticalAlign: VerticalAlign.CENTER,
-                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "V.Gilsanz và O.Ratib", size: 21, font: wordFont })] })],
+                    margins: { top: 0, bottom: 0, left: 90, right: 90 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [new TextRun({ text: "V.Gilsanz và O.Ratib", size: 21, font: wordFont })] })],
                   }),
                   new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
                     verticalAlign: VerticalAlign.CENTER,
-                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                    margins: { top: 0, bottom: 0, left: 90, right: 90 },
                     children: [
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [
+                      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [
                         new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" }),
                         new TextRun({ text: " ± 0.5", size: 20, font: wordFont, color: "666666" })
                       ] })
@@ -1485,15 +1490,17 @@ export default function App() {
               new TableRow({
                 children: [
                   new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
                     verticalAlign: VerticalAlign.CENTER,
-                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
-                    children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Cree M. Gaskin và cộng sự", size: 21, font: wordFont })] })],
+                    margins: { top: 0, bottom: 0, left: 90, right: 90 },
+                    children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [new TextRun({ text: "Cree M. Gaskin và cộng sự", size: 21, font: wordFont })] })],
                   }),
                   new TableCell({
+                    width: { size: 50, type: WidthType.PERCENTAGE },
                     verticalAlign: VerticalAlign.CENTER,
-                    margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                    margins: { top: 0, bottom: 0, left: 90, right: 90 },
                     children: [
-                      new Paragraph({ alignment: AlignmentType.CENTER, children: [
+                      new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [
                         new TextRun({ text: dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" }),
                         new TextRun({ text: " ± 0.5", size: 20, font: wordFont, color: "666666" })
                       ] })
@@ -1505,15 +1512,17 @@ export default function App() {
                 new TableRow({
                   children: [
                     new TableCell({
+                      width: { size: 50, type: WidthType.PERCENTAGE },
                       verticalAlign: VerticalAlign.CENTER,
-                      margins: { top: 50, bottom: 50, left: 100, right: 100 },
-                      children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Sauvegrain (Diméglio cải tiến)", size: 21, font: wordFont })] })],
+                      margins: { top: 0, bottom: 0, left: 90, right: 90 },
+                      children: [new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [new TextRun({ text: "Sauvegrain (Diméglio cải tiến)", size: 21, font: wordFont })] })],
                     }),
                     new TableCell({
+                      width: { size: 50, type: WidthType.PERCENTAGE },
                       verticalAlign: VerticalAlign.CENTER,
-                      margins: { top: 50, bottom: 50, left: 100, right: 100 },
+                      margins: { top: 0, bottom: 0, left: 90, right: 90 },
                       children: [
-                        new Paragraph({ alignment: AlignmentType.CENTER, children: [
+                        new Paragraph({ alignment: AlignmentType.CENTER, spacing: { before: 90, after: 90, line: 240 }, children: [
                           new TextRun({ text: sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" })
                         ] })
                       ],
@@ -1950,14 +1959,28 @@ export default function App() {
             .underline { text-decoration: underline; font-weight: 700; }
             .result-table {
               width: 100%;
+              table-layout: fixed;
               border-collapse: collapse;
               margin: 1.5mm 0 2.2mm 0;
               font-size: 10pt;
             }
             .result-table th, .result-table td {
+              width: 50%;
               border: 1px solid #333;
-              padding: 1.3mm 3mm;
+              padding: 6px 6px;
+              text-align: center !important;
+              vertical-align: middle !important;
+              line-height: 1.25;
+              box-sizing: border-box;
+            }
+            .result-table .cell-inner {
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              gap: 4px;
+              width: 100%;
               text-align: center;
+              line-height: 1.25;
             }
             .result-table th {
               background-color: #f4f4f5;
@@ -1993,7 +2016,7 @@ export default function App() {
             .page-sheet.compact-fit .mb-2 { margin-bottom: 1mm; }
             .page-sheet.compact-fit .result-table { margin: 0.9mm 0 1.3mm 0; font-size: 9.4pt; }
             .page-sheet.compact-fit .result-table th,
-            .page-sheet.compact-fit .result-table td { padding: 0.9mm 2mm; }
+            .page-sheet.compact-fit .result-table td { padding: 6px 6px; }
             .page-sheet.compact-fit .z-chart-inner { max-width: 430px !important; }
             .page-sheet.compact-fit .sig-img { height: 21mm !important; }
           </style>
@@ -2029,23 +2052,23 @@ export default function App() {
               <table class="result-table">
                 <thead>
                   <tr>
-                    <th>Atlas tham chiếu</th>
-                    <th>Kết quả đánh giá</th>
+                    <th><div class="cell-inner"><span>Atlas tham chiếu</span></div></th>
+                    <th><div class="cell-inner"><span>Kết quả đánh giá</span></div></th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td>V.Gilsanz và O.Ratib</td>
-                    <td><span class="text-red">${expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-'}</span> <span class="text-gray">± 0.5</span></td>
+                    <td><div class="cell-inner"><span>V.Gilsanz và O.Ratib</span></div></td>
+                    <td><div class="cell-inner"><span class="text-red">${expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-'}</span><span class="text-gray">± 0.5</span></div></td>
                   </tr>
                   <tr>
-                    <td>Cree M. Gaskin và cộng sự</td>
-                    <td><span class="text-red">${dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-'}</span> <span class="text-gray">± 0.5</span></td>
+                    <td><div class="cell-inner"><span>Cree M. Gaskin và cộng sự</span></div></td>
+                    <td><div class="cell-inner"><span class="text-red">${dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-'}</span><span class="text-gray">± 0.5</span></div></td>
                   </tr>
                   ${showSauvegrainRow ? `
                   <tr>
-                    <td>Sauvegrain (Diméglio cải tiến)</td>
-                    <td><span class="text-red">${sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-'}</span></td>
+                    <td><div class="cell-inner"><span>Sauvegrain (Diméglio cải tiến)</span></div></td>
+                    <td><div class="cell-inner"><span class="text-red">${sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-'}</span></div></td>
                   </tr>
                   ` : ''}
                 </tbody>
@@ -2672,12 +2695,12 @@ export default function App() {
         <p className="whitespace-pre-wrap"><span className="font-bold">Tên khách hàng:</span> {nameText}      Giới: {gender === 'boy' ? 'Nam' : 'Nữ'}<br/>Tuổi theo ngày sinh tại ngày chụp: {realAgeYears} tuổi {realAgeMonths} tháng ({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)<br/>Ngày tư vấn: {consultDateText}      Phim chụp tại: {locationText}      Chất lượng phim: {qualityText}</p>
         <p className="mt-4 font-bold">KẾT QUẢ:</p>
         
-        <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-3 mb-4">
-          <table className="w-full text-center text-sm text-zinc-800">
+        <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-3 mb-4 whitespace-normal">
+          <table className="w-full table-fixed text-center text-sm text-zinc-800 border-collapse">
             <thead className="bg-[#800020]/10 border-b border-[#800020]/20">
               <tr>
-                <th className="px-2 sm:px-4 py-3 font-semibold border-r border-[#800020]/20 text-[#800020]">Atlas tham chiếu</th>
-                <th className="px-2 sm:px-4 py-3 font-semibold text-[#800020]">
+                <th className="w-1/2 px-[6px] py-[6px] font-semibold border-r border-[#800020]/20 text-[#800020] text-center align-middle leading-snug">Atlas tham chiếu</th>
+                <th className="w-1/2 px-[6px] py-[6px] font-semibold text-[#800020] text-center align-middle leading-snug">
                   <span className="hidden sm:inline">Kết quả đánh giá</span>
                   <span className="sm:hidden">Kết quả</span>
                 </th>
@@ -2685,28 +2708,28 @@ export default function App() {
             </thead>
             <tbody className="divide-y divide-zinc-200">
               <tr>
-                <td className="px-2 sm:px-4 py-3 border-r border-zinc-200 align-middle">V.Gilsanz và O.Ratib</td>
-                <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
+                <td className="w-1/2 px-[6px] py-[6px] border-r border-zinc-200 text-center align-middle leading-snug">V.Gilsanz và O.Ratib</td>
+                <td className="w-1/2 px-[6px] py-[6px] text-center align-middle leading-snug whitespace-nowrap">
                   <span className="font-bold text-[#800020]">{expertBoneAgeYears !== '' ? formattedBoneAge : '-'}</span>
                   <span className="text-zinc-500 ml-1 font-medium">± 0.5</span>
                 </td>
               </tr>
               <tr>
-                <td className="px-2 sm:px-4 py-3 border-r border-zinc-200 align-middle">
+                <td className="w-1/2 px-[6px] py-[6px] border-r border-zinc-200 text-center align-middle leading-snug">
                   <span className="hidden sm:inline">Cree M. Gaskin và cộng sự</span>
                   <span className="sm:hidden">Cree M. Gaskin</span>
                 </td>
-                <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
+                <td className="w-1/2 px-[6px] py-[6px] text-center align-middle leading-snug whitespace-nowrap">
                   <span className="font-bold text-[#800020]">{dbacPopulated ? dbacFormatted : '-'}</span>
                   <span className="text-zinc-500 ml-1 font-medium">± 0.5</span>
                 </td>
               </tr>
               {((realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy')) && (
               <tr>
-                <td className="px-2 sm:px-4 py-3 border-r border-zinc-200 align-middle">
+                <td className="w-1/2 px-[6px] py-[6px] border-r border-zinc-200 text-center align-middle leading-snug">
                   Sauvegrain (Diméglio cải tiến)
                 </td>
-                <td className="px-2 sm:px-4 py-3 align-middle whitespace-nowrap">
+                <td className="w-1/2 px-[6px] py-[6px] text-center align-middle leading-snug whitespace-nowrap">
                   <span className="font-bold text-[#800020]">{sauvegrainPopulated ? sauvegrainFormatted : '-'}</span>
                 </td>
               </tr>
