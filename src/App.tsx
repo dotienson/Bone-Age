@@ -1443,7 +1443,7 @@ export default function App() {
             children: [
               new TextRun({ text: `Ngày tư vấn: ${examDate || '....................'}        Phim chụp tại: ${xrayLocation || '....................'}        Chất lượng phim: ${xrayQuality || 'Đạt'}`, size: 21, font: wordFont }),
             ],
-            spacing: { after: 80 }
+            spacing: { after: 280 }
           }),
           
           new Table({
@@ -1535,7 +1535,7 @@ export default function App() {
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
             children: [new TextRun({ text: "KẾT QUẢ:", bold: true, size: 21, font: wordFont })],
-            spacing: { before: 80, after: 45 }
+            spacing: { before: 200, after: 55 }
           }),
           ...(!isLetterMode ? [
             new Paragraph({
@@ -1855,6 +1855,136 @@ export default function App() {
         }
       }
 
+      // Pre-render summary result table onto high-DPI canvas so html2canvas never shifts text baselines inside table cells
+      let resultTableDataUrl = '';
+      try {
+        if (document.fonts && document.fonts.ready) {
+          await document.fonts.ready;
+        }
+        const tableRows: Array<{
+          isHeader?: boolean;
+          leftText: string;
+          rightMainText: string;
+          rightSubText?: string;
+        }> = [
+          {
+            isHeader: true,
+            leftText: 'Atlas tham chiếu',
+            rightMainText: 'Kết quả đánh giá',
+          },
+          {
+            leftText: 'V.Gilsanz và O.Ratib',
+            rightMainText: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-',
+            rightSubText: ' ± 0.5',
+          },
+          {
+            leftText: 'Cree M. Gaskin và cộng sự',
+            rightMainText: dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-',
+            rightSubText: ' ± 0.5',
+          },
+          ...(showSauvegrainRow
+            ? [
+                {
+                  leftText: 'Sauvegrain (Diméglio cải tiến)',
+                  rightMainText: sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-',
+                },
+              ]
+            : []),
+        ];
+
+        const tableW = 678;
+        const rowH = 27; // ~15px text line box + 6px before + 6px after
+        const tableH = tableRows.length * rowH;
+        const dpr = 4;
+        const tCanvas = document.createElement('canvas');
+        tCanvas.width = tableW * dpr;
+        tCanvas.height = tableH * dpr;
+        const tCtx = tCanvas.getContext('2d');
+        if (tCtx) {
+          tCtx.scale(dpr, dpr);
+          tCtx.fillStyle = '#ffffff';
+          tCtx.fillRect(0, 0, tableW, tableH);
+
+          const fontBase = "'Lexend', 'Plus Jakarta Sans', 'Segoe UI', sans-serif";
+          const mainFontSize = 13.33; // 10pt
+          const subFontSize = 12.5; // 9.4pt
+
+          tCtx.font = `700 ${mainFontSize}px ${fontBase}`;
+          const capMetrics = tCtx.measureText('H0');
+          const capAscent = capMetrics.actualBoundingBoxAscent || mainFontSize * 0.72;
+
+          const colW = tableW / 2;
+          const col1Center = colW / 2;
+          const col2Center = colW + colW / 2;
+
+          tableRows.forEach((row, idx) => {
+            const rowTop = idx * rowH;
+            const rowMidY = rowTop + rowH / 2;
+            const baselineY = rowMidY + capAscent / 2;
+
+            if (row.isHeader) {
+              tCtx.fillStyle = '#f4f4f5';
+              tCtx.fillRect(0.5, rowTop + 0.5, tableW - 1, rowH - 1);
+            }
+
+            // Left column text (centered horizontally and vertically)
+            tCtx.font = `${row.isHeader ? '700' : '400'} ${mainFontSize}px ${fontBase}`;
+            tCtx.fillStyle = '#111111';
+            tCtx.textAlign = 'left';
+            tCtx.textBaseline = 'alphabetic';
+            const leftW = tCtx.measureText(row.leftText).width;
+            tCtx.fillText(row.leftText, col1Center - leftW / 2, baselineY);
+
+            // Right column text (centered horizontally and vertically)
+            if (row.isHeader) {
+              tCtx.font = `700 ${mainFontSize}px ${fontBase}`;
+              tCtx.fillStyle = '#111111';
+              const rightW = tCtx.measureText(row.rightMainText).width;
+              tCtx.fillText(row.rightMainText, col2Center - rightW / 2, baselineY);
+            } else {
+              tCtx.font = `700 ${mainFontSize}px ${fontBase}`;
+              const mainW = tCtx.measureText(row.rightMainText).width;
+              let subW = 0;
+              if (row.rightSubText) {
+                tCtx.font = `400 ${subFontSize}px ${fontBase}`;
+                subW = tCtx.measureText(row.rightSubText).width;
+              }
+              const totalW = mainW + subW;
+              const startX = col2Center - totalW / 2;
+
+              tCtx.font = `700 ${mainFontSize}px ${fontBase}`;
+              tCtx.fillStyle = '#800020';
+              tCtx.fillText(row.rightMainText, startX, baselineY);
+
+              if (row.rightSubText) {
+                tCtx.font = `400 ${subFontSize}px ${fontBase}`;
+                tCtx.fillStyle = '#555555';
+                tCtx.fillText(row.rightSubText, startX + mainW, baselineY);
+              }
+            }
+          });
+
+          // Draw crisp 1px outer border, horizontal row dividers, and center vertical divider
+          tCtx.strokeStyle = '#333333';
+          tCtx.lineWidth = 1;
+          tCtx.strokeRect(0.5, 0.5, tableW - 1, tableH - 1);
+
+          tCtx.beginPath();
+          tCtx.moveTo(colW, 0.5);
+          tCtx.lineTo(colW, tableH - 0.5);
+          for (let r = 1; r < tableRows.length; r++) {
+            const y = r * rowH + 0.5;
+            tCtx.moveTo(0.5, y);
+            tCtx.lineTo(tableW - 0.5, y);
+          }
+          tCtx.stroke();
+
+          resultTableDataUrl = tCanvas.toDataURL('image/png');
+        }
+      } catch (e) {
+        console.error('Failed to pre-render result table for PDF:', e);
+      }
+
       const renderZScoreChartHTML = (zScores?: {name: string, z: number, color: string}[]) => {
         if (chartDataUrl) {
           return `
@@ -1949,6 +2079,18 @@ export default function App() {
             .blank-line {
               height: 2.8mm;
             }
+            .admin-table-gap {
+              height: 5.2mm;
+            }
+            .result-table-wrap {
+              width: 100%;
+              margin: 0 0 3.2mm 0;
+            }
+            .result-table-img {
+              width: 100%;
+              height: auto;
+              display: block;
+            }
             .mb-1 { margin-bottom: 1.1mm; text-align: justify; }
             .mb-2 { margin-bottom: 1.6mm; text-align: justify; }
             .mb-3 { margin-bottom: 2.2mm; text-align: justify; }
@@ -1961,7 +2103,7 @@ export default function App() {
               width: 100%;
               table-layout: fixed;
               border-collapse: collapse;
-              margin: 1.5mm 0 2.2mm 0;
+              margin: 0 0 3.2mm 0;
               font-size: 10pt;
             }
             .result-table th, .result-table td {
@@ -1972,15 +2114,6 @@ export default function App() {
               vertical-align: middle !important;
               line-height: 1.25;
               box-sizing: border-box;
-            }
-            .result-table .cell-inner {
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 4px;
-              width: 100%;
-              text-align: center;
-              line-height: 1.25;
             }
             .result-table th {
               background-color: #f4f4f5;
@@ -2012,9 +2145,11 @@ export default function App() {
               padding: 36px 54px;
             }
             .page-sheet.compact-fit .blank-line { height: 1.8mm; }
+            .page-sheet.compact-fit .admin-table-gap { height: 4.2mm; }
+            .page-sheet.compact-fit .result-table-wrap { margin: 0 0 2.4mm 0; }
             .page-sheet.compact-fit .mb-1 { margin-bottom: 0.65mm; }
             .page-sheet.compact-fit .mb-2 { margin-bottom: 1mm; }
-            .page-sheet.compact-fit .result-table { margin: 0.9mm 0 1.3mm 0; font-size: 9.4pt; }
+            .page-sheet.compact-fit .result-table { margin: 0 0 2.4mm 0; font-size: 9.4pt; }
             .page-sheet.compact-fit .result-table th,
             .page-sheet.compact-fit .result-table td { padding: 6px 6px; }
             .page-sheet.compact-fit .z-chart-inner { max-width: 430px !important; }
@@ -2047,32 +2182,40 @@ export default function App() {
 
               <div class="mb-1"><span class="font-bold">Tên khách hàng:</span> ${patientName || '........................................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Giới: ${gender === 'boy' ? 'Nam' : 'Nữ'}</div>
               <div class="mb-1">Tuổi theo ngày sinh tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</div>
-              <div class="mb-2">Ngày tư vấn: ${examDate || '....................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Phim chụp tại: ${xrayLocation || '....................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Chất lượng phim: ${xrayQuality || 'Đạt'}</div>
+              <div class="mb-1">Ngày tư vấn: ${examDate || '....................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Phim chụp tại: ${xrayLocation || '....................'} &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Chất lượng phim: ${xrayQuality || 'Đạt'}</div>
 
-              <table class="result-table">
-                <thead>
-                  <tr>
-                    <th><div class="cell-inner"><span>Atlas tham chiếu</span></div></th>
-                    <th><div class="cell-inner"><span>Kết quả đánh giá</span></div></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td><div class="cell-inner"><span>V.Gilsanz và O.Ratib</span></div></td>
-                    <td><div class="cell-inner"><span class="text-red">${expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-'}</span><span class="text-gray">± 0.5</span></div></td>
-                  </tr>
-                  <tr>
-                    <td><div class="cell-inner"><span>Cree M. Gaskin và cộng sự</span></div></td>
-                    <td><div class="cell-inner"><span class="text-red">${dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-'}</span><span class="text-gray">± 0.5</span></div></td>
-                  </tr>
-                  ${showSauvegrainRow ? `
-                  <tr>
-                    <td><div class="cell-inner"><span>Sauvegrain (Diméglio cải tiến)</span></div></td>
-                    <td><div class="cell-inner"><span class="text-red">${sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-'}</span></div></td>
-                  </tr>
-                  ` : ''}
-                </tbody>
-              </table>
+              <div class="admin-table-gap"></div>
+
+              ${resultTableDataUrl ? `
+                <div class="result-table-wrap">
+                  <img src="${resultTableDataUrl}" alt="Bảng tóm tắt kết quả" class="result-table-img" />
+                </div>
+              ` : `
+                <table class="result-table">
+                  <thead>
+                    <tr>
+                      <th>Atlas tham chiếu</th>
+                      <th>Kết quả đánh giá</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>V.Gilsanz và O.Ratib</td>
+                      <td><span class="text-red">${expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-'}</span> <span class="text-gray">± 0.5</span></td>
+                    </tr>
+                    <tr>
+                      <td>Cree M. Gaskin và cộng sự</td>
+                      <td><span class="text-red">${dbacPopulated ? `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng` : '-'}</span> <span class="text-gray">± 0.5</span></td>
+                    </tr>
+                    ${showSauvegrainRow ? `
+                    <tr>
+                      <td>Sauvegrain (Diméglio cải tiến)</td>
+                      <td><span class="text-red">${sauvegrainPopulated ? `${sauvegrainAgeYears} tuổi ${sauvegrainAgeMonths || 0} tháng` : '-'}</span></td>
+                    </tr>
+                    ` : ''}
+                  </tbody>
+                </table>
+              `}
 
               <div class="mb-1 font-bold">KẾT QUẢ:</div>
               ${!isLetterMode ? `
@@ -2693,9 +2836,8 @@ export default function App() {
           </div>
         )}
         <p className="whitespace-pre-wrap"><span className="font-bold">Tên khách hàng:</span> {nameText}      Giới: {gender === 'boy' ? 'Nam' : 'Nữ'}<br/>Tuổi theo ngày sinh tại ngày chụp: {realAgeYears} tuổi {realAgeMonths} tháng ({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)<br/>Ngày tư vấn: {consultDateText}      Phim chụp tại: {locationText}      Chất lượng phim: {qualityText}</p>
-        <p className="mt-4 font-bold">KẾT QUẢ:</p>
         
-        <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-3 mb-4 whitespace-normal">
+        <div className="overflow-x-auto rounded-xl border border-zinc-300 bg-white shadow-sm mt-5 mb-4 whitespace-normal">
           <table className="w-full table-fixed text-center text-sm text-zinc-800 border-collapse">
             <thead className="bg-[#800020]/10 border-b border-[#800020]/20">
               <tr>
@@ -2738,6 +2880,7 @@ export default function App() {
           </table>
         </div>
 
+        <p className="mt-4 font-bold">KẾT QUẢ:</p>
         {!isLetterMode && (
           <p className="italic text-justify">Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.</p>
         )}
