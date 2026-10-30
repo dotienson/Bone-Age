@@ -4889,17 +4889,6 @@ export default function App() {
                 <span>Tuổi lúc chụp (CA):</span>
                 <span className="font-bold">{realAgeYears} tuổi {realAgeMonths} tháng</span>
               </div>
-              {totalRealAgeMonths > 0 && (() => {
-                const nr = getNormalBoneAgeRange(totalRealAgeMonths, gender);
-                return (
-                  <div className="flex justify-between items-baseline border-b border-zinc-800 pb-2 gap-2">
-                    <span className="shrink-0">Bình thường (±2SD):</span>
-                    <span className="font-semibold text-emerald-400 text-right text-xs sm:text-sm">
-                      {nr.rangeText}
-                    </span>
-                  </div>
-                );
-              })()}
             </div>
             <div className="flex gap-3 mt-8">
               <button
