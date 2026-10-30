@@ -3344,12 +3344,6 @@ export default function App() {
                   }}
                   className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  maxLength={10} />
                 </div>
-                <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.2] shrink-0 col-span-2 lg:col-span-1">
-                  <label className="text-xs font-semibold text-zinc-400">{'Lâm sàng'}</label>
-                  <select value={clinicalReason} onChange={e => setClinicalReason(e.target.value)} className="w-full bg-zinc-900 text-white border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-base h-[42px]">
-                    {clinicalOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                  </select>
-                </div>
               </>
             )}
           </div>
@@ -3378,28 +3372,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Real-time Normal Bone Age Range (±2SD) Bar */}
-          {totalRealAgeMonths > 0 && (() => {
-            const normalRange = getNormalBoneAgeRange(totalRealAgeMonths, gender);
-            return (
-              <div className="bg-zinc-900 border border-white/10 rounded-lg px-3 py-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-zinc-400 font-semibold">Khoảng tuổi xương bình thường (±2SD):</span>
-                  <span className="text-emerald-400 font-semibold text-xs sm:text-sm">
-                    {normalRange.minText} – {normalRange.maxText}
-                  </span>
-                </div>
-                <div className="text-[11px] text-zinc-400 flex items-center gap-2 flex-wrap">
-                  <span>1SD = <strong className="text-zinc-200 font-medium">{normalRange.sd.toFixed(2)} tháng</strong></span>
-                  <span className="text-zinc-600">•</span>
-                  <span>±2SD = <strong className="text-zinc-200 font-medium">±{normalRange.twoSd.toFixed(2)} tháng</strong></span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${normalRange.isInterpolated ? 'bg-indigo-500/10 text-indigo-300 border-indigo-500/20' : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20'}`}>
-                    {normalRange.isInterpolated ? 'Nội suy tuyến tính theo tuổi' : 'Mốc chuẩn G&P 1959'}
-                  </span>
-                </div>
-              </div>
-            );
-          })()}
 
           {/* Action to confirm patient */}
           {!isPatientConfirmed ? (
