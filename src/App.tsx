@@ -1080,6 +1080,67 @@ export default function App() {
 
     const softwareCreditLine = 'Phần mềm hỗ trợ phiên giải thủ công độc quyền: OmniProBA phiên bản Expert 2.1.9';
 
+    const [trimmedSigUrl, setTrimmedSigUrl] = useState<string>('');
+
+    const getCroppedSignatureCanvas = (img: HTMLImageElement): HTMLCanvasElement => {
+      const w = img.naturalWidth || 600;
+      const h = img.naturalHeight || 220;
+      const srcCanvas = document.createElement('canvas');
+      srcCanvas.width = w;
+      srcCanvas.height = h;
+      const srcCtx = srcCanvas.getContext('2d');
+      if (!srcCtx) return srcCanvas;
+      srcCtx.fillStyle = '#ffffff';
+      srcCtx.fillRect(0, 0, w, h);
+      srcCtx.drawImage(img, 0, 0);
+
+      try {
+        const imgData = srcCtx.getImageData(0, 0, w, h).data;
+        let minX = w, minY = h, maxX = 0, maxY = 0;
+        let found = false;
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const idx = (y * w + x) * 4;
+            if (imgData[idx] < 220 || imgData[idx + 1] < 220 || imgData[idx + 2] < 220) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+              found = true;
+            }
+          }
+        }
+        if (found && maxX > minX && maxY > minY) {
+          const pad = 6;
+          const cx = Math.max(0, minX - pad);
+          const cy = Math.max(0, minY - pad);
+          const cw = Math.min(w - cx, maxX - minX + 1 + pad * 2);
+          const ch = Math.min(h - cy, maxY - minY + 1 + pad * 2);
+          const outCanvas = document.createElement('canvas');
+          outCanvas.width = cw;
+          outCanvas.height = ch;
+          const outCtx = outCanvas.getContext('2d');
+          if (outCtx) {
+            outCtx.fillStyle = '#ffffff';
+            outCtx.fillRect(0, 0, cw, ch);
+            outCtx.drawImage(srcCanvas, cx, cy, cw, ch, 0, 0, cw, ch);
+            return outCanvas;
+          }
+        }
+      } catch {}
+      return srcCanvas;
+    };
+
+    useEffect(() => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const cropped = getCroppedSignatureCanvas(img);
+        setTrimmedSigUrl(cropped.toDataURL('image/png'));
+      };
+      img.src = '/assets/aistudio/IMG_8037_5c4ef58d.jpeg';
+    }, []);
+
     const MORPHOLOGY_CHECKLIST_ITEMS = [
       'Loãng xương lan toả',
       'Đường Harris',
@@ -1277,25 +1338,15 @@ export default function App() {
     }
 
     let sigPngBuffer: Uint8Array | null = null;
-    let sigWidth = 256;
-    let sigHeight = 92;
+    let sigWidth = 56;
+    let sigHeight = 20;
     if (isSigned) {
       try {
         const sigData = await new Promise<{ bytes: Uint8Array; width: number; height: number }>((resolve, reject) => {
           const img = new Image();
           img.crossOrigin = "anonymous";
           img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.naturalWidth || 600;
-            canvas.height = img.naturalHeight || 220;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-              reject(new Error("No canvas context"));
-              return;
-            }
-            ctx.fillStyle = "#ffffff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(img, 0, 0);
+            const canvas = getCroppedSignatureCanvas(img);
             const dataUrl = canvas.toDataURL('image/png');
             const base64Data = dataUrl.replace(/^data:image\/png;base64,/, '');
             const binaryStr = window.atob(base64Data);
@@ -1304,7 +1355,7 @@ export default function App() {
             for (let i = 0; i < len; i++) {
               bytes[i] = binaryStr.charCodeAt(i);
             }
-            const targetH = 88;
+            const targetH = 20;
             const ratio = canvas.width / canvas.height;
             resolve({
               bytes,
@@ -1648,7 +1699,15 @@ export default function App() {
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
             children: [
-              new TextRun({ text: doctorLine, size: 21, font: wordFont, bold: true })
+              new TextRun({ text: doctorLine, size: 21, font: wordFont, bold: true }),
+              ...(sigPngBuffer ? [
+                new TextRun({ text: "    ", size: 21, font: wordFont }),
+                new ImageRun({
+                  data: sigPngBuffer,
+                  transformation: { width: sigWidth, height: sigHeight },
+                  type: "png"
+                })
+              ] : [])
             ],
             spacing: { after: 25 }
           }),
@@ -1657,21 +1716,8 @@ export default function App() {
             children: [
               new TextRun({ text: softwareCreditLine, size: 19, font: wordFont, italics: true })
             ],
-            spacing: { after: sigPngBuffer ? 40 : 0 }
+            spacing: { after: 0 }
           }),
-          ...(sigPngBuffer ? [
-            new Paragraph({
-              alignment: AlignmentType.RIGHT,
-              children: [
-                new ImageRun({
-                  data: sigPngBuffer,
-                  transformation: { width: sigWidth, height: sigHeight },
-                  type: "png"
-                })
-              ],
-              spacing: { before: 20, after: 0 }
-            })
-          ] : []),
 
           // Page 2: Phụ lục A
           ...(hasDbacDetails ? [
@@ -1826,7 +1872,7 @@ export default function App() {
         }
       }
 
-      // Pre-render signature image onto white background data URL for reliable html2canvas capture
+      // Pre-render cropped signature image onto white background data URL for reliable html2canvas capture
       let sigDataUrl = '';
       if (isSigned) {
         try {
@@ -1834,17 +1880,7 @@ export default function App() {
             const img = new Image();
             img.crossOrigin = 'anonymous';
             img.onload = () => {
-              const canvas = document.createElement('canvas');
-              canvas.width = img.naturalWidth || 600;
-              canvas.height = img.naturalHeight || 220;
-              const ctx = canvas.getContext('2d');
-              if (!ctx) {
-                reject(new Error('No canvas context'));
-                return;
-              }
-              ctx.fillStyle = '#ffffff';
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              ctx.drawImage(img, 0, 0);
+              const canvas = getCroppedSignatureCanvas(img);
               resolve(canvas.toDataURL('image/png'));
             };
             img.onerror = reject;
@@ -2153,7 +2189,7 @@ export default function App() {
             .page-sheet.compact-fit .result-table th,
             .page-sheet.compact-fit .result-table td { padding: 6px 6px; }
             .page-sheet.compact-fit .z-chart-inner { max-width: 430px !important; }
-            .page-sheet.compact-fit .sig-img { height: 21mm !important; }
+            .page-sheet.compact-fit .sig-img { height: 5mm !important; }
           </style>
         </head>
         <body>
@@ -2256,13 +2292,8 @@ export default function App() {
 
               <div class="page-footer">
                 <div class="mb-1" style="text-align: justify; font-style: italic; font-size: 8.6pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
-                <div class="font-bold" style="font-size: 9.8pt; margin-top: 1mm; text-align: justify;">${doctorLine}</div>
+                <div class="font-bold" style="font-size: 9.8pt; margin-top: 1mm; text-align: justify;">${doctorLine}${isSigned && sigDataUrl ? `<img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="display: inline-block; vertical-align: middle; margin-left: 3mm; height: 5.5mm; width: auto; object-fit: contain;" />` : ''}</div>
                 <div style="font-size: 9.1pt; font-style: italic; font-weight: normal; margin-top: 0.4mm; text-align: justify; color: #222;">${softwareCreditLine}</div>
-                ${isSigned && sigDataUrl ? `
-                  <div class="sig-wrap" style="display: flex; justify-content: flex-end; margin-top: 1.2mm;">
-                    <img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="height: 25mm; width: auto; object-fit: contain;" />
-                  </div>
-                ` : ''}
               </div>
             </div>
           </div>
@@ -2934,17 +2965,19 @@ export default function App() {
         })()}
 
         <p className="whitespace-pre-wrap mt-6 text-xs italic text-zinc-600 text-justify">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</p>
-        <p className="whitespace-pre-wrap font-semibold text-sm text-zinc-800 text-justify">{getDoctorSignatureLine()}</p>
-        <p className="whitespace-pre-wrap italic font-normal text-xs text-zinc-700 text-justify -mt-1">{softwareCreditLine}</p>
-        {isSigned && (
-          <div className="flex justify-end pt-1">
+        <p className="whitespace-pre-wrap font-semibold text-sm text-zinc-800 text-justify">
+          {getDoctorSignatureLine()}
+          {isSigned && (
             <img
-              src="/assets/aistudio/IMG_8037_5c4ef58d.jpeg"
+              src={trimmedSigUrl || "/assets/aistudio/IMG_8037_5c4ef58d.jpeg"}
               alt="Chữ kí bác sĩ"
-              className="h-24 sm:h-28 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
+              className="inline-block align-middle ml-3 h-5 sm:h-6 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
             />
-          </div>
-        )}
+          )}
+        </p>
+        <p className="whitespace-pre-wrap italic font-normal text-xs text-zinc-700 text-justify -mt-1">
+          {softwareCreditLine}
+        </p>
 
         {hasDbacDetails && (
           <div className="mt-6 pt-6 border-t border-yellow-300/80 space-y-2 text-justify">
