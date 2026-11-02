@@ -1069,27 +1069,36 @@ export default function App() {
     };
 
     const getDoctorSignatureParts = () => {
-      const now = new Date();
-      const hours = now.getHours().toString().padStart(2, '0');
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      const day = now.getDate().toString().padStart(2, '0');
-      const month = (now.getMonth() + 1).toString().padStart(2, '0');
-      const year = now.getFullYear();
       const rolePrefix = isConsultation
         ? 'Bác sĩ hội chẩn từ xa về tuổi xương'
         : 'Bác sĩ lâm sàng đọc tuổi xương';
       return {
         prefix: `${rolePrefix}: ThS.BS. Đỗ Tiến Sơn`,
-        suffix: `lúc ${hours} giờ ${minutes} phút ngày ${day}/${month}/${year}`
+        suffix: ''
       };
     };
 
     const getDoctorSignatureLine = () => {
-      const { prefix, suffix } = getDoctorSignatureParts();
-      return `${prefix} ${suffix}`;
+      const { prefix } = getDoctorSignatureParts();
+      return prefix;
     };
 
-    const softwareCreditLine = 'Phần mềm hỗ trợ phiên giải thủ công độc quyền: OmniProBA phiên bản Expert 2.1.9';
+    const getSignatureVerificationLines = () => {
+      const now = new Date();
+      const hh = now.getHours().toString().padStart(2, '0');
+      const mm = now.getMinutes().toString().padStart(2, '0');
+      const ss = now.getSeconds().toString().padStart(2, '0');
+      const dd = now.getDate().toString().padStart(2, '0');
+      const mo = (now.getMonth() + 1).toString().padStart(2, '0');
+      const yy = now.getFullYear().toString().slice(-2);
+      return {
+        line1: 'Dr. Do Tien Son, MD, MSc, BA.',
+        line2: `Verified at ${hh}:${mm}:${ss} ${dd}/${mo}/${yy} in Hanoi`,
+        line3: 'OmniProBA Expert version 2.1.9'
+      };
+    };
+
+    const clinicalReferenceNote = 'Kết quả tham khảo cho đánh giá về nội tiết nhi, không thay thế kết quả chính thức của bác sĩ chẩn đoán hình ảnh';
 
     const [trimmedSigUrl, setTrimmedSigUrl] = useState<string>('');
 
@@ -1391,9 +1400,10 @@ export default function App() {
       }
     }
 
+    const sigVerify = getSignatureVerificationLines();
     let sigPngBuffer: Uint8Array | null = null;
-    let sigWidth = 56;
-    let sigHeight = 20;
+    let sigWidth = 145;
+    let sigHeight = 52;
     if (isSigned) {
       try {
         const sigData = await new Promise<{ bytes: Uint8Array; width: number; height: number }>((resolve, reject) => {
@@ -1409,7 +1419,7 @@ export default function App() {
             for (let i = 0; i < len; i++) {
               bytes[i] = binaryStr.charCodeAt(i);
             }
-            const targetH = 20;
+            const targetH = 52;
             const ratio = canvas.width / canvas.height;
             resolve({
               bytes,
@@ -1753,28 +1763,39 @@ export default function App() {
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
             children: [
-              new TextRun({ text: doctorSigParts.prefix, size: 21, font: wordFont, bold: true }),
-              ...(sigPngBuffer ? [
-                new TextRun({ text: "  ", size: 21, font: wordFont, bold: true }),
-                new ImageRun({
-                  data: sigPngBuffer,
-                  transformation: { width: sigWidth, height: sigHeight },
-                  type: "png"
-                }),
-                new TextRun({ text: `  ${doctorSigParts.suffix}`, size: 21, font: wordFont, bold: true })
-              ] : [
-                new TextRun({ text: ` ${doctorSigParts.suffix}`, size: 21, font: wordFont, bold: true })
-              ])
+              new TextRun({ text: doctorSigParts.prefix, size: 21, font: wordFont, bold: true })
             ],
             spacing: { after: 25 }
           }),
           new Paragraph({
-            alignment: AlignmentType.JUSTIFIED,
+            alignment: AlignmentType.LEFT,
             children: [
-              new TextRun({ text: softwareCreditLine, size: 19, font: wordFont, italics: true })
+              new TextRun({ text: clinicalReferenceNote, size: 18, font: wordFont, italics: true })
             ],
-            spacing: { after: 0 }
+            spacing: { after: sigPngBuffer ? 40 : 0 }
           }),
+          ...(sigPngBuffer ? [
+            new Paragraph({
+              alignment: AlignmentType.LEFT,
+              children: [
+                new ImageRun({
+                  data: sigPngBuffer,
+                  transformation: { width: sigWidth, height: sigHeight },
+                  type: "png"
+                })
+              ],
+              spacing: { before: 20, after: 8 }
+            }),
+            new Paragraph({
+              alignment: AlignmentType.LEFT,
+              children: [
+                new TextRun({ text: sigVerify.line1, size: 15, font: wordFont, bold: true, color: "222222" }),
+                new TextRun({ text: sigVerify.line2, size: 14, font: wordFont, italics: true, color: "444444", break: 1 }),
+                new TextRun({ text: sigVerify.line3, size: 14, font: wordFont, italics: true, color: "444444", break: 1 })
+              ],
+              spacing: { before: 0, after: 0, line: 210 }
+            })
+          ] : []),
 
           // Page 2: Phụ lục A
           ...(showAppendix ? [
@@ -1931,6 +1952,7 @@ export default function App() {
       }
 
       // Pre-render cropped signature image onto white background data URL for reliable html2canvas capture
+      const sigVerify = getSignatureVerificationLines();
       let sigDataUrl = '';
       if (isSigned) {
         try {
@@ -2247,7 +2269,7 @@ export default function App() {
             .page-sheet.compact-fit .result-table th,
             .page-sheet.compact-fit .result-table td { padding: 6px 6px; }
             .page-sheet.compact-fit .z-chart-inner { max-width: 430px !important; }
-            .page-sheet.compact-fit .sig-img { height: 5mm !important; }
+            .page-sheet.compact-fit .sig-img { height: 11.5mm !important; }
           </style>
         </head>
         <body>
@@ -2350,8 +2372,18 @@ export default function App() {
 
               <div class="page-footer">
                 <div class="mb-1" style="text-align: justify; font-style: italic; font-size: 8.6pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
-                <div class="font-bold" style="font-size: 9.8pt; margin-top: 1mm; text-align: justify;">${doctorSigParts.prefix}${isSigned && sigDataUrl ? `<img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="display: inline-block; vertical-align: middle; margin: 0 2mm; height: 5.5mm; width: auto; object-fit: contain;" />` : ' '}${doctorSigParts.suffix}</div>
-                <div style="font-size: 9.1pt; font-style: italic; font-weight: normal; margin-top: 0.4mm; text-align: justify; color: #222;">${softwareCreditLine}</div>
+                <div class="font-bold" style="font-size: 9.8pt; margin-top: 1mm; text-align: justify;">${doctorSigParts.prefix}</div>
+                <div style="font-size: 8.6pt; font-style: italic; font-weight: normal; margin-top: 0.4mm; text-align: left; white-space: nowrap; color: #222;">${clinicalReferenceNote}</div>
+                ${isSigned && sigDataUrl ? `
+                  <div class="sig-block" style="margin-top: 1.6mm; text-align: left;">
+                    <div style="display: inline-flex; flex-direction: column; align-items: center; text-align: center;">
+                      <img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="display: block; height: 14mm; width: auto; object-fit: contain; margin-bottom: 0.4mm;" />
+                      <div style="font-size: 7.4pt; line-height: 1.15; font-weight: 700; color: #222;">${sigVerify.line1}</div>
+                      <div style="font-size: 7pt; line-height: 1.15; font-style: italic; color: #444;">${sigVerify.line2}</div>
+                      <div style="font-size: 7pt; line-height: 1.15; font-style: italic; color: #444;">${sigVerify.line3}</div>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             </div>
           </div>
@@ -2864,7 +2896,8 @@ export default function App() {
     }
 
     const disclaimerVi = '\n\nLưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.';
-    vText += disclaimerVi + `\n${getDoctorSignatureLine()}\n${softwareCreditLine}`;
+    const sigVerify = getSignatureVerificationLines();
+    vText += disclaimerVi + `\n${getDoctorSignatureLine()}\n${clinicalReferenceNote}${isSigned ? `\n${sigVerify.line1}\n${sigVerify.line2}\n${sigVerify.line3}` : ''}`;
 
     if (showAppendix) {
       vText += `\n\n--- Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin ---\nKhi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText}`;
@@ -3025,25 +3058,35 @@ export default function App() {
         })()}
 
         <p className="whitespace-pre-wrap mt-6 text-xs italic text-zinc-600 text-justify">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</p>
-        {(() => {
-          const doctorSigParts = getDoctorSignatureParts();
+        <p className="whitespace-pre-wrap font-semibold text-sm text-zinc-800 text-justify">
+          {getDoctorSignatureLine()}
+        </p>
+        <p className="whitespace-pre-wrap italic font-normal text-xs text-zinc-700 text-justify -mt-1">
+          {clinicalReferenceNote}
+        </p>
+        {isSigned && (() => {
+          const sigVerify = getSignatureVerificationLines();
           return (
-            <p className="whitespace-pre-wrap font-semibold text-sm text-zinc-800 text-justify">
-              {doctorSigParts.prefix}
-              {isSigned && (
+            <div className="pt-1.5 text-left">
+              <div className="inline-flex flex-col items-center text-center">
                 <img
                   src={trimmedSigUrl || "/assets/aistudio/IMG_8037_5c4ef58d.jpeg"}
                   alt="Chữ kí bác sĩ"
-                  className="inline-block align-middle mx-2 h-5 sm:h-6 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
+                  className="block h-14 sm:h-16 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
                 />
-              )}
-              {isSigned ? doctorSigParts.suffix : ` ${doctorSigParts.suffix}`}
-            </p>
+                <span className="mt-0.5 text-[10px] sm:text-[11px] leading-tight font-semibold text-zinc-800">
+                  {sigVerify.line1}
+                </span>
+                <span className="text-[9.5px] sm:text-[10.5px] leading-tight italic text-zinc-600">
+                  {sigVerify.line2}
+                </span>
+                <span className="text-[9.5px] sm:text-[10.5px] leading-tight italic text-zinc-600">
+                  {sigVerify.line3}
+                </span>
+              </div>
+            </div>
           );
         })()}
-        <p className="whitespace-pre-wrap italic font-normal text-xs text-zinc-700 text-justify -mt-1">
-          {softwareCreditLine}
-        </p>
 
         {showAppendix && (
           <div className="mt-6 pt-6 border-t border-yellow-300/80 space-y-2 text-justify">
