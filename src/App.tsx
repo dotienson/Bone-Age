@@ -675,6 +675,7 @@ export default function App() {
   const [isDbacMagnifierActive, setIsDbacMagnifierActive] = useState(false);
   const [isConsultation, setIsConsultation] = useState<boolean>(initialDraft.isConsultation ?? false);
   const [isLetterMode, setIsLetterMode] = useState<boolean>(initialDraft.isLetterMode ?? false);
+  const [isHideAppendix, setIsHideAppendix] = useState<boolean>(initialDraft.isHideAppendix ?? false);
   const [isSigned, setIsSigned] = useState<boolean>(initialDraft.isSigned ?? false);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [morphologyEnabled, setMorphologyEnabled] = useState<boolean>(initialDraft.morphologyEnabled ?? false);
@@ -950,6 +951,7 @@ export default function App() {
       xrayQuality,
       isConsultation,
       isLetterMode,
+      isHideAppendix,
       isSigned,
       morphologyEnabled,
       morphologyStates
@@ -990,6 +992,7 @@ export default function App() {
     xrayQuality,
     isConsultation,
     isLetterMode,
+    isHideAppendix,
     isSigned,
     morphologyEnabled,
     morphologyStates,
@@ -1065,7 +1068,7 @@ export default function App() {
       return { yesFeatures, noFeatures, summaryText };
     };
 
-    const getDoctorSignatureLine = () => {
+    const getDoctorSignatureParts = () => {
       const now = new Date();
       const hours = now.getHours().toString().padStart(2, '0');
       const minutes = now.getMinutes().toString().padStart(2, '0');
@@ -1075,7 +1078,15 @@ export default function App() {
       const rolePrefix = isConsultation
         ? 'Bác sĩ hội chẩn từ xa về tuổi xương'
         : 'Bác sĩ lâm sàng đọc tuổi xương';
-      return `${rolePrefix}: ThS.BS. Đỗ Tiến Sơn lúc ${hours} giờ ${minutes} phút ngày ${day}/${month}/${year}`;
+      return {
+        prefix: `${rolePrefix}: ThS.BS. Đỗ Tiến Sơn`,
+        suffix: `lúc ${hours} giờ ${minutes} phút ngày ${day}/${month}/${year}`
+      };
+    };
+
+    const getDoctorSignatureLine = () => {
+      const { prefix, suffix } = getDoctorSignatureParts();
+      return `${prefix} ${suffix}`;
     };
 
     const softwareCreditLine = 'Phần mềm hỗ trợ phiên giải thủ công độc quyền: OmniProBA phiên bản Expert 2.1.9';
@@ -1095,21 +1106,63 @@ export default function App() {
       srcCtx.drawImage(img, 0, 0);
 
       try {
-        const imgData = srcCtx.getImageData(0, 0, w, h).data;
+        const imageObj = srcCtx.getImageData(0, 0, w, h);
+        const imgData = imageObj.data;
+        const lumMap = new Float32Array(w * h);
+
+        for (let i = 0, p = 0; i < imgData.length; i += 4, p++) {
+          lumMap[p] = 0.299 * imgData[i] + 0.587 * imgData[i + 1] + 0.114 * imgData[i + 2];
+        }
+
         let minX = w, minY = h, maxX = 0, maxY = 0;
         let found = false;
+        const whiteThreshold = 212;
+        const blackPoint = 175;
+
         for (let y = 0; y < h; y++) {
           for (let x = 0; x < w; x++) {
-            const idx = (y * w + x) * 4;
-            if (imgData[idx] < 220 || imgData[idx + 1] < 220 || imgData[idx + 2] < 220) {
+            const p = y * w + x;
+            const idx = p * 4;
+            // Use local 3x3 minimum luminance slightly weighted to reinforce thin ink strokes when scaled down
+            let minNeighborLum = lumMap[p];
+            if (x > 0 && x < w - 1 && y > 0 && y < h - 1) {
+              const n1 = lumMap[p - 1];
+              const n2 = lumMap[p + 1];
+              const n3 = lumMap[p - w];
+              const n4 = lumMap[p + w];
+              const localMin = Math.min(minNeighborLum, n1, n2, n3, n4);
+              minNeighborLum = minNeighborLum * 0.65 + localMin * 0.35;
+            }
+
+            if (minNeighborLum < whiteThreshold) {
               if (x < minX) minX = x;
               if (x > maxX) maxX = x;
               if (y < minY) minY = y;
               if (y > maxY) maxY = y;
               found = true;
+
+              // Maximize contrast: push core ink strokes to pure black (0) with crisp anti-aliased edge ramp
+              let outVal = 0;
+              if (minNeighborLum > blackPoint) {
+                const norm = (minNeighborLum - blackPoint) / (whiteThreshold - blackPoint);
+                outVal = Math.round(Math.pow(norm, 2.2) * 255);
+              }
+              imgData[idx] = outVal;
+              imgData[idx + 1] = outVal;
+              imgData[idx + 2] = outVal;
+              imgData[idx + 3] = 255;
+            } else {
+              // Pure white background
+              imgData[idx] = 255;
+              imgData[idx + 1] = 255;
+              imgData[idx + 2] = 255;
+              imgData[idx + 3] = 255;
             }
           }
         }
+
+        srcCtx.putImageData(imageObj, 0, 0);
+
         if (found && maxX > minX && maxY > minY) {
           const pad = 6;
           const cx = Math.max(0, minX - pad);
@@ -1320,9 +1373,10 @@ export default function App() {
     const dbacPopulated = dbacBoneAgeYears !== '';
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
     const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
+    const showAppendix = hasDbacDetails && !isHideAppendix;
     const devZ = getDeviationAndZScore();
     const sauvegrainPopulated = sauvegrainAgeYears !== '';
-    const doctorLine = getDoctorSignatureLine();
+    const doctorSigParts = getDoctorSignatureParts();
     const wordFont = "Segoe UI";
 
     let devZPngBuffer: Uint8Array | null = null;
@@ -1615,7 +1669,7 @@ export default function App() {
               children: [
                 new TextRun({ text: "- Tuổi xương ước tính: ", size: 21, font: wordFont }),
                 new TextRun({ text: `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`, size: 21, font: wordFont, bold: true, color: "800020" }),
-                new TextRun({ text: ` ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}`, size: 21, font: wordFont })
+                new TextRun({ text: ` ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}`, size: 21, font: wordFont })
               ],
               spacing: { after: 50 }
             }),
@@ -1699,15 +1753,18 @@ export default function App() {
           new Paragraph({
             alignment: AlignmentType.JUSTIFIED,
             children: [
-              new TextRun({ text: doctorLine, size: 21, font: wordFont, bold: true }),
+              new TextRun({ text: doctorSigParts.prefix, size: 21, font: wordFont, bold: true }),
               ...(sigPngBuffer ? [
-                new TextRun({ text: "    ", size: 21, font: wordFont }),
+                new TextRun({ text: "  ", size: 21, font: wordFont, bold: true }),
                 new ImageRun({
                   data: sigPngBuffer,
                   transformation: { width: sigWidth, height: sigHeight },
                   type: "png"
-                })
-              ] : [])
+                }),
+                new TextRun({ text: `  ${doctorSigParts.suffix}`, size: 21, font: wordFont, bold: true })
+              ] : [
+                new TextRun({ text: ` ${doctorSigParts.suffix}`, size: 21, font: wordFont, bold: true })
+              ])
             ],
             spacing: { after: 25 }
           }),
@@ -1720,7 +1777,7 @@ export default function App() {
           }),
 
           // Page 2: Phụ lục A
-          ...(hasDbacDetails ? [
+          ...(showAppendix ? [
             new Paragraph({
               pageBreakBefore: true,
               alignment: AlignmentType.CENTER,
@@ -1834,9 +1891,10 @@ export default function App() {
       const dbacPopulated = dbacBoneAgeYears !== '';
       const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
       const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
+      const showAppendix = hasDbacDetails && !isHideAppendix;
       const devZ = getDeviationAndZScore();
       const sauvegrainPopulated = sauvegrainAgeYears !== '';
-      const doctorLine = getDoctorSignatureLine();
+      const doctorSigParts = getDoctorSignatureParts();
       const showSauvegrainRow = (realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy');
 
       // Pre-render Z-score SVG chart to high-DPI PNG data URL so html2canvas renders hatching and fonts crisply
@@ -2262,7 +2320,7 @@ export default function App() {
               <div class="mb-1">- Tuổi xương ước tính: ${expertBoneAgeYears !== '' ? `<span class="text-red">${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng</span>` : '-'} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</div>
               
               ${dbacPopulated ? `
-              <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}</div>
+              <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}</div>
               ${(() => {
                 const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
                 const bxAge = getBxChina05Age(baDecimal, gender);
@@ -2292,13 +2350,13 @@ export default function App() {
 
               <div class="page-footer">
                 <div class="mb-1" style="text-align: justify; font-style: italic; font-size: 8.6pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
-                <div class="font-bold" style="font-size: 9.8pt; margin-top: 1mm; text-align: justify;">${doctorLine}${isSigned && sigDataUrl ? `<img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="display: inline-block; vertical-align: middle; margin-left: 3mm; height: 5.5mm; width: auto; object-fit: contain;" />` : ''}</div>
+                <div class="font-bold" style="font-size: 9.8pt; margin-top: 1mm; text-align: justify;">${doctorSigParts.prefix}${isSigned && sigDataUrl ? `<img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="display: inline-block; vertical-align: middle; margin: 0 2mm; height: 5.5mm; width: auto; object-fit: contain;" />` : ' '}${doctorSigParts.suffix}</div>
                 <div style="font-size: 9.1pt; font-style: italic; font-weight: normal; margin-top: 0.4mm; text-align: justify; color: #222;">${softwareCreditLine}</div>
               </div>
             </div>
           </div>
 
-          ${hasDbacDetails ? `
+          ${showAppendix ? `
           <div class="page-sheet page-break">
             <div class="page-content">
               <h2 class="appendix-title">Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin</h2>
@@ -2781,6 +2839,7 @@ export default function App() {
     const dbacPopulated = dbacBoneAgeYears !== '';
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
     const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
+    const showAppendix = hasDbacDetails && !isHideAppendix;
     if (dbacPopulated) {
       const dbacFormatted = `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`;
       const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
@@ -2790,7 +2849,7 @@ export default function App() {
       const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
       const bxText = `\n- Quy đổi cho trẻ em gốc Á (tham khảo): ${bxFormatted} (Zhang, Thodberg et al. 2013)`;
       
-      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}`.trimEnd() + bxText;
+      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}`.trimEnd() + bxText;
       vText += vDbac;
     }
 
@@ -2807,7 +2866,7 @@ export default function App() {
     const disclaimerVi = '\n\nLưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.';
     vText += disclaimerVi + `\n${getDoctorSignatureLine()}\n${softwareCreditLine}`;
 
-    if (hasDbacDetails) {
+    if (showAppendix) {
       vText += `\n\n--- Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin ---\nKhi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText}`;
       if (yesFeatures.length > 0) {
         vText += `\n+ Các dấu hiệu được ghi nhận: ${yesFeatures.join('; ')}`;
@@ -2840,6 +2899,7 @@ export default function App() {
 
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
     const hasDbacDetails = dbacPopulated && (yesFeatures.length > 0 || noFeatures.length > 0);
+    const showAppendix = hasDbacDetails && !isHideAppendix;
 
     return (
       <div className="space-y-3 text-justify">
@@ -2920,7 +2980,7 @@ export default function App() {
         
         {dbacPopulated && (
           <>
-            <p className="whitespace-pre-wrap mt-2 text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).{hasDbacDetails ? ` ${summaryText ? summaryText + ' ' : ''}Chi tiết ở Trang Phụ lục A.` : ''}</p>
+            <p className="whitespace-pre-wrap mt-2 text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).{hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}</p>
             {(() => {
               const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
               const bxAge = getBxChina05Age(baDecimal, gender);
@@ -2965,21 +3025,27 @@ export default function App() {
         })()}
 
         <p className="whitespace-pre-wrap mt-6 text-xs italic text-zinc-600 text-justify">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</p>
-        <p className="whitespace-pre-wrap font-semibold text-sm text-zinc-800 text-justify">
-          {getDoctorSignatureLine()}
-          {isSigned && (
-            <img
-              src={trimmedSigUrl || "/assets/aistudio/IMG_8037_5c4ef58d.jpeg"}
-              alt="Chữ kí bác sĩ"
-              className="inline-block align-middle ml-3 h-5 sm:h-6 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
-            />
-          )}
-        </p>
+        {(() => {
+          const doctorSigParts = getDoctorSignatureParts();
+          return (
+            <p className="whitespace-pre-wrap font-semibold text-sm text-zinc-800 text-justify">
+              {doctorSigParts.prefix}
+              {isSigned && (
+                <img
+                  src={trimmedSigUrl || "/assets/aistudio/IMG_8037_5c4ef58d.jpeg"}
+                  alt="Chữ kí bác sĩ"
+                  className="inline-block align-middle mx-2 h-5 sm:h-6 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
+                />
+              )}
+              {isSigned ? doctorSigParts.suffix : ` ${doctorSigParts.suffix}`}
+            </p>
+          );
+        })()}
         <p className="whitespace-pre-wrap italic font-normal text-xs text-zinc-700 text-justify -mt-1">
           {softwareCreditLine}
         </p>
 
-        {hasDbacDetails && (
+        {showAppendix && (
           <div className="mt-6 pt-6 border-t border-yellow-300/80 space-y-2 text-justify">
             <p className="font-bold text-[#800020] text-center">Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin</p>
             <p className="whitespace-pre-wrap text-sm text-justify">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). {summaryText}</p>
@@ -4704,6 +4770,18 @@ export default function App() {
                             className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
                           />
                           <span>Tạo thư</span>
+                        </label>
+                        <label
+                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
+                          title="Tick để ẩn Trang Phụ lục A và cụm Chi tiết ở Trang Phụ lục A ở trang 1"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isHideAppendix}
+                            onChange={e => setIsHideAppendix(e.target.checked)}
+                            className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
+                          />
+                          <span>Ẩn Phụ lục</span>
                         </label>
                         <label
                           className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
