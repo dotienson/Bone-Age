@@ -389,66 +389,27 @@ function getNormalBoneAgeRange(caMonths: number, gender: 'boy' | 'girl') {
   };
 }
 
-function getAnatomicalFeatureWeight(featureText: string): {
-  weight: number;
-  label: string;
-  colorClass: string;
-} {
-  const lower = featureText.toLowerCase();
-  if (
-    lower.includes('xương vừng phụ') ||
-    lower.includes('rất thay đổi') ||
-    lower.includes('khá biến thiên') ||
-    lower.includes('biến thể giải phẫu') ||
-    lower.includes('đại diện cho độ tuổi xương thường thấy')
-  ) {
-    return {
-      weight: 0.5,
-      label: 'x0.5 • Biến thiên',
-      colorClass: 'text-zinc-400 bg-zinc-800 border-white/10'
-    };
+const AUTH_TOKEN_KEY = 'txg_auth_token';
+
+const getStoredTokenRole = (): 'premium' | 'expert' | null => {
+  try {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token || !token.includes('.')) return null;
+    const [encodedPayload] = token.split('.');
+    const base64 = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(base64));
+    if (!payload || (payload.role !== 'premium' && payload.role !== 'expert')) return null;
+    if (typeof payload.exp !== 'number' || Date.now() > payload.exp) return null;
+    return payload.role;
+  } catch {
+    return null;
   }
-  if (
-    lower.includes('đốt ngón') ||
-    lower.includes('xương đốt') ||
-    lower.includes('sụn tiếp hợp') ||
-    lower.includes('đóng sụn') ||
-    lower.includes('tạo mũ') ||
-    lower.includes('tạo hình mũ') ||
-    lower.includes('hợp nhất') ||
-    lower.includes('đĩa tăng trưởng') ||
-    lower.includes('xương vừng cơ khép')
-  ) {
-    return {
-      weight: 2.0,
-      label: 'x2.0 • Đốt ngón/Sụn',
-      colorClass: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
-    };
-  }
-  if (
-    lower.includes('xương bàn') ||
-    lower.includes('bàn ngón') ||
-    lower.includes('xương quay') ||
-    lower.includes('xương trụ') ||
-    lower.includes('mỏm trâm') ||
-    lower.includes('mỏm châm')
-  ) {
-    return {
-      weight: 1.5,
-      label: 'x1.5 • Bàn/Quay-Trụ',
-      colorClass: 'text-sky-400 bg-sky-500/10 border-sky-500/20'
-    };
-  }
-  return {
-    weight: 1.0,
-    label: 'x1.0 • Cổ tay',
-    colorClass: 'text-indigo-300 bg-indigo-500/10 border-indigo-500/20'
-  };
-}
+};
 
 const getInitialDraft = () => {
   try {
-    const auth = localStorage.getItem('boneAgeAuth');
+    const auth = getStoredTokenRole();
+    if (!auth) return {};
     const key = auth === 'expert' ? 'dualGP_draft_state_expert' : 'dualGP_draft_state_premium';
     const saved = localStorage.getItem(key);
     if (saved) return JSON.parse(saved);
@@ -632,7 +593,7 @@ export default function App() {
 
   const [patientName, setPatientName] = useState(() => {
     if (initialDraft.patientName) return initialDraft.patientName;
-    const auth = localStorage.getItem('boneAgeAuth');
+    const auth = getStoredTokenRole();
     if (auth === 'premium' || auth === 'expert') {
       const d = new Date();
       const hhmm = `${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}`;
@@ -642,7 +603,7 @@ export default function App() {
   });
   const [patientId, setPatientId] = useState(() => {
     if (initialDraft.patientId) return initialDraft.patientId;
-    const auth = localStorage.getItem('boneAgeAuth');
+    const auth = getStoredTokenRole();
     if (auth === 'premium' || auth === 'expert') {
       const d = new Date();
       const ddmmyyyy = `${d.getDate().toString().padStart(2, '0')}${(d.getMonth()+1).toString().padStart(2, '0')}${d.getFullYear()}`;
@@ -659,9 +620,13 @@ export default function App() {
   const [showRef, setShowRef] = useState(false);
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(() => Boolean(localStorage.getItem(AUTH_TOKEN_KEY)));
+  const [isVerifyingPasscode, setIsVerifyingPasscode] = useState(false);
+  const [authError, setAuthError] = useState<string>('');
   const [isExpertMode, setIsExpertMode] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [loginTab, setLoginTab] = useState<'premium' | 'expert'>(initialDraft.loginTab ?? 'premium');
+  const [protectedUrls, setProtectedUrls] = useState<Record<string, string>>({});
   
   const [dbacIndex, setDbacIndex] = useState(0);
   const [dbacSelections, setDbacSelections] = useState<Record<string, 'yes' | 'maybe' | 'no'>>(initialDraft.dbacSelections ?? {});
@@ -689,7 +654,8 @@ export default function App() {
   const [vicenteViewMode, setVicenteViewMode] = useState<'single' | 'duet' | 'compare'>('single');
 
   const [patientRecords, setPatientRecords] = useState<PatientRecord[]>(() => {
-    const auth = localStorage.getItem('boneAgeAuth');
+    const auth = getStoredTokenRole();
+    if (!auth) return [];
     const key = auth === 'expert' ? 'dualGP_patients_expert' : 'dualGP_patients_premium';
     const saved = localStorage.getItem(key);
     if (saved) {
@@ -732,7 +698,7 @@ export default function App() {
     const day = now.getDate().toString().padStart(2, '0');
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const year = now.getFullYear();
-    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} TxgCal.json`;
+    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} TxgCalc.json`;
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", fileName);
@@ -828,15 +794,95 @@ export default function App() {
   }, [activeAtlasView, pageNumber, numPages, dbacPageNumber, dbacNumPages, gender]);
 
   useEffect(() => {
-    const savedAuth = localStorage.getItem('boneAgeAuth');
-    if (savedAuth === 'premium') {
-      setIsAuthenticated(true);
-      setIsExpertMode(false);
-    } else if (savedAuth === 'expert') {
-      setIsAuthenticated(true);
-      setIsExpertMode(true);
+    // Purge legacy unverified plaintext auth key if present
+    localStorage.removeItem('boneAgeAuth');
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) {
+      setIsAuthenticated(false);
+      setIsAuthChecking(false);
+      return;
     }
+
+    let cancelled = false;
+    fetch('/api/auth/session', {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Invalid session');
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        if (data?.authenticated && (data.role === 'premium' || data.role === 'expert')) {
+          setIsAuthenticated(true);
+          setIsExpertMode(data.role === 'expert');
+        } else {
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          setIsAuthenticated(false);
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        setIsAuthenticated(false);
+      })
+      .finally(() => {
+        if (!cancelled) setIsAuthChecking(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) return;
+
+    let cancelled = false;
+    const createdUrls: string[] = [];
+    const resourceKeys = isExpertMode
+      ? ['gp-atlas', 'dbac-male', 'dbac-female', 'sauve-method', 'sauve-boy', 'sauve-girl']
+      : ['gp-atlas'];
+
+    Promise.all(
+      resourceKeys.map(async (key) => {
+        try {
+          const res = await fetch(`/api/resource/${key}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'X-Txg-Client': 'TxgCalc-2.1.9',
+            },
+          });
+          if (!res.ok) return null;
+          const blob = await res.blob();
+          const objUrl = URL.createObjectURL(blob);
+          createdUrls.push(objUrl);
+          return [key, objUrl] as const;
+        } catch {
+          return null;
+        }
+      })
+    ).then((entries) => {
+      if (cancelled) {
+        createdUrls.forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
+      const nextMap: Record<string, string> = {};
+      entries.forEach((entry) => {
+        if (entry) nextMap[entry[0]] = entry[1];
+      });
+      setProtectedUrls(nextMap);
+    });
+
+    return () => {
+      cancelled = true;
+      createdUrls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [isAuthenticated, isExpertMode]);
   
   const [expertBoneAgeYears, setExpertBoneAgeYears] = useState<number | ''>(initialDraft.expertBoneAgeYears ?? '');
   const [expertBoneAgeMonths, setExpertBoneAgeMonths] = useState<number | ''>(initialDraft.expertBoneAgeMonths ?? '');
@@ -1015,14 +1061,39 @@ export default function App() {
   const qualityOptions = ['Đạt', 'Tốt', 'Kém', 'Ảnh chụp', 'Tư thế không tối ưu'];
 
   const handlePasscodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setPasscode(val);
-    if (loginTab === 'premium' && val.endsWith('11')) {
-      localStorage.setItem('boneAgeAuth', 'premium');
-      window.location.reload();
-    } else if (loginTab === 'expert' && val.endsWith('99')) {
-      localStorage.setItem('boneAgeAuth', 'expert');
-      window.location.reload();
+    setPasscode(e.target.value);
+    if (authError) setAuthError('');
+  };
+
+  const handlePasscodeSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!passcode.trim() || isVerifyingPasscode) return;
+    setIsVerifyingPasscode(true);
+    setAuthError('');
+    try {
+      const res = await fetch('/api/auth/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tab: loginTab,
+          passcode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.ok && data?.token) {
+        localStorage.removeItem('boneAgeAuth');
+        localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+        window.location.reload();
+      } else {
+        setAuthError(data?.error || 'Mã truy cập không hợp lệ.');
+        setPasscode('');
+      }
+    } catch {
+      setAuthError('Không thể kết nối máy chủ xác thực.');
+    } finally {
+      setIsVerifyingPasscode(false);
     }
   };
 
@@ -1094,7 +1165,7 @@ export default function App() {
       return {
         line1: 'Dr. Do Tien Son, MD, MSc, BA.',
         line2: `Verified at ${hh}:${mm}:${ss} ${dd}/${mo}/${yy} in Hanoi`,
-        line3: 'TxgCal® Expert version 2.1.9'
+        line3: 'TxgCalc® Expert version 2.1.9'
       };
     };
 
@@ -1194,14 +1265,42 @@ export default function App() {
     };
 
     useEffect(() => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        const cropped = getCroppedSignatureCanvas(img);
-        setTrimmedSigUrl(cropped.toDataURL('image/png'));
+      if (!isAuthenticated || !isExpertMode) return;
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (!token) return;
+      let cancelled = false;
+      let tempObjUrl: string | null = null;
+
+      fetch('/api/resource/sig-expert', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-Txg-Client': 'TxgCalc-2.1.9',
+        },
+      })
+        .then((res) => (res.ok ? res.blob() : null))
+        .then((blob) => {
+          if (!blob || cancelled) return;
+          tempObjUrl = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            if (!cancelled) {
+              const cropped = getCroppedSignatureCanvas(img);
+              setTrimmedSigUrl(cropped.toDataURL('image/png'));
+            }
+            if (tempObjUrl) {
+              URL.revokeObjectURL(tempObjUrl);
+              tempObjUrl = null;
+            }
+          };
+          img.src = tempObjUrl;
+        })
+        .catch(() => {});
+
+      return () => {
+        cancelled = true;
+        if (tempObjUrl) URL.revokeObjectURL(tempObjUrl);
       };
-      img.src = '/assets/aistudio/IMG_8037_5c4ef58d.jpeg';
-    }, []);
+    }, [isAuthenticated, isExpertMode]);
 
     const MORPHOLOGY_CHECKLIST_ITEMS = [
       'Loãng xương lan toả',
@@ -1428,7 +1527,7 @@ export default function App() {
             });
           };
           img.onerror = reject;
-          img.src = '/assets/aistudio/IMG_8037_5c4ef58d.jpeg';
+          img.src = trimmedSigUrl;
         });
         sigPngBuffer = sigData.bytes;
         sigWidth = sigData.width;
@@ -1964,7 +2063,7 @@ export default function App() {
               resolve(canvas.toDataURL('image/png'));
             };
             img.onerror = reject;
-            img.src = '/assets/aistudio/IMG_8037_5c4ef58d.jpeg';
+            img.src = trimmedSigUrl;
           });
         } catch (e) {
           console.error('Failed to load signature for PDF:', e);
@@ -2445,7 +2544,7 @@ export default function App() {
                   ` : '<div></div>'}
                   <div class="pdf-brand-mark">
                     <div class="pdf-brand-grid">
-                      <span class="pdf-brand-main">TxgCal<sup style="font-size: 0.38em; font-weight: 600; vertical-align: super; margin-left: 1px;">®</sup></span>
+                      <span class="pdf-brand-main">TxgCalc<sup style="font-size: 0.36em; font-weight: 600; vertical-align: super; margin-left: 1px;">®</sup></span>
                       <span class="pdf-brand-sub">Txg = Tuổi Xương</span>
                     </div>
                   </div>
@@ -2560,7 +2659,7 @@ export default function App() {
             mainEl.style.fontSize = `${mainFontSize}px`;
             subEl.style.marginTop = `${Math.max(4, Math.round(mainFontSize * 0.16))}px`;
 
-            const initialSubSize = mainFontSize * 0.45;
+            const initialSubSize = mainFontSize * 0.50;
             subEl.style.fontSize = `${initialSubSize}px`;
 
             const mainWidth = mainEl.getBoundingClientRect().width;
@@ -2576,17 +2675,17 @@ export default function App() {
             const h1 = page1.scrollHeight;
             const sparePx = Math.max(0, 1105 - h1);
 
-            let mainFontSize = 23;
+            let mainFontSize = 21;
             if (!isCompact) {
               const tRatio = Math.min(1, Math.max(0, (sparePx - 20) / 240));
-              mainFontSize = Math.round(25 + tRatio * 17); // 25px (dense) -> 42px (spacious)
+              mainFontSize = Math.round(23 + tRatio * 14); // 23px (dense) -> 37px (spacious)
             }
 
             fitPdfBrandSizes(mainFontSize);
 
             // Re-check if scaling pushed page1 over 1105px when unsigned
             if (!isCompact && page1.scrollHeight > 1105) {
-              fitPdfBrandSizes(24);
+              fitPdfBrandSizes(22);
             }
           }
         }
@@ -2648,7 +2747,11 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
     localStorage.removeItem('boneAgeAuth');
+    Object.values(protectedUrls).forEach((u) => {
+      if (typeof u === 'string') URL.revokeObjectURL(u);
+    });
     window.location.reload();
   };
 
@@ -3152,11 +3255,10 @@ export default function App() {
           if (!devZ) return null;
           const isSignificant = devZ.isSignificant;
           return (
-            <div className={`mt-4 p-4 rounded-xl border ${isSignificant ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
+            <div className={`mt-4 p-3.5 rounded-lg border ${isSignificant ? 'bg-amber-50/70 border-amber-200/80 text-amber-950' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
               <div className="flex items-center gap-2 mb-1">
-                 {isSignificant ? <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span> : <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
-                 <span className={`font-bold uppercase text-xs tracking-wider ${isSignificant ? 'text-amber-700' : 'text-emerald-700'}`}>
-                   {isSignificant ? 'Bất thường / Chú ý' : 'Bình thường'}
+                 <span className={`font-semibold text-xs tracking-wide ${isSignificant ? 'text-amber-800' : 'text-teal-800'}`}>
+                   {isSignificant ? 'Ghi nhận lệch chuẩn (> 2SD)' : 'Trong giới hạn tham chiếu (± 2SD)'}
                  </span>
               </div>
               <p className="italic font-normal whitespace-pre-wrap text-justify">{devZ.diffText}</p>
@@ -3177,11 +3279,13 @@ export default function App() {
           return (
             <div className="pt-1.5 text-left">
               <div className="inline-flex flex-col items-center text-center">
-                <img
-                  src={trimmedSigUrl || "/assets/aistudio/IMG_8037_5c4ef58d.jpeg"}
-                  alt="Chữ kí bác sĩ"
-                  className="block h-14 sm:h-16 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
-                />
+                {trimmedSigUrl && (
+                  <img
+                    src={trimmedSigUrl}
+                    alt="Chữ kí bác sĩ"
+                    className="block h-14 sm:h-16 w-auto object-contain mix-blend-multiply select-none pointer-events-none"
+                  />
+                )}
                 <span className="mt-0.5 text-[10px] sm:text-[11px] leading-tight font-semibold text-zinc-800">
                   {sigVerify.line1}
                 </span>
@@ -3197,7 +3301,7 @@ export default function App() {
         })()}
 
         {showAppendix && (
-          <div className="mt-6 pt-6 border-t border-yellow-300/80 space-y-2 text-justify">
+          <div className="mt-6 pt-6 border-t border-slate-200 space-y-2 text-justify">
             <p className="font-bold text-[#800020] text-center">Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin</p>
             <p className="whitespace-pre-wrap text-sm text-justify">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). {summaryText}</p>
             {yesFeatures.length > 0 && (
@@ -3216,7 +3320,7 @@ export default function App() {
                 {abnormalityDetails && <span>; Chi tiết: {abnormalityDetails}</span>}
               </p>
             )}
-            <div className="pt-3 mt-2 border-t border-yellow-200/80 space-y-1.5 text-xs text-zinc-700 text-justify">
+            <div className="pt-3 mt-2 border-t border-slate-200 space-y-1.5 text-xs text-zinc-700 text-justify">
               <p className="font-bold text-zinc-900">Tài liệu tham khảo và Nguyên lí đánh giá</p>
               <p>1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., &amp; Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</p>
               <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
@@ -3241,7 +3345,7 @@ export default function App() {
   };
 
   const t = {
-    title: 'TxgCal®',
+    title: 'TxgCalc®',
     realAge: 'Tuổi thực',
     finalBoneAge: 'Tuổi xương kết luận',
     years: 'Năm',
@@ -3319,15 +3423,12 @@ export default function App() {
     const zAbs = Math.abs(zScore);
     const zStr = zScore > 0 ? `+${zScore.toFixed(2)}` : zScore.toFixed(2);
     
-    let colorClass = 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
-    let dotClass = 'bg-emerald-400';
+    let colorClass = 'text-teal-300 bg-teal-950/50 border-teal-800/60';
 
     if (zAbs > 2.0) {
-      colorClass = 'text-red-400 bg-red-400/10 border-red-400/20';
-      dotClass = 'bg-red-400';
+      colorClass = 'text-rose-300 bg-rose-950/50 border-rose-800/60';
     } else if (zAbs > 1.0) {
-      colorClass = 'text-amber-400 bg-amber-400/10 border-amber-400/20';
-      dotClass = 'bg-amber-400';
+      colorClass = 'text-amber-300 bg-amber-950/50 border-amber-800/60';
     }
 
     const diffText = diff === 0
@@ -3337,12 +3438,11 @@ export default function App() {
     return (
       <div
         title={`1SD = ${sd.toFixed(2)} tháng | 2SD = ${(2 * sd).toFixed(2)} tháng${isInterpolated ? ' (Nội suy tuyến tính theo tuổi)' : ' (Chuẩn Brush Foundation)'}`}
-        className={`px-3 py-1.5 rounded-lg border flex items-center justify-center gap-2 text-sm font-semibold whitespace-nowrap mt-4 sm:mt-0 ${colorClass}`}
+        className={`px-3 py-1.5 rounded-md border flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap mt-4 sm:mt-0 ${colorClass}`}
       >
-        <div className={`w-2 h-2 rounded-full animate-pulse shrink-0 ${dotClass}`} />
         <span>{diffText}</span>
-        <span className="opacity-30">•</span>
-        <span className="font-mono text-xs sm:text-sm">
+        <span className="opacity-40">·</span>
+        <span className="font-mono tabular-nums text-xs sm:text-sm">
           Z = {zStr}{zAbs > 2.0 ? ' (>2SD)' : ''}
         </span>
       </div>
@@ -3359,8 +3459,8 @@ export default function App() {
       if (!mainEl || !subEl) return;
       const mainWidth = mainEl.getBoundingClientRect().width;
       if (mainWidth <= 0) return;
-      const computedMainSize = parseFloat(window.getComputedStyle(mainEl).fontSize) || 28;
-      const baseSubSize = computedMainSize * 0.45;
+      const computedMainSize = parseFloat(window.getComputedStyle(mainEl).fontSize) || 25;
+      const baseSubSize = computedMainSize * 0.50;
       subEl.style.fontSize = `${baseSubSize}px`;
       const subWidth = subEl.getBoundingClientRect().width;
       if (subWidth > 0) {
@@ -3375,83 +3475,117 @@ export default function App() {
     }
   };
 
-  return (
-    <div className={`min-h-screen transition-colors duration-500 font-sans selection:bg-emerald-500/30 ${gender === 'boy' ? 'bg-blue-900' : 'bg-pink-900'}`}>
-      {!isAuthenticated && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 backdrop-blur-xl">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl border border-zinc-100 max-w-md w-full mx-4 space-y-6">
-            <div className="text-center flex flex-col items-center">
-              <div ref={syncBrandWordmarkNode} className="inline-flex flex-col items-start text-left">
-                <span data-brand-main className="inline-block text-[38px] sm:text-[44px] font-extrabold tracking-tight text-emerald-600 leading-[1.15]">
-                  TxgCal<sup className="text-[0.38em] font-semibold align-super ml-[1px]">®</sup>
-                </span>
-                <span data-brand-sub className="inline-block text-[17px] sm:text-[19.8px] font-normal tracking-tight text-zinc-500 leading-tight whitespace-nowrap mt-1">
-                  Txg = Tuổi Xương
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200 mb-6">
-              <button 
-                onClick={() => { setLoginTab('premium'); setPasscode(''); }}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginTab === 'premium' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
-              >
-                Premium
-              </button>
-              <button 
-                onClick={() => { setLoginTab('expert'); setPasscode(''); }}
-                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginTab === 'expert' ? 'bg-indigo-600 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}
-              >
-                Expert
-              </button>
-            </div>
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-300 font-sans flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-7 h-7 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+          <span className="text-xs text-slate-400 tracking-wide">Đang xác thực phiên làm việc...</span>
+        </div>
+      </div>
+    );
+  }
 
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Passcode</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Lock size={16} className="text-zinc-400" />
-                  </div>
-                  <input 
-                    type="password" 
-                    value={passcode}
-                    onChange={handlePasscodeChange}
-                    className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:border-emerald-500 transition-colors tracking-widest"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-zinc-100 text-center">
-              <p className="text-sm text-zinc-500">
-                Liên hệ <span className="font-semibold text-emerald-600">BS. Sơn</span> để có đăng ký truy cập.
-              </p>
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-teal-500/30 flex items-center justify-center p-4">
+        <div className="bg-white p-7 rounded-xl shadow-xl border border-slate-200 max-w-md w-full space-y-6">
+          <div className="text-center flex flex-col items-center">
+            <div ref={syncBrandWordmarkNode} className="inline-flex flex-col items-start text-left">
+              <span data-brand-main className="inline-block text-[34px] sm:text-[40px] font-extrabold tracking-tight text-teal-700 leading-[1.15]">
+                TxgCalc<sup className="text-[0.36em] font-semibold align-super ml-[1px]">®</sup>
+              </span>
+              <span data-brand-sub className="inline-block text-[17px] sm:text-[19.8px] font-normal tracking-tight text-slate-500 leading-tight whitespace-nowrap mt-1">
+                Txg = Tuổi Xương
+              </span>
             </div>
           </div>
+          
+          <div className="flex p-1 bg-slate-100 rounded-lg border border-slate-200">
+            <button 
+              type="button"
+              onClick={() => { setLoginTab('premium'); setPasscode(''); setAuthError(''); }}
+              className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${loginTab === 'premium' ? 'bg-teal-700 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Premium
+            </button>
+            <button 
+              type="button"
+              onClick={() => { setLoginTab('expert'); setPasscode(''); setAuthError(''); }}
+              className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${loginTab === 'expert' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Expert
+            </button>
+          </div>
+
+          <form onSubmit={handlePasscodeSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold tracking-wide text-slate-500">Passcode</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock size={16} className="text-slate-400" />
+                </div>
+                <input 
+                  type="password" 
+                  value={passcode}
+                  onChange={handlePasscodeChange}
+                  disabled={isVerifyingPasscode}
+                  autoComplete="off"
+                  placeholder="Nhập mã truy cập"
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-900 rounded-lg pl-10 pr-4 py-2.5 focus:outline-none focus:border-teal-600 transition-colors tracking-widest disabled:opacity-60"
+                />
+              </div>
+              {authError && (
+                <p className="text-xs font-medium text-rose-600 pt-1">{authError}</p>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={isVerifyingPasscode || !passcode.trim()}
+              className={`w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                loginTab === 'expert'
+                  ? 'bg-slate-800 hover:bg-slate-700'
+                  : 'bg-teal-700 hover:bg-teal-600'
+              }`}
+            >
+              {isVerifyingPasscode ? 'Đang kiểm tra...' : 'Đăng nhập'}
+            </button>
+          </form>
+
+          <div className="pt-4 border-t border-slate-100 text-center">
+            <p className="text-sm text-slate-500">
+              Liên hệ <span className="font-semibold text-teal-700">BS. Sơn</span> để có đăng ký truy cập.
+            </p>
+          </div>
         </div>
-      )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans selection:bg-teal-500/30">
 
       {/* Header */}
-      <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+      <header className="border-b border-slate-200 bg-white/95 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <h1 ref={syncBrandWordmarkNode} className="inline-flex flex-col items-start">
               <div className="inline-flex items-center gap-2 leading-[1.15]">
-                <span data-brand-main className="inline-block text-[26px] sm:text-[30px] font-extrabold tracking-tight text-emerald-600 leading-[1.15]">
-                  TxgCal<sup className="text-[0.38em] font-semibold align-super ml-[1px]">®</sup>
+                <span data-brand-main className="inline-block text-[23px] sm:text-[26px] font-extrabold tracking-tight text-teal-700 leading-[1.15]">
+                  TxgCalc<sup className="text-[0.36em] font-semibold align-super ml-[1px]">®</sup>
                 </span>
                 {isAuthenticated && (
-                  <span className={`hidden sm:inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
                     {isExpertMode ? 'PRO' : 'LITE'}
                   </span>
                 )}
               </div>
-              <span data-brand-sub className="inline-block text-[11.8px] sm:text-[13.6px] font-normal tracking-tight text-zinc-500 leading-tight whitespace-nowrap mt-0.5">
+              <span data-brand-sub className="inline-block text-[11.5px] sm:text-[13px] font-normal tracking-tight text-slate-500 leading-tight whitespace-nowrap mt-0.5">
                 Txg = Tuổi Xương
               </span>
             </h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-1.5">
             {isAuthenticated && (
               <>
                 {isExpertMode && (
@@ -3459,39 +3593,39 @@ export default function App() {
                     <button 
                       onClick={handleSavePatient}
                       title="Lưu Case"
-                      className="p-1.5 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors flex items-center justify-center"
+                      className="p-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center justify-center"
                     >
-                      <Copy size={18} />
+                      <Copy size={17} />
                     </button>
                     <button 
                       onClick={handleExportWord}
                       title="Xuất Word"
-                      className="p-1.5 rounded-full border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors flex items-center justify-center"
+                      className="p-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center justify-center"
                     >
-                      <FileType size={18} />
+                      <FileType size={17} />
                     </button>
                     <button 
                       onClick={handleExportPdf}
                       title="In / Xuất PDF"
-                      className="p-1.5 rounded-full border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition-colors flex items-center justify-center"
+                      className="p-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center justify-center"
                     >
-                      <FileText size={18} />
+                      <FileText size={17} />
                     </button>
                   </>
                 )}
                 <button 
                   onClick={() => promptExportConfirm('reset')}
                   title="Tạo mới"
-                  className="p-1.5 rounded-full border border-sky-200 bg-sky-50 text-sky-600 hover:bg-sky-100 transition-colors flex items-center justify-center"
+                  className="p-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-colors flex items-center justify-center"
                 >
-                  <RotateCcw size={18} />
+                  <RotateCcw size={17} />
                 </button>
                 <button 
                   onClick={handleLogout}
                   title="Đăng xuất"
-                  className="p-1.5 rounded-full border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors flex items-center justify-center"
+                  className="p-2 rounded-lg border border-slate-200 bg-slate-50 text-slate-500 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 transition-colors flex items-center justify-center"
                 >
-                  <LogOut size={18} />
+                  <LogOut size={17} />
                 </button>
               </>
             )}
@@ -3500,34 +3634,34 @@ export default function App() {
         
       </header>
 
-      <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-8 space-y-4 sm:space-y-8">
+      <main className="max-w-7xl mx-auto px-2 sm:px-4 py-4 sm:py-6 space-y-5 sm:space-y-6">
         {/* Input Section */}
-        <section className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 shadow-sm shrink-0 flex flex-col gap-3 sm:gap-4 w-full">
+        <section className="bg-slate-800/90 p-4 sm:p-5 rounded-xl border border-slate-700/80 shrink-0 flex flex-col gap-3 sm:gap-4 w-full">
           <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
             <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
-              <label className="text-xs font-semibold text-zinc-400">{'Giới tính'}</label>
-              <div className="flex p-1 bg-zinc-900 rounded-lg border border-white/10 h-[42px]">
+              <label className="text-xs font-medium text-slate-400">{'Giới tính'}</label>
+              <div className="flex p-1 bg-slate-900 rounded-lg border border-slate-700/80 h-[42px]">
                 <button 
                   onClick={() => handleAdminChangeAttempt('boy', setGender)}
-                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'boy' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  className={`flex-1 rounded-md text-sm font-medium transition-colors ${gender === 'boy' ? 'bg-sky-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   {'Nam'}
                 </button>
                 <button 
                   onClick={() => handleAdminChangeAttempt('girl', setGender)}
-                  className={`flex-1 rounded-md text-sm font-medium transition-all ${gender === 'girl' ? 'bg-pink-600 text-white shadow-sm' : 'text-zinc-400 hover:text-zinc-200'}`}
+                  className={`flex-1 rounded-md text-sm font-medium transition-colors ${gender === 'girl' ? 'bg-rose-700 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                 >
                   {'Nữ'}
                 </button>
               </div>
             </div>
             <div className="space-y-1.5 w-full lg:w-auto shrink-0" style={{ maxWidth: '140px' }}>
-              <label className="text-xs font-semibold text-zinc-400 flex items-center justify-between">
+              <label className="text-xs font-medium text-slate-400 flex items-center justify-between">
                 <span>{'Ngày sinh'}</span>
                 {isAgeManuallySet && (
                   <button 
                     onClick={() => setIsAgeManuallySet(false)}
-                    className="text-emerald-500 hover:text-emerald-400 text-[10px] flex items-center gap-1"
+                    className="text-teal-400 hover:text-teal-300 text-[10px] flex items-center gap-1"
                   >
                     <Lock size={10} /> Mở khóa
                   </button>
@@ -3548,10 +3682,10 @@ export default function App() {
                   }
                 }
               }}
-              className={`w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base ${isAgeManuallySet ? 'opacity-50 cursor-not-allowed' : ''}`} maxLength={10} />
+              className={`w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-2.5 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base ${isAgeManuallySet ? 'opacity-50 cursor-not-allowed' : ''}`} maxLength={10} />
             </div>
             <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
-              <label className="text-xs font-semibold text-zinc-400">{'Tuổi thực'} <span className="text-[10px] text-zinc-500 font-normal">({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</span></label>
+              <label className="text-xs font-medium text-slate-400">{'Tuổi thực'} <span className="text-[10px] text-slate-500 font-normal">({(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)</span></label>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <input 
@@ -3569,9 +3703,9 @@ export default function App() {
                         setDob('');
                       });
                     }}
-                    className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
+                    className="w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-2.5 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base"
                   />
-                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Năm'}</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">{'Năm'}</span>
                 </div>
                 <div className="flex-1">
                   <input 
@@ -3589,16 +3723,16 @@ export default function App() {
                         setDob('');
                       });
                     }}
-                    className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-2.5 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base"
+                    className="w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-2.5 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base"
                   />
-                  <span className="text-[10px] text-zinc-500 mt-1 block">{'Tháng'}</span>
+                  <span className="text-[10px] text-slate-500 mt-1 block">{'Tháng'}</span>
                 </div>
               </div>
             </div>
             {isExpertMode && (
               <>
                 <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
-                  <label className="text-xs font-semibold text-zinc-400">{'Ngày khám'}</label>
+                  <label className="text-xs font-medium text-slate-400">{'Ngày khám'}</label>
                   <input type="text" value={examDate} onChange={e => {
                     let val = e.target.value.replace(/\D/g, '');
                     if (val.length > 2) val = val.substring(0, 2) + '/' + val.substring(2);
@@ -3613,10 +3747,10 @@ export default function App() {
                       }
                     }
                   }}
-                  className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" maxLength={10} />
+                  className="w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base h-[42px]" maxLength={10} />
                 </div>
                 <div className="space-y-1.5 w-full lg:w-auto lg:flex-1 shrink-0">
-                  <label className="text-xs font-semibold text-zinc-400">{'Ngày chụp phim'}</label>
+                  <label className="text-xs font-medium text-slate-400">{'Ngày chụp phim'}</label>
                   <input type="text" value={xrayDate} onChange={handleDateChange} 
                   onBlur={() => {
                     if (xrayDate.length === 8) {
@@ -3626,29 +3760,29 @@ export default function App() {
                       }
                     }
                   }}
-                  className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  maxLength={10} />
+                  className="w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base h-[42px]"  maxLength={10} />
                 </div>
               </>
             )}
           </div>
           <div className="grid grid-cols-2 lg:flex lg:flex-nowrap items-start gap-3 sm:gap-4 w-full">
             <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0 col-span-2 lg:col-span-1">
-              <label className="text-xs font-semibold text-zinc-400">{'Tên khách hàng'}</label>
-              <input type="text" value={patientName} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientName)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
+              <label className="text-xs font-medium text-slate-400">{'Tên khách hàng'}</label>
+              <input type="text" value={patientName} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientName)} onBlur={() => setPatientName(capitalizeNameWords(patientName))} className="w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base h-[42px]" />
             </div>
             <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1] shrink-0">
-              <label className="text-xs font-semibold text-zinc-400">{'Mã khách hàng'}</label>
-              <input type="text" value={patientId} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientId)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]" />
+              <label className="text-xs font-medium text-slate-400">{'Mã khách hàng'}</label>
+              <input type="text" value={patientId} onChange={e => handleAdminChangeAttempt(e.target.value, setPatientId)} className="w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base h-[42px]" />
             </div>
             {isExpertMode && (
               <>
                 <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.5] shrink-0">
-                  <label className="text-xs font-semibold text-zinc-400">{'Nơi chụp'}</label>
-                  <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-zinc-900 border border-white/10 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors text-base h-[42px]"  />
+                  <label className="text-xs font-medium text-slate-400">{'Nơi chụp'}</label>
+                  <input type="text" value={xrayLocation} onChange={e => setXrayLocation(e.target.value)} className="w-full bg-slate-900 border border-slate-700/80 text-slate-100 rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500 transition-colors text-base h-[42px]"  />
                 </div>
                 <div className="space-y-1.5 w-full lg:w-auto lg:flex-[1.2] shrink-0">
-                  <label className="text-xs font-semibold text-zinc-400">{'Chất lượng'}</label>
-                  <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-zinc-900 text-white border border-white/10 rounded-lg px-3 py-2 focus:outline-none focus:border-emerald-500 transition-colors appearance-none text-base h-[42px]">
+                  <label className="text-xs font-medium text-slate-400">{'Chất lượng'}</label>
+                  <select value={xrayQuality} onChange={e => setXrayQuality(e.target.value)} className="w-full bg-slate-900 text-slate-100 border border-slate-700/80 rounded-lg px-3 py-2 focus:outline-none focus:border-teal-500 transition-colors appearance-none text-base h-[42px]">
                     {qualityOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                   </select>
                 </div>
@@ -3659,22 +3793,22 @@ export default function App() {
 
           {/* Action to confirm patient */}
           {!isPatientConfirmed ? (
-            <div className="mt-4 flex justify-center pb-2">
+            <div className="mt-3 flex justify-center pb-1">
               <button 
                 onClick={() => {
                   setShowConfirmPopup(true);
                 }}
                 disabled={(!dob.trim() && !isAgeManuallySet)}
-                className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                className="px-5 py-2.5 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Xác nhận & Bắt đầu phân tích
               </button>
             </div>
           ) : (
-            <div className="mt-4 flex justify-center pb-2">
+            <div className="mt-3 flex justify-center pb-1">
               <button
                 onClick={() => setIsPatientConfirmed(false)}
-                className="px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-sm transition-colors border border-white/10"
+                className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-sm transition-colors border border-slate-700"
               >
                 Sửa thông tin hành chính
               </button>
@@ -3685,27 +3819,26 @@ export default function App() {
         {isPatientConfirmed && (
         <>
         {/* Atlas Comparison Section */}
-        <section id="atlas-target" className="space-y-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shrink-0" />
+        <section id="atlas-target" className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <h2 className="text-base sm:text-lg font-semibold text-slate-100">
               <span className="hidden sm:inline">{isExpertMode ? 'Đối chiếu tuổi xương theo Atlas kĩ thuật số của Vicente Gilsanz và Osman Ratib' : 'Đối chiếu nhanh tuổi xương theo atlas mẫu (Vicente Gilsanz và Osman Ratib)'}</span>
               <span className="sm:hidden">So Atlas Vincente & Ratib</span>
             </h2>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <button
                  onClick={() => setIsGpVisible(!isGpVisible)}
-                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${!isGpVisible ? 'bg-zinc-800 text-zinc-300 border-zinc-600' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${!isGpVisible ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'}`}
               >
-                 {isGpVisible ? <EyeOff size={16} className="shrink-0" /> : <Eye size={16} className="shrink-0" />}
+                 {isGpVisible ? <EyeOff size={15} className="shrink-0" /> : <Eye size={15} className="shrink-0" />}
                  <span>{isGpVisible ? 'Ẩn' : 'Hiện'}</span>
               </button>
               {isGpVisible && isExpertMode && (
                 <button
                   onClick={() => setVicenteViewMode(prev => prev === 'single' ? 'duet' : prev === 'duet' ? 'compare' : 'single')}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200"
                 >
-                  {vicenteViewMode === 'single' ? <Eye size={16} className="shrink-0" /> : vicenteViewMode === 'duet' ? <BookOpen size={16} className="shrink-0" /> : <Columns size={16} className="shrink-0" />}
+                  {vicenteViewMode === 'single' ? <Eye size={15} className="shrink-0" /> : vicenteViewMode === 'duet' ? <BookOpen size={15} className="shrink-0" /> : <Columns size={15} className="shrink-0" />}
                   <span className="hidden sm:inline">{vicenteViewMode === 'single' ? 'Chế độ Single' : vicenteViewMode === 'duet' ? 'Chế độ Duet' : 'Chế độ Compare'}</span>
                   <span className="sm:hidden">{vicenteViewMode === 'single' ? 'Single' : vicenteViewMode === 'duet' ? 'Duet' : 'Compare'}</span>
                 </button>
@@ -3714,15 +3847,15 @@ export default function App() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsMagnifierActive(!isMagnifierActive)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${isMagnifierActive ? 'bg-teal-950/80 border-teal-700 text-teal-300' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'}`}
                   >
-                    <Search size={16} className="shrink-0" />
+                    <Search size={15} className="shrink-0" />
                     <span className="hidden sm:inline">{'Kính lúp'}</span>
                   </button>
                 </div>
               )}
               {isGpVisible && (
-                <div className="flex items-center gap-2 text-sm font-medium text-white/70">
+                <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
                   {selectedEntry && (() => {
                     const selY = Math.floor(selectedEntry.ageMonths / 12);
                     const selM = selectedEntry.ageMonths % 12;
@@ -3731,7 +3864,7 @@ export default function App() {
                       : (finalAgeYears === selY && Number(finalAgeMonths || 0) === selM);
                     return (
                       <>
-                        <span className="bg-white/10 px-2 py-1 rounded-md text-white">{selectedEntry.labelVi}</span>
+                        <span className="bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md text-slate-200">{selectedEntry.labelVi}</span>
                         <button
                           onClick={() => {
                             if (isExpertMode) {
@@ -3742,10 +3875,10 @@ export default function App() {
                               setFinalAgeMonths(selM);
                             }
                           }}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isSynced ? 'bg-emerald-100 border-emerald-500 text-emerald-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${isSynced ? 'bg-teal-950/80 border-teal-700 text-teal-300' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'}`}
                           title="Chọn nhanh tuổi xương từ trang Atlas đang mở"
                         >
-                          <Check size={16} className="shrink-0" />
+                          <Check size={15} className="shrink-0" />
                           <span className="hidden sm:inline">Chọn mốc này</span>
                         </button>
                       </>
@@ -3754,20 +3887,20 @@ export default function App() {
                 </div>
               )}
               {isGpVisible && (
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   <button 
                     disabled={pageNumber <= 1}
                     onClick={() => setPageNumber(prev => prev - 1)}
-                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                    className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-200"
                   >
-                    <ChevronLeft size={24} />
+                    <ChevronLeft size={20} />
                   </button>
                   <button 
                     disabled={numPages ? pageNumber >= numPages : false}
                     onClick={() => setPageNumber(prev => prev + 1)}
-                    className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                    className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-200"
                   >
-                    <ChevronRight size={24} />
+                    <ChevronRight size={20} />
                   </button>
                 </div>
               )}
@@ -3776,8 +3909,8 @@ export default function App() {
 
           <AnimatePresence>
             {isGpVisible && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
-                <div ref={atlas1Ref} className="relative rounded-2xl overflow-hidden border-2 border-emerald-500 shadow-[0_4px_20px_rgba(16,185,129,0.15)] bg-zinc-800 flex justify-center items-center sm:min-h-[600px] p-0 sm:p-4 md:p-8" style={{ perspective: 1200 }}>
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-4 overflow-hidden">
+                <div ref={atlas1Ref} className="relative rounded-xl overflow-hidden border border-slate-700/80 bg-slate-800/90 flex justify-center items-center sm:min-h-[600px] p-0 sm:p-4 md:p-6" style={{ perspective: 1200 }}>
             {numPages && (
               <>
                 <button 
@@ -3797,7 +3930,7 @@ export default function App() {
               </>
             )}
             <Document
-              file="/atlas.pdf"
+              file={protectedUrls['gp-atlas'] || null}
               onLoadSuccess={onDocumentLoadSuccess}
               loading={
                 <div className="flex flex-col items-center gap-2 text-zinc-400">
@@ -3915,10 +4048,10 @@ export default function App() {
           </div>
 
           {isExpertMode && (
-            <div className="mt-6 bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl">
+            <div className="mt-4 bg-slate-800/90 p-4 md:p-5 rounded-xl border border-slate-700/80 flex flex-col gap-4">
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex flex-col gap-2">
-                  <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
+                  <label className="text-sm md:text-base font-semibold text-slate-100">{'Kết luận mốc tuổi xương (Vicente - Osman Atlas):'}</label>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {selectedEntry && (
                       <button
@@ -3926,7 +4059,7 @@ export default function App() {
                           setExpertBoneAgeYears(Math.floor(selectedEntry.ageMonths / 12));
                           setExpertBoneAgeMonths(selectedEntry.ageMonths % 12);
                         }}
-                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                        className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-teal-950/70 text-teal-300 border border-teal-800/70 hover:bg-teal-900/60 transition-colors"
                       >
                         <Check size={13} />
                         <span>Chọn mốc này ({selectedEntry.labelVi})</span>
@@ -3947,9 +4080,9 @@ export default function App() {
                           setExpertBoneAgeYears(val === '' ? '' : Number(val));
                         }} 
                         placeholder="0"
-                        className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                        className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2.5 focus:outline-none focus:border-teal-500 transition-colors font-bold text-lg text-center tabular-nums" 
                       />
-                      <span className="text-zinc-300">tuổi</span>
+                      <span className="text-slate-300 text-sm">tuổi</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <input 
@@ -3962,9 +4095,9 @@ export default function App() {
                           setExpertBoneAgeMonths(val === '' ? '' : Number(val));
                         }} 
                         placeholder="0"
-                        className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                        className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2.5 focus:outline-none focus:border-teal-500 transition-colors font-bold text-lg text-center tabular-nums" 
                       />
-                      <span className="text-zinc-300">tháng</span>
+                      <span className="text-slate-300 text-sm">tháng</span>
                     </div>
                   </div>
                   {renderProgressIndicator(expertBoneAgeYears, expertBoneAgeMonths)}
@@ -3979,35 +4112,34 @@ export default function App() {
 
         {/* DBAC Section */}
         {isExpertMode && currentDbacData.length > 0 && (
-          <section className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
-                <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shrink-0" />
+          <section className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <h2 className="text-base sm:text-lg font-semibold text-slate-100">
                 <span className="hidden sm:inline">Đối chiếu tuổi xương theo Atlas của Cree M. Gaskin và cộng sự</span>
                 <span className="sm:hidden">So Atlas Gaskin et al.</span>
               </h2>
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <button
                    onClick={() => setIsGaskinVisible(!isGaskinVisible)}
-                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${!isGaskinVisible ? 'bg-zinc-800 text-zinc-300 border-zinc-600' : 'bg-white/10 text-white border-white/20 hover:bg-white/20'}`}
+                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${!isGaskinVisible ? 'bg-slate-800 text-slate-400 border-slate-700' : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-700'}`}
                 >
-                   {isGaskinVisible ? <EyeOff size={16} className="shrink-0" /> : <Eye size={16} className="shrink-0" />}
+                   {isGaskinVisible ? <EyeOff size={15} className="shrink-0" /> : <Eye size={15} className="shrink-0" />}
                    <span>{isGaskinVisible ? 'Ẩn' : 'Hiện'}</span>
                 </button>
                 {isGaskinVisible && (
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setIsDbacMagnifierActive(!isDbacMagnifierActive)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${isDbacMagnifierActive ? 'bg-teal-950/80 border-teal-700 text-teal-300' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'}`}
                     >
-                      <Search size={16} className="shrink-0" />
+                      <Search size={15} className="shrink-0" />
                       <span className="hidden sm:inline">{'Kính lúp'}</span>
                     </button>
                   </div>
                 )}
                 {isGaskinVisible && (
-                  <div className="flex items-center gap-2 text-sm font-medium text-white/70">
-                    <span className="bg-white/10 px-2 py-1 rounded-md text-white">{currentDbacData[dbacIndex]?.label || ''}</span>
+                  <div className="flex items-center gap-2 text-sm font-medium text-slate-300">
+                    <span className="bg-slate-800 border border-slate-700 px-2.5 py-1 rounded-md text-slate-200">{currentDbacData[dbacIndex]?.label || ''}</span>
                     {currentDbacData[dbacIndex] && (() => {
                       const ageM = currentDbacData[dbacIndex].ageMonths;
                       const selY = Math.floor(ageM / 12);
@@ -4019,10 +4151,10 @@ export default function App() {
                             setDbacBoneAgeYears(selY);
                             setDbacBoneAgeMonths(selM);
                           }}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${isSynced ? 'bg-indigo-100 border-indigo-500 text-indigo-700' : 'bg-white/10 border-white/20 hover:bg-white/20 text-white'}`}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${isSynced ? 'bg-teal-950/80 border-teal-700 text-teal-300' : 'bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200'}`}
                           title="Chọn nhanh tuổi xương từ trang Atlas đang mở"
                         >
-                          <Check size={16} className="shrink-0" />
+                          <Check size={15} className="shrink-0" />
                           <span className="hidden sm:inline">Chọn mốc này</span>
                         </button>
                       );
@@ -4030,7 +4162,7 @@ export default function App() {
                   </div>
                 )}
                 {isGaskinVisible && (
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <button 
                       disabled={dbacPageNumber <= 1}
                       onClick={() => {
@@ -4042,9 +4174,9 @@ export default function App() {
                           return next;
                         });
                       }}
-                      className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                      className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-200"
                     >
-                      <ChevronLeft size={24} />
+                      <ChevronLeft size={20} />
                     </button>
                     <button 
                       disabled={dbacNumPages ? dbacPageNumber >= dbacNumPages : false}
@@ -4057,9 +4189,9 @@ export default function App() {
                           return next;
                         });
                       }}
-                      className="p-2 rounded-full border border-white/20 hover:bg-white/20 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-white"
+                      className="p-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-slate-200"
                     >
-                      <ChevronRight size={24} />
+                      <ChevronRight size={20} />
                     </button>
                   </div>
                 )}
@@ -4068,9 +4200,9 @@ export default function App() {
 
             <AnimatePresence>
             {isGaskinVisible && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-6 overflow-hidden">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div ref={atlas2Ref} className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex justify-center items-center sm:min-h-[500px] p-0 sm:p-4 lg:p-8" style={{ perspective: 1200 }}>
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-4 overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div ref={atlas2Ref} className="relative rounded-xl overflow-hidden border border-slate-700/80 bg-slate-800/90 flex justify-center items-center sm:min-h-[500px] p-0 sm:p-4 lg:p-6" style={{ perspective: 1200 }}>
                 {dbacNumPages && (
                   <>
                     <button 
@@ -4096,7 +4228,7 @@ export default function App() {
                   </>
                 )}
               <Document
-                file={gender === 'boy' ? '/Male.pdf' : '/Female Atlas.pdf'}
+                file={gender === 'boy' ? (protectedUrls['dbac-male'] || null) : (protectedUrls['dbac-female'] || null)}
                   onLoadSuccess={onDbacDocumentLoadSuccess}
                   loading={
                     <div className="flex flex-col items-center gap-2 text-zinc-400">
@@ -4138,10 +4270,10 @@ export default function App() {
                 </Document>
               </div>
 
-              <div className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 flex flex-col h-full overflow-hidden">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 pb-3 border-b border-white/10 gap-2">
-                  <h3 className="text-white font-semibold text-sm sm:text-[15px]">
-                    Mốc cốt hoá ứng với <span className="text-yellow-400">{currentDbacData[dbacIndex]?.label}</span> (<span className={gender === 'boy' ? 'text-blue-300' : 'text-pink-300'}>{gender === 'boy' ? 'nam' : 'nữ'}</span>)
+              <div className="bg-slate-800/90 p-4 sm:p-5 rounded-xl border border-slate-700/80 flex flex-col h-full overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 pb-3 border-b border-slate-700/80 gap-2">
+                  <h3 className="text-slate-100 font-semibold text-sm sm:text-[15px]">
+                    Mốc cốt hoá ứng với <span className="text-teal-300">{currentDbacData[dbacIndex]?.label}</span> (<span className={gender === 'boy' ? 'text-sky-300' : 'text-rose-300'}>{gender === 'boy' ? 'nam' : 'nữ'}</span>)
                   </h3>
                   <div className="flex gap-2 shrink-0">
                     <button 
@@ -4150,7 +4282,7 @@ export default function App() {
                         currentDbacData[dbacIndex].features.forEach((_, idx) => newSels[`${dbacIndex}-${idx}`] = 'yes');
                         setDbacSelections(newSels);
                       }}
-                      className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors"
+                      className="px-2.5 py-1 text-xs font-medium rounded-md bg-teal-950/70 text-teal-300 border border-teal-800/70 hover:bg-teal-900/60 transition-colors"
                     >
                       All Có
                     </button>
@@ -4160,7 +4292,7 @@ export default function App() {
                         currentDbacData[dbacIndex].features.forEach((_, idx) => newSels[`${dbacIndex}-${idx}`] = 'no');
                         setDbacSelections(newSels);
                       }}
-                      className="px-2.5 py-1 text-xs font-medium rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                      className="px-2.5 py-1 text-xs font-medium rounded-md bg-rose-950/60 text-rose-300 border border-rose-800/60 hover:bg-rose-900/50 transition-colors"
                     >
                       All Không
                     </button>
@@ -4170,17 +4302,12 @@ export default function App() {
                   {currentDbacData[dbacIndex].features.map((feature, idx) => {
                     const sKey = `${dbacIndex}-${idx}`;
                     const val = dbacSelections[sKey];
-                    const weightInfo = getAnatomicalFeatureWeight(feature);
                     return (
-                      <li key={idx} className={`relative flex items-center justify-between gap-3 p-3 bg-zinc-900/50 rounded-xl border ${val ? 'border-white/5' : 'border-transparent'}`}>
-                        {!val && <div className="absolute inset-0 rounded-xl border border-red-500/50 animate-pulse pointer-events-none" style={{ animationDuration: '2s' }}></div>}
-                        <span className="text-zinc-200 text-[11px] sm:text-xs leading-relaxed flex-1">
+                      <li key={idx} className={`relative flex items-center justify-between gap-3 p-3 bg-slate-900/60 rounded-lg border ${val ? 'border-slate-700/80' : 'border-slate-800'}`}>
+                        <span className="text-slate-200 text-xs sm:text-[13px] leading-relaxed flex-1">
                           {feature}
-                          <span className={`inline-block ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium border align-middle ${weightInfo.colorClass}`}>
-                            {weightInfo.label}
-                          </span>
                         </span>
-                        <div className="flex bg-zinc-950 p-1 rounded-lg border border-white/10 shrink-0 gap-1 ml-auto relative z-10">
+                        <div className="flex bg-slate-950 p-1 rounded-md border border-slate-800 shrink-0 gap-1 ml-auto relative z-10">
                           <button
                             onClick={() => setDbacSelections(prev => {
                               if (prev[sKey] === 'yes') {
@@ -4190,10 +4317,10 @@ export default function App() {
                               }
                               return { ...prev, [sKey]: 'yes' };
                             })}
-                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded-md transition-all ${val === 'yes' ? 'bg-emerald-600 text-white shadow-sm' : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800'}`}
+                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded transition-colors ${val === 'yes' ? 'bg-teal-700 text-white' : 'text-slate-400 hover:text-teal-300 hover:bg-slate-800'}`}
                             title="Có"
                           >
-                            <CheckCheck size={16} />
+                            <CheckCheck size={15} />
                           </button>
                           <button
                             onClick={() => setDbacSelections(prev => {
@@ -4204,10 +4331,10 @@ export default function App() {
                               }
                               return { ...prev, [sKey]: 'maybe' };
                             })}
-                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded-md transition-all ${val === 'maybe' ? 'bg-amber-500 text-white shadow-sm' : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800'}`}
+                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded transition-colors ${val === 'maybe' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-amber-300 hover:bg-slate-800'}`}
                             title="Nghi ngờ"
                           >
-                            <Check size={16} />
+                            <Check size={15} />
                           </button>
                           <button
                             onClick={() => setDbacSelections(prev => {
@@ -4218,10 +4345,10 @@ export default function App() {
                               }
                               return { ...prev, [sKey]: 'no' };
                             })}
-                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded-md transition-all ${val === 'no' ? 'bg-red-600 text-white shadow-sm' : 'text-zinc-400 hover:text-red-400 hover:bg-zinc-800'}`}
+                            className={`flex items-center justify-center w-8 py-1.5 sm:w-9 rounded transition-colors ${val === 'no' ? 'bg-rose-700 text-white' : 'text-slate-400 hover:text-rose-300 hover:bg-slate-800'}`}
                             title="Không"
                           >
-                            <X size={16} />
+                            <X size={15} />
                           </button>
                         </div>
                       </li>
@@ -4231,9 +4358,9 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex flex-col md:flex-col gap-6 mt-6">
-              <div className="bg-zinc-800/80 backdrop-blur-sm p-4 sm:p-5 rounded-2xl border border-white/10 shadow-xl space-y-4">
-                <label className="text-base font-semibold text-white tracking-wide block">Tổng kết cụm mốc cốt hoá</label>
+            <div className="flex flex-col gap-4 mt-4">
+              <div className="bg-slate-800/90 p-4 sm:p-5 rounded-xl border border-slate-700/80 space-y-4">
+                <label className="text-base font-semibold text-slate-100 block">Tổng kết cụm mốc cốt hoá</label>
                 {Object.entries(dbacSelections).length > 0 && (() => {
                   const grouped: Record<number, { fIdx: number, val: 'yes' | 'maybe' | 'no' }[]> = {};
                   Object.entries(dbacSelections).forEach(([key, val]) => {
@@ -4251,192 +4378,21 @@ export default function App() {
                     summaryParts.push(`${yesCount}/${totalCount} tiêu chuẩn mốc ${milestone.label}`);
                   });
                   const summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
-                  
-                  // Auto-suggestion logic with Anatomical Weighting
-                  let minEval = currentDbacData.length;
-                  let maxEval = -1;
-                  const scores = new Array(currentDbacData.length).fill(0);
-                  const isEvaluated = new Array(currentDbacData.length).fill(false);
-                  
-                  for (let i = 0; i < currentDbacData.length; i++) {
-                     const m = currentDbacData[i];
-                     const total = m.features.length;
-                     if (total === 0) continue;
-                     
-                     let weightedEarned = 0;
-                     let weightedTotal = 0;
-                     let evaluated = false;
-                     
-                     for (let j = 0; j < total; j++) {
-                        const fw = getAnatomicalFeatureWeight(m.features[j]).weight;
-                        weightedTotal += fw;
-                        const val = dbacSelections[`${i}-${j}`];
-                        if (val !== undefined) evaluated = true;
-                        if (val === 'yes') weightedEarned += fw;
-                        else if (val === 'maybe') weightedEarned += fw * 0.5;
-                     }
-                     
-                     if (evaluated && weightedTotal > 0) {
-                        isEvaluated[i] = true;
-                        if (i < minEval) minEval = i;
-                        if (i > maxEval) maxEval = i;
-                        scores[i] = weightedEarned / weightedTotal;
-                     }
-                  }
-                  
-                  const rawScores = [...scores];
-                  const rawIsEvaluated = [...isEvaluated];
-                  
-                  // NEW LOGIC: Advance the baseline if a higher milestone is significantly achieved (> 25%)
-                  let activeMax = -1;
-                  for (let i = currentDbacData.length - 1; i >= 0; i--) {
-                     if (isEvaluated[i] && scores[i] > 0.25) {
-                        activeMax = i;
-                        break;
-                     }
-                  }
-                  
-                  if (activeMax > 0) {
-                     for (let j = 0; j < activeMax; j++) {
-                        scores[j] = 1;
-                        isEvaluated[j] = true;
-                     }
-                     minEval = 0;
-                  }
-                  
-                  let illogicalWarning = false;
-                  for (let i = 1; i < currentDbacData.length - 1; i++) {
-                     if (rawScores[i-1] > 0.6 && rawScores[i] < 0.2 && rawScores[i+1] > 0.2) {
-                        illogicalWarning = true;
-                        break;
-                     }
-                  }
-                  
-                  if (!illogicalWarning) {
-                     for (let i = 0; i < currentDbacData.length; i++) {
-                        if (rawIsEvaluated[i] && rawScores[i] < 0.5) {
-                           for (let j = i + 1; j < currentDbacData.length; j++) {
-                              if (rawIsEvaluated[j] && rawScores[j] > 0.2) {
-                                 illogicalWarning = true;
-                                 break;
-                              }
-                           }
-                        }
-                        if (illogicalWarning) break;
-                     }
-                  }
-                  
-                  let estimatedAgeMonths = 0;
-                  let partialLabels: {label: string, score: number, isNext?: boolean}[] = [];
-                  
-                  if (maxEval !== -1) {
-                     const startAge = minEval > 0 ? currentDbacData[minEval - 1].ageMonths : 0;
-                     estimatedAgeMonths = startAge;
-                     
-                     for (let i = minEval; i <= maxEval; i++) {
-                         const prevAge = i > 0 ? currentDbacData[i - 1].ageMonths : 0;
-                         const currentAge = currentDbacData[i].ageMonths;
-                         const delta = currentAge - prevAge;
-                         const p = scores[i] || 0;
-                         estimatedAgeMonths += p * delta;
-                         
-                         if (isEvaluated[i] && p > 0 && p < 1) {
-                            partialLabels.push({ label: currentDbacData[i].label, score: p });
-                         }
-                     }
-                     
-                     if (scores[maxEval] > 0.25 && maxEval < currentDbacData.length - 1) {
-                         const nextIdx = maxEval + 1;
-                         partialLabels.push({ label: currentDbacData[nextIdx].label, score: 0, isNext: true });
-                     } else {
-                         const existing = partialLabels.find(pl => pl.label === currentDbacData[maxEval].label);
-                         if (existing) {
-                             existing.isNext = true;
-                         } else {
-                             partialLabels.push({ label: currentDbacData[maxEval].label, score: 0, isNext: true });
-                         }
-                     }
-                  }
-
-                  const estM = Math.round(estimatedAgeMonths);
-                  const estYears = Math.floor(estM / 12);
-                  const estMonths = estM % 12;
-                  const estLabel = estM > 0 ? `${estYears} tuổi${estMonths > 0 ? ` ${estMonths} tháng` : ''}` : '';
 
                   return (
                     <div className="space-y-4">
-                      {maxEval !== -1 && estM > 0 && (
-                        <div className={`border rounded-xl p-4 ${illogicalWarning ? 'bg-amber-500/10 border-amber-500/30' : 'bg-indigo-500/10 border-indigo-500/30'}`}>
-                          <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
-                            <div className="flex items-center gap-2">
-                              {illogicalWarning ? <Info className="text-amber-400" size={20} /> : <CheckCheck className="text-indigo-400" size={20} />}
-                              <h4 className={`font-semibold ${illogicalWarning ? "text-amber-300" : "text-indigo-300"}`}>
-                                {illogicalWarning ? "Cảnh báo logic dữ liệu" : "Tự động đề xuất tuổi xương"}
-                              </h4>
-                            </div>
-                            <span className="text-[11px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded font-medium">
-                              Trọng số: Đốt ngón/Sụn (x2.0) • Bàn/Quay-Trụ (x1.5) • Cổ tay (x1.0)
-                            </span>
-                          </div>
-                          
-                          {illogicalWarning ? (
-                            <p className="text-amber-400/90 text-sm mt-1 mb-2">Vui lòng xem lại các dấu hiệu! Hệ thống phát hiện sự thiếu logic (có mốc chưa đạt nhưng lại đạt mốc cao hơn).</p>
-                          ) : (
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mt-1 gap-3">
-                              <p className="text-white text-sm">
-                                <span className="hidden sm:inline">Tuổi xương ước tính (có trọng số giải phẫu): <span className="font-bold text-lg text-emerald-400">{estLabel}</span></span>
-                                <span className="sm:hidden block">
-                                  Tuổi xương ước tính (có trọng số giải phẫu): <br />
-                                  <span className="font-bold text-lg text-emerald-400 uppercase">{estLabel}</span>
-                                </span>
-                              </p>
-                              <button
-                                onClick={() => {
-                                  setDbacBoneAgeYears(estYears);
-                                  setDbacBoneAgeMonths(estMonths);
-                                }}
-                                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto"
-                              >
-                                <Check size={16} /> Chốt kết quả
-                              </button>
-                            </div>
-                          )}
-                          
-                          {partialLabels.length > 0 && (
-                             <div className="mt-4 space-y-3">
-                               {partialLabels.map((pl, idx) => (
-                                 <div key={idx}>
-                                   <p className="text-zinc-300 text-sm flex items-center justify-between mb-1">
-                                     <span>Tỉ lệ đạt tiêu chuẩn cho mốc {pl.label}:</span>
-                                     <span className="font-medium text-xs" style={{ color: `hsl(${220 - pl.score * 220}, 80%, 65%)` }}>{Math.round(pl.score * 100)}%</span>
-                                   </p>
-                                   <div className="w-full bg-zinc-900 rounded-full h-2 relative overflow-hidden">
-                                     <div className="h-2 rounded-full transition-all duration-500 shadow-[0_0_10px_rgba(255,255,255,0.2)]" style={{ width: `${Math.round(pl.score * 100)}%`, backgroundColor: `hsl(${220 - pl.score * 220}, 80%, 50%)` }}></div>
-                                   </div>
-                                   {pl.isNext && (
-                                     <p className="text-amber-400 text-xs mt-2 italic flex items-center gap-1">
-                                        <Info size={12} className="shrink-0"/> Vui lòng kiểm tra các dấu hiệu của mốc tuổi {pl.label}
-                                     </p>
-                                   )}
-                                 </div>
-                               ))}
-                             </div>
-                          )}
-                        </div>
-                      )}
-                      
-                      <p className="text-sm text-zinc-300 italic">{summaryText}</p>
+                      <p className="text-sm text-slate-300 italic">{summaryText}</p>
                       {Object.keys(grouped).map(mIdxStr => {
                         const mIdx = Number(mIdxStr);
                         const milestone = currentDbacData[mIdx];
                         return (
-                          <div key={mIdxStr} className="space-y-3">
-                            <h4 className="text-sm font-bold text-indigo-300 bg-indigo-500/20 inline-block px-3 py-1 rounded-lg border border-indigo-500/30">Mốc {milestone.label}</h4>
-                            <div className="space-y-2 pl-1">
+                          <div key={mIdxStr} className="space-y-2.5">
+                            <h4 className="text-xs font-semibold text-slate-200 bg-slate-900/80 inline-block px-2.5 py-1 rounded-md border border-slate-700">Mốc {milestone.label}</h4>
+                            <div className="space-y-1.5 pl-1">
                               {grouped[mIdx].map(({ fIdx, val }) => (
                                 <div key={fIdx} className="flex items-start gap-3 text-sm">
-                                  <span className={`shrink-0 w-14 text-center font-bold whitespace-nowrap px-2 py-0.5 rounded text-xs mt-0.5 ${val === 'yes' ? 'text-emerald-400 bg-emerald-400/10 border border-emerald-400/20' : val === 'maybe' ? 'text-amber-400 bg-amber-400/10 border border-amber-400/20' : 'text-red-400 bg-red-400/10 border border-red-400/20'}`}>{val === 'yes' ? 'Có' : val === 'maybe' ? 'Có' : 'Không'}</span>
-                                  <span className="text-zinc-300 leading-relaxed text-base">{milestone.features[fIdx]}</span>
+                                  <span className={`shrink-0 w-14 text-center font-semibold whitespace-nowrap px-2 py-0.5 rounded text-xs mt-0.5 ${val === 'yes' ? 'text-teal-300 bg-teal-950/60 border border-teal-800/60' : val === 'maybe' ? 'text-amber-300 bg-amber-950/60 border border-amber-800/60' : 'text-rose-300 bg-rose-950/60 border border-rose-800/60'}`}>{val === 'yes' ? 'Có' : val === 'maybe' ? 'Có' : 'Không'}</span>
+                                  <span className="text-slate-300 leading-relaxed text-sm">{milestone.features[fIdx]}</span>
                                 </div>
                               ))}
                             </div>
@@ -4446,22 +4402,22 @@ export default function App() {
                     </div>
                   );
                 })()}
-                <div className="pt-4 border-t border-white/10 mt-2">
-                  <label className="text-sm font-medium text-white/70 block mb-2">Dấu hiệu khác (nếu có)</label>
+                <div className="pt-3 border-t border-slate-700/80 mt-2">
+                  <label className="text-xs font-medium text-slate-400 block mb-1.5">Dấu hiệu khác (nếu có)</label>
                   <input 
                     type="text" 
                     value={dbacOtherFeatures} 
                     onChange={e => setDbacOtherFeatures(e.target.value)} 
-                    className="w-full bg-zinc-900 border border-white/20 text-white rounded-lg px-4 py-2.5 text-base focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600" 
+                    className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3.5 py-2 text-sm focus:outline-none focus:border-teal-500 transition-colors placeholder:text-slate-500" 
                     placeholder="Nhập dấu hiệu xương ghi nhận thêm..." 
                   />
                 </div>
               </div>
 
-              <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl w-full">
+              <div className="bg-slate-800/90 p-4 md:p-5 rounded-xl border border-slate-700/80 flex flex-col gap-4 w-full">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm md:text-base font-semibold text-white tracking-wide">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
+                    <label className="text-sm md:text-base font-semibold text-slate-100">{'Kết luận mốc tuổi xương (Gaskin Atlas):'}</label>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {currentDbacData[dbacIndex] && (
                         <button
@@ -4470,7 +4426,7 @@ export default function App() {
                             setDbacBoneAgeYears(Math.floor(ageM / 12));
                             setDbacBoneAgeMonths(ageM % 12);
                           }}
-                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 hover:bg-indigo-500/20 transition-colors"
+                          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-teal-950/70 text-teal-300 border border-teal-800/70 hover:bg-teal-900/60 transition-colors"
                         >
                           <Check size={13} />
                           <span>Chọn mốc này ({currentDbacData[dbacIndex].label})</span>
@@ -4491,9 +4447,9 @@ export default function App() {
                             setDbacBoneAgeYears(val === '' ? '' : Number(val));
                           }} 
                           placeholder="0"
-                          className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                          className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2.5 focus:outline-none focus:border-teal-500 transition-colors font-bold text-lg text-center tabular-nums" 
                         />
-                        <span className="text-zinc-300">tuổi</span>
+                        <span className="text-slate-300 text-sm">tuổi</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <input 
@@ -4506,9 +4462,9 @@ export default function App() {
                             setDbacBoneAgeMonths(val === '' ? '' : Number(val));
                           }} 
                           placeholder="0"
-                          className="w-16 md:w-20 bg-zinc-900 border border-white/20 text-white rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                          className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2.5 focus:outline-none focus:border-teal-500 transition-colors font-bold text-lg text-center tabular-nums" 
                         />
-                        <span className="text-zinc-300">tháng</span>
+                        <span className="text-slate-300 text-sm">tháng</span>
                       </div>
                     </div>
                     {renderProgressIndicator(dbacBoneAgeYears, dbacBoneAgeMonths)}
@@ -4517,20 +4473,21 @@ export default function App() {
               </div>
             </div>
             {/* Abnormal morphology Section */}
-            <div className="bg-zinc-800/80 backdrop-blur-sm p-4 sm:p-5 rounded-2xl border border-white/10 flex flex-col gap-4 shadow-xl">
+            <div className="bg-slate-800/90 p-4 sm:p-5 rounded-xl border border-slate-700/80 flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <label className="text-sm sm:text-base font-semibold text-white tracking-wide">Bất thường hình thái xương:</label>
+                <label className="text-sm sm:text-base font-semibold text-slate-100">Bất thường hình thái xương:</label>
                 <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
                     <input 
                       type="radio" 
                       name="abnormality"
                       checked={hasAbnormality === true} 
                       onChange={() => setHasAbnormality(true)}
+                      className="accent-teal-600"
                     />
-                    <span className="text-zinc-200">Có</span>
+                    <span className="text-slate-200">Có</span>
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
+                  <label className="flex items-center gap-2 cursor-pointer text-sm">
                     <input 
                       type="radio" 
                       name="abnormality"
@@ -4539,8 +4496,9 @@ export default function App() {
                         setHasAbnormality(false);
                         setAbnormalityDetails('');
                       }}
+                      className="accent-teal-600"
                     />
-                    <span className="text-zinc-200">Không</span>
+                    <span className="text-slate-200">Không</span>
                   </label>
                 </div>
               </div>
@@ -4550,7 +4508,7 @@ export default function App() {
                     value={abnormalityDetails}
                     onChange={e => setAbnormalityDetails(e.target.value)}
                     placeholder="Mô tả chi tiết các bất thường hình thái xương ghi nhận trên phim..."
-                    className="w-full bg-zinc-900 border border-white/20 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-zinc-600 min-h-[80px] resize-y"
+                    className="w-full bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:border-teal-500 transition-colors placeholder:text-slate-500 min-h-[80px] resize-y"
                   />
                 </div>
               )}
@@ -4563,17 +4521,16 @@ export default function App() {
 
         {/* Sauvegrain Module */}
         {isExpertMode && ((realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy')) && (
-          <section className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2 text-white">
-                <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse shrink-0" />
+          <section className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <h2 className="text-base sm:text-lg font-semibold text-slate-100">
                 Đối chiếu tuổi xương theo phương pháp Sauvegrain
               </h2>
               <button
                  onClick={() => setIsSauvegrainVisible(!isSauvegrainVisible)}
-                 className="flex items-center gap-2 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors bg-white/10 border-white/20 hover:bg-white/20 text-white"
+                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200"
               >
-                 {isSauvegrainVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                 {isSauvegrainVisible ? <EyeOff size={15} /> : <Eye size={15} />}
                  {isSauvegrainVisible ? 'Ẩn' : 'Hiện'}
               </button>
             </div>
@@ -4584,69 +4541,70 @@ export default function App() {
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden space-y-6"
+                className="overflow-hidden space-y-4"
               >
-                <div className="relative rounded-2xl overflow-hidden border-2 border-indigo-500 shadow-[0_4px_20px_rgba(99,102,241,0.15)] bg-zinc-800 flex flex-col lg:flex-row items-stretch min-h-[400px] p-4 md:p-8 gap-8">
+                <div className="relative rounded-xl overflow-hidden border border-slate-700/80 bg-slate-800/90 flex flex-col lg:flex-row items-stretch min-h-[400px] p-4 md:p-6 gap-6">
                    
                    <div className="w-full lg:w-1/2 flex items-center justify-center">
                      {(sauvegrainScore1 !== '' && sauvegrainScore2 !== '' && sauvegrainScore3 !== '' && sauvegrainScore4 !== '') ? (
                        <div className="flex flex-col items-center w-full">
-                         <p className="text-center text-sm font-medium text-zinc-400 mb-4">Bảng kết quả đối chiếu tuổi ({gender === 'boy' ? 'Nam' : 'Nữ'}):</p>
-                         <img src={gender === 'boy' ? "/Sauve Boy Result.png" : "/Sauve Girl Result.png"} alt="Kết quả Sauvegrain" className="w-full max-w-xl object-contain rounded-lg" />
+                         <p className="text-center text-sm font-medium text-slate-400 mb-3">Bảng kết quả đối chiếu tuổi ({gender === 'boy' ? 'Nam' : 'Nữ'}):</p>
+                         {protectedUrls[gender === 'boy' ? 'sauve-boy' : 'sauve-girl'] && (
+                           <img src={protectedUrls[gender === 'boy' ? 'sauve-boy' : 'sauve-girl']} alt="Kết quả Sauvegrain" className="w-full max-w-xl object-contain rounded-lg select-none pointer-events-none" />
+                         )}
                        </div>
                      ) : (
-                       <img src="/Sauvegrain 01.jpg" alt="Sauvegrain Methods" className="w-full max-w-xl object-contain rounded-lg" />
+                       protectedUrls['sauve-method'] ? (
+                         <img src={protectedUrls['sauve-method']} alt="Sauvegrain Methods" className="w-full max-w-xl object-contain rounded-lg select-none pointer-events-none" />
+                       ) : null
                      )}
                    </div>
                    
-                   <div className="w-full lg:w-1/2 bg-zinc-900/80 backdrop-blur border border-white/10 p-6 sm:p-8 rounded-3xl text-white flex flex-col justify-center shadow-2xl">
-                      <div className="flex items-center gap-3 mb-8">
-                        <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-                          <Check size={20} className="text-indigo-400" />
-                        </div>
-                        <h3 className="font-bold text-xl text-white">Chấm điểm Sauvegrain</h3>
+                   <div className="w-full lg:w-1/2 bg-slate-900/90 border border-slate-700/80 p-5 sm:p-6 rounded-xl text-slate-100 flex flex-col justify-center">
+                      <div className="flex items-center gap-2.5 mb-6">
+                        <h3 className="font-semibold text-lg text-slate-100">Chấm điểm Sauvegrain</h3>
                       </div>
 
-                      <div className="flex-1 flex flex-col space-y-4">
-                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                      <div className="flex-1 flex flex-col space-y-3">
+                          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-800/70 border border-slate-700/70 gap-4">
                              <div className="flex flex-col flex-1 pr-2">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">1. Lồi cầu ngoài & mỏm trên lồi cầu</span>
+                               <span className="font-medium text-slate-200 text-sm md:text-base break-words leading-snug">1. Lồi cầu ngoài & mỏm trên lồi cầu</span>
                              </div>
-                             <input type="number" min="1" max="9" placeholder="1-9" value={sauvegrainScore1} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>9)n=9; if(n<1)n=1; setSauvegrainScore1(n); } else setSauvegrainScore1(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
+                             <input type="number" min="1" max="9" placeholder="1-9" value={sauvegrainScore1} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>9)n=9; if(n<1)n=1; setSauvegrainScore1(n); } else setSauvegrainScore1(''); }} className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-2 py-2.5 focus:outline-none focus:border-teal-500 transition-colors text-center font-bold text-base tabular-nums placeholder:text-slate-600 placeholder:font-normal" />
                           </div>
 
-                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-800/70 border border-slate-700/70 gap-4">
                              <div className="flex flex-col flex-1 pr-2">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">2. Ròng rọc thuộc xương cánh tay</span>
+                               <span className="font-medium text-slate-200 text-sm md:text-base break-words leading-snug">2. Ròng rọc thuộc xương cánh tay</span>
                              </div>
-                             <input type="number" min="1" max="5" placeholder="1-5" value={sauvegrainScore2} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>5)n=5; if(n<1)n=1; setSauvegrainScore2(n); } else setSauvegrainScore2(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
+                             <input type="number" min="1" max="5" placeholder="1-5" value={sauvegrainScore2} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>5)n=5; if(n<1)n=1; setSauvegrainScore2(n); } else setSauvegrainScore2(''); }} className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-2 py-2.5 focus:outline-none focus:border-teal-500 transition-colors text-center font-bold text-base tabular-nums placeholder:text-slate-600 placeholder:font-normal" />
                           </div>
 
-                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-800/70 border border-slate-700/70 gap-4">
                              <div className="flex flex-col flex-1 pr-2">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">3. Mỏm khuỷu thuộc xương trụ</span>
+                               <span className="font-medium text-slate-200 text-sm md:text-base break-words leading-snug">3. Mỏm khuỷu thuộc xương trụ</span>
                              </div>
-                             <input type="number" min="1" max="7" placeholder="1-7" value={sauvegrainScore3} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>7)n=7; if(n<1)n=1; setSauvegrainScore3(n); } else setSauvegrainScore3(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
+                             <input type="number" min="1" max="7" placeholder="1-7" value={sauvegrainScore3} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>7)n=7; if(n<1)n=1; setSauvegrainScore3(n); } else setSauvegrainScore3(''); }} className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-2 py-2.5 focus:outline-none focus:border-teal-500 transition-colors text-center font-bold text-base tabular-nums placeholder:text-slate-600 placeholder:font-normal" />
                           </div>
 
-                          <div className="flex items-center justify-between p-4 rounded-2xl bg-zinc-800/50 border border-white/5 hover:border-white/10 transition-colors gap-4">
+                          <div className="flex items-center justify-between p-3.5 rounded-lg bg-slate-800/70 border border-slate-700/70 gap-4">
                              <div className="flex flex-col flex-1 pr-2">
-                               <span className="font-medium text-zinc-200 text-sm md:text-base break-words leading-snug">4. Đầu trên xương quay</span>
+                               <span className="font-medium text-slate-200 text-sm md:text-base break-words leading-snug">4. Đầu trên xương quay</span>
                              </div>
-                             <input type="number" min="1" max="6" placeholder="1-6" value={sauvegrainScore4} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>6)n=6; if(n<1)n=1; setSauvegrainScore4(n); } else setSauvegrainScore4(''); }} className="w-16 md:w-20 bg-zinc-950 border border-white/10 text-white rounded-xl px-2 py-3 focus:outline-none focus:border-indigo-500 transition-colors text-center font-bold text-base md:text-lg placeholder:text-zinc-600 placeholder:font-normal" />
+                             <input type="number" min="1" max="6" placeholder="1-6" value={sauvegrainScore4} onChange={e => { let v = e.target.value.replace(/\D/g, ''); if(v) { let n=Number(v); if(n>6)n=6; if(n<1)n=1; setSauvegrainScore4(n); } else setSauvegrainScore4(''); }} className="w-16 md:w-20 bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-2 py-2.5 focus:outline-none focus:border-teal-500 transition-colors text-center font-bold text-base tabular-nums placeholder:text-slate-600 placeholder:font-normal" />
                           </div>
                       </div>
                       
-                      <div className="mt-8 pt-6 border-t border-white/10 flex justify-between items-center">
-                          <span className="font-medium text-lg text-zinc-400">Tổng điểm:</span>
-                          <span className="text-indigo-400 font-bold text-3xl">{(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}</span>
+                      <div className="mt-6 pt-4 border-t border-slate-700/80 flex justify-between items-center">
+                          <span className="font-medium text-base text-slate-400">Tổng điểm:</span>
+                          <span className="text-teal-300 font-bold text-2xl tabular-nums">{(sauvegrainScore1 || 0) + (sauvegrainScore2 || 0) + (sauvegrainScore3 || 0) + (sauvegrainScore4 || 0)}</span>
                       </div>
                    </div>
                 </div>
 
-                <div className="bg-zinc-800/80 backdrop-blur-sm p-5 md:p-6 rounded-2xl border border-white/10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-xl w-full text-white">
+                <div className="bg-slate-800/90 p-4 md:p-5 rounded-xl border border-slate-700/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full text-slate-100">
                   <div className="flex flex-col gap-1">
-                    <label className="text-sm md:text-base font-semibold tracking-wide">Kết luận tuổi xương khớp khuỷu (Sauvegrain):</label>
+                    <label className="text-sm md:text-base font-semibold">Kết luận tuổi xương khớp khuỷu (Sauvegrain):</label>
                   </div>
                   <div className="flex items-center gap-2">
                     <input 
@@ -4659,9 +4617,9 @@ export default function App() {
                         setSauvegrainAgeYears(val === '' ? '' : Number(val));
                       }} 
                       placeholder="0"
-                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                      className="w-16 md:w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 focus:outline-none focus:border-teal-500 transition-colors font-bold text-lg text-center tabular-nums" 
                     />
-                    <span className="text-zinc-300">tuổi</span>
+                    <span className="text-slate-300 text-sm">tuổi</span>
                     <input 
                       type="text"
                       inputMode="numeric"
@@ -4672,9 +4630,9 @@ export default function App() {
                         setSauvegrainAgeMonths(val === '' ? '' : Number(val));
                       }} 
                       placeholder="0"
-                      className="w-16 md:w-20 bg-zinc-900 border border-white/20 rounded-xl px-3 py-3 focus:outline-none focus:border-indigo-500 hover:border-white/30 transition-all font-bold text-lg text-center shadow-inner" 
+                      className="w-16 md:w-20 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2.5 focus:outline-none focus:border-teal-500 transition-colors font-bold text-lg text-center tabular-nums" 
                     />
-                    <span className="text-zinc-300">tháng</span>
+                    <span className="text-slate-300 text-sm">tháng</span>
                   </div>
                 </div>
               </motion.div>
@@ -4773,16 +4731,16 @@ export default function App() {
         {isExpertMode && expertBoneAgeYears !== '' && (
             <section className="space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-white">{'Kết luận'}</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-slate-100">{'Kết luận'}</h2>
               </div>
-              <div className="p-4 md:p-6 bg-yellow-50 border border-yellow-200 rounded-2xl relative group">
+              <div className="p-4 md:p-6 bg-stone-50 border border-slate-200 rounded-xl relative group shadow-sm">
                 <div className="text-zinc-800 leading-relaxed font-sans text-sm md:text-base whitespace-pre-wrap">
                   {renderExpertConclusionDisplay()}
                 </div>
               </div>
 
               {/* Horizontal Bone Morphology Checklist with On/Off toggles */}
-              <div className="p-4 md:p-5 bg-zinc-800/90 border border-white/10 rounded-2xl shadow-sm space-y-3.5">
+              <div className="p-4 md:p-5 bg-slate-800/90 border border-slate-700/80 rounded-xl space-y-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex items-center gap-2.5">
                     <button
@@ -4793,7 +4751,7 @@ export default function App() {
                         setMorphologyEnabled(prev => !prev);
                       }}
                       className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        morphologyEnabled ? 'bg-emerald-500' : 'bg-zinc-600'
+                        morphologyEnabled ? 'bg-teal-600' : 'bg-slate-600'
                       }`}
                       title="Bật/Tắt đưa nhận xét hình thái xương vào kết luận"
                     >
@@ -4803,13 +4761,13 @@ export default function App() {
                         }`}
                       />
                     </button>
-                    <span className="text-sm md:text-base font-semibold text-white">
+                    <span className="text-sm md:text-base font-semibold text-slate-100">
                       Đánh giá hình thái xương
                     </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium border ${
+                    <span className={`text-xs px-2 py-0.5 rounded font-medium border ${
                       morphologyEnabled
-                        ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
-                        : 'bg-zinc-700/60 text-zinc-400 border-white/10'
+                        ? 'bg-teal-950/60 text-teal-300 border-teal-800/60'
+                        : 'bg-slate-900/70 text-slate-400 border-slate-700/80'
                     }`}>
                       {morphologyEnabled ? 'Đang bật trong kết luận' : 'Chưa chọn (Ẩn)'}
                     </span>
@@ -4822,7 +4780,7 @@ export default function App() {
                         onClick={() => {
                           setMorphologyStates({});
                         }}
-                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-zinc-700/70 hover:bg-zinc-700 text-zinc-200 border border-white/10 transition-colors"
+                        className="px-2.5 py-1 text-xs font-medium rounded-md bg-slate-700/80 hover:bg-slate-700 text-slate-200 border border-slate-600 transition-colors"
                       >
                         Tất cả Không (Off)
                       </button>
@@ -4832,7 +4790,7 @@ export default function App() {
                           setMorphologyEnabled(false);
                           setMorphologyStates({});
                         }}
-                        className="px-2.5 py-1 text-xs font-medium rounded-lg bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 transition-colors"
+                        className="px-2.5 py-1 text-xs font-medium rounded-md bg-rose-950/60 hover:bg-rose-900/50 text-rose-300 border border-rose-800/60 transition-colors"
                       >
                         Bỏ chọn
                       </button>
@@ -4854,20 +4812,20 @@ export default function App() {
                             [item]: nextVal
                           }));
                         }}
-                        className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer select-none transition-all ${
+                        className={`flex items-center justify-between gap-2.5 px-3 py-2.5 rounded-lg border cursor-pointer select-none transition-colors ${
                           !morphologyEnabled
-                            ? 'bg-zinc-900/50 border-white/10 text-zinc-400 hover:border-white/20 hover:text-zinc-200'
+                            ? 'bg-slate-900/50 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200'
                             : isOn
-                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200 shadow-sm'
-                            : 'bg-zinc-900/80 border-white/10 text-zinc-300 hover:border-white/20'
+                            ? 'bg-teal-950/50 border-teal-800/70 text-teal-200'
+                            : 'bg-slate-900/80 border-slate-700/80 text-slate-300 hover:border-slate-600'
                         }`}
                       >
                         <span className="text-xs sm:text-sm font-medium leading-snug flex-1">
                           {item}
                         </span>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                            !morphologyEnabled ? 'text-zinc-500' : isOn ? 'text-emerald-400' : 'text-zinc-400'
+                          <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+                            !morphologyEnabled ? 'text-slate-500' : isOn ? 'text-teal-300' : 'text-slate-400'
                           }`}>
                             {isOn ? 'ON' : 'OFF'}
                           </span>
@@ -4885,7 +4843,7 @@ export default function App() {
                               }));
                             }}
                             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                              isOn ? 'bg-emerald-500' : morphologyEnabled ? 'bg-zinc-600' : 'bg-zinc-700'
+                              isOn ? 'bg-teal-600' : morphologyEnabled ? 'bg-slate-600' : 'bg-slate-700'
                             }`}
                           >
                             <span
@@ -4918,87 +4876,87 @@ export default function App() {
                   const boneAgeSummary = `Áp dụng phương pháp GP với 2 atlas, bác sĩ lâm sàng ghi nhận tuổi xương ước tính: ${formattedBoneAge} (Gilsanz & Ratib); ${dbacFormatted}.`;
                   const shortText = `${boneAgeSummary} ${devZ.shortDeltaText}`;
                   return (
-                    <div className="p-4 md:p-6 bg-indigo-50/10 border border-indigo-500/30 rounded-2xl relative group">
-                      <div className="text-indigo-50 leading-relaxed font-sans text-sm md:text-base">
-                        <span className="font-bold text-indigo-300 mr-2">Kết luận rút gọn:</span>
+                    <div className="p-4 md:p-5 bg-slate-800/90 border border-slate-700/80 rounded-xl relative group">
+                      <div className="text-slate-200 leading-relaxed font-sans text-sm md:text-base">
+                        <span className="font-semibold text-teal-300 mr-2">Kết luận rút gọn:</span>
                         {shortText}
                         <button 
                           onClick={() => {
                             navigator.clipboard.writeText(shortText);
                             alert('Đã sao chép kết luận rút gọn!');
                           }}
-                          className="inline-flex items-center ml-2 p-1.5 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/40 rounded-md transition-colors shadow-sm align-middle"
+                          className="inline-flex items-center ml-2 p-1.5 bg-slate-700 text-slate-200 hover:bg-slate-600 rounded-md transition-colors align-middle"
                           title="Sao chép kết luận rút gọn"
                         >
-                          <Copy size={16} />
+                          <Copy size={15} />
                         </button>
                         <label
-                          className="inline-flex items-center gap-1.5 ml-3 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
+                          className="inline-flex items-center gap-1.5 ml-3 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 border border-slate-700 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-slate-300 transition-colors"
                           title="Tick để đổi dòng ký bác sĩ thành Bác sĩ hội chẩn từ xa về tuổi xương"
                         >
                           <input
                             type="checkbox"
                             checked={isConsultation}
                             onChange={e => setIsConsultation(e.target.checked)}
-                            className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
+                            className="rounded border-slate-600 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 accent-teal-600 cursor-pointer"
                           />
                           <span>Hội chẩn</span>
                         </label>
                         <label
-                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
+                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 border border-slate-700 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-slate-300 transition-colors"
                           title="Tick để tạo báo cáo dạng Thư diễn giải gửi khách hàng"
                         >
                           <input
                             type="checkbox"
                             checked={isLetterMode}
                             onChange={e => setIsLetterMode(e.target.checked)}
-                            className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
+                            className="rounded border-slate-600 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 accent-teal-600 cursor-pointer"
                           />
                           <span>Tạo thư</span>
                         </label>
                         <label
-                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
+                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 border border-slate-700 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-slate-300 transition-colors"
                           title="Tick để ẩn Trang Phụ lục A và cụm Chi tiết ở Trang Phụ lục A ở trang 1"
                         >
                           <input
                             type="checkbox"
                             checked={isHideAppendix}
                             onChange={e => setIsHideAppendix(e.target.checked)}
-                            className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
+                            className="rounded border-slate-600 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 accent-teal-600 cursor-pointer"
                           />
                           <span>Ẩn Phụ lục</span>
                         </label>
                         <label
-                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-400/30 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-indigo-200 transition-colors"
+                          className="inline-flex items-center gap-1.5 ml-2 px-2.5 py-1 bg-slate-900/80 hover:bg-slate-900 border border-slate-700 rounded-md cursor-pointer align-middle select-none text-xs font-medium text-slate-300 transition-colors"
                           title="Tick để thêm chữ kí số của bác sĩ ở dưới dòng Phần mềm hỗ trợ"
                         >
                           <input
                             type="checkbox"
                             checked={isSigned}
                             onChange={e => setIsSigned(e.target.checked)}
-                            className="rounded border-indigo-400 text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5 accent-indigo-500 cursor-pointer"
+                            className="rounded border-slate-600 text-teal-600 focus:ring-teal-500 w-3.5 h-3.5 accent-teal-600 cursor-pointer"
                           />
                           <span>Kí số</span>
                         </label>
                       </div>
                       
-                      <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-indigo-500/20">
+                      <div className="flex flex-wrap items-center gap-2.5 mt-4 pt-4 border-t border-slate-700/80">
                         <button 
                           onClick={() => promptExportConfirm('docx')}
-                          className="flex items-center px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-blue-900/20"
+                          className="flex items-center px-4 py-2 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-100 text-sm font-medium rounded-lg transition-colors"
                         >
                           <FileType size={16} className="mr-2" /> Xuất Word
                         </button>
                         <button 
                           onClick={() => promptExportConfirm('pdf')}
                           disabled={isExportingPdf}
-                          className="flex items-center px-4 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-rose-900/20"
+                          className="flex items-center px-4 py-2 bg-teal-700 hover:bg-teal-600 border border-teal-600/80 disabled:opacity-60 text-white text-sm font-medium rounded-lg transition-colors"
                         >
                           <FileText size={16} className="mr-2" /> {isExportingPdf ? 'Đang xuất PDF...' : 'Xuất PDF'}
                         </button>
                         <button 
                           onClick={() => promptExportConfirm('reset')}
-                          className="flex items-center px-4 py-2.5 bg-zinc-600 hover:bg-zinc-500 text-white text-sm font-semibold rounded-xl transition-colors shadow-lg shadow-zinc-900/20 md:ml-auto"
+                          className="flex items-center px-4 py-2 bg-slate-900/80 hover:bg-slate-700 border border-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors md:ml-auto"
                         >
                           <RotateCcw size={16} className="mr-2" /> Reset ca nhập
                         </button>
@@ -5014,7 +4972,7 @@ export default function App() {
                 const devZ = getDeviationAndZScore();
                 if (devZ && devZ.zScores && devZ.zScores.length > 0) {
                   return (
-                    <div className="mt-6 p-4 md:p-6 bg-white border border-zinc-200 rounded-2xl shadow-sm">
+                    <div className="mt-4 p-4 md:p-6 bg-white border border-slate-200 rounded-xl shadow-sm">
                       <NormalDistributionChart zScores={devZ.zScores} />
                     </div>
                   );
@@ -5028,32 +4986,32 @@ export default function App() {
 
         {/* Patient Records Dashboard */}
         {isExpertMode && (
-          <section className="bg-zinc-800 p-4 sm:p-5 rounded-2xl border border-white/10 shadow-sm mt-8 space-y-4 overflow-hidden">
+          <section className="bg-slate-800/90 p-4 sm:p-5 rounded-xl border border-slate-700/80 mt-6 space-y-4 overflow-hidden">
             <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-              <h2 className="text-lg font-semibold text-white">Danh sách kết quả</h2>
+              <h2 className="text-base sm:text-lg font-semibold text-slate-100">Danh sách kết quả</h2>
               <div className="flex flex-wrap gap-2 w-full xl:w-auto">
                 <button
                   onClick={handleSavePatient}
-                  className="flex-1 xl:flex-none flex items-center justify-center px-3 sm:px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-emerald-900/10 min-w-0 sm:min-w-[140px]"
+                  className="flex-1 xl:flex-none flex items-center justify-center px-3.5 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white transition-colors text-sm font-medium min-w-0 sm:min-w-[130px]"
                 >
-                  <Copy size={16} className="inline sm:mr-1 -mt-0.5" /> <span className="hidden sm:inline">Lưu Case</span>
+                  <Copy size={15} className="inline sm:mr-1.5" /> <span className="hidden sm:inline">Lưu Case</span>
                 </button>
                 <button
                   onClick={handleExportRecords}
-                  className="flex-1 xl:flex-none flex items-center justify-center px-3 sm:px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition-colors text-sm font-semibold shadow-lg shadow-sky-900/10 min-w-0 sm:min-w-[140px]"
+                  className="flex-1 xl:flex-none flex items-center justify-center px-3.5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-100 transition-colors text-sm font-medium min-w-0 sm:min-w-[130px]"
                 >
-                  <Download size={16} className="inline sm:mr-1 -mt-0.5" /> <span className="hidden sm:inline">Sao lưu</span>
+                  <Download size={15} className="inline sm:mr-1.5" /> <span className="hidden sm:inline">Sao lưu</span>
                 </button>
-                <label className="flex-1 xl:flex-none flex items-center justify-center px-3 sm:px-4 py-2 rounded-xl bg-zinc-600 hover:bg-zinc-500 text-white transition-colors text-sm font-semibold shadow-lg cursor-pointer text-center min-w-0 sm:min-w-[140px]">
-                  <Upload size={16} className="inline sm:mr-1 -mt-0.5" /> <span className="hidden sm:inline">Khôi phục</span>
+                <label className="flex-1 xl:flex-none flex items-center justify-center px-3.5 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-colors text-sm font-medium cursor-pointer text-center min-w-0 sm:min-w-[130px]">
+                  <Upload size={15} className="inline sm:mr-1.5" /> <span className="hidden sm:inline">Khôi phục</span>
                   <input type="file" accept=".json" onChange={handleImportRecords} className="hidden" />
                 </label>
               </div>
             </div>
             
-            <div className="overflow-x-auto rounded-xl border border-white/10 bg-zinc-900/30">
-              <table className="w-full text-left text-sm text-zinc-300 min-w-[800px]">
-                <thead className="text-xs text-zinc-400 uppercase bg-zinc-900/80">
+            <div className="overflow-x-auto rounded-lg border border-slate-700/80 bg-slate-900/40">
+              <table className="w-full text-left text-sm text-slate-300 min-w-[800px]">
+                <thead className="text-xs text-slate-400 bg-slate-900/80 border-b border-slate-700/80">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Khám</th>
                     <th className="px-4 py-3 font-semibold">Tên & ID</th>
@@ -5065,33 +5023,33 @@ export default function App() {
                     <th className="px-4 py-3 font-semibold text-center">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5">
+                <tbody className="divide-y divide-slate-800">
                   {patientRecords.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-zinc-500 font-medium">
+                      <td colSpan={8} className="px-4 py-12 text-center text-slate-500 font-medium">
                         Chưa có ca bệnh lưu trữ.
                       </td>
                     </tr>
                   ) : (
                     patientRecords.map((record) => (
-                      <tr key={record.id} className="hover:bg-zinc-700/30 transition-colors group">
-                        <td className="px-4 py-3 whitespace-nowrap text-zinc-400">{record.examDate}</td>
+                      <tr key={record.id} className="hover:bg-slate-800/50 transition-colors group">
+                        <td className="px-4 py-3 whitespace-nowrap text-slate-400 tabular-nums">{record.examDate}</td>
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-white/90">{record.patientName || '-'}</div>
-                          <div className="text-[11px] text-zinc-500 tracking-wide font-mono mt-0.5">{record.patientId || '-'}</div>
+                          <div className="font-semibold text-slate-100">{record.patientName || '-'}</div>
+                          <div className="text-[11px] text-slate-500 tracking-wide font-mono tabular-nums mt-0.5">{record.patientId || '-'}</div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap tabular-nums">
+                          <span className="text-slate-200">{record.realAgeYears}y {record.realAgeMonths}m</span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className="text-white/80">{record.realAgeYears}y {record.realAgeMonths}m</span>
+                          <span className={record.gender === 'boy' ? 'text-sky-300' : 'text-rose-300'}>{record.gender === 'boy' ? 'Nam' : 'Nữ'}</span>
+                        </td>
+                        <td className="px-4 py-3"><span className="text-slate-400 max-w-[150px] truncate block" title={record.clinicalReason}>{record.clinicalReason}</span></td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {record.boneAge1 ? <span className="text-slate-200 text-xs font-mono tabular-nums">{record.boneAge1}</span> : '-'}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={record.gender === 'boy' ? 'text-blue-400' : 'text-pink-400'}>{record.gender === 'boy' ? 'Nam' : 'Nữ'}</span>
-                        </td>
-                        <td className="px-4 py-3"><span className="text-zinc-400 max-w-[150px] truncate block" title={record.clinicalReason}>{record.clinicalReason}</span></td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {record.boneAge1 ? <span className="bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-xs font-mono">{record.boneAge1}</span> : '-'}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          {record.boneAge2 ? <span className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-xs font-mono">{record.boneAge2}</span> : '-'}
+                          {record.boneAge2 ? <span className="text-teal-300 text-xs font-mono tabular-nums">{record.boneAge2}</span> : '-'}
                         </td>
                         <td className="px-4 py-3 text-center">
                           <button
@@ -5100,7 +5058,7 @@ export default function App() {
                                 handleDeleteRecord(record.id);
                               }
                             }}
-                            className="text-red-400 hover:text-red-300 hover:bg-red-400/10 p-1.5 rounded-lg transition-colors"
+                            className="text-slate-400 hover:text-rose-300 hover:bg-rose-950/40 p-1.5 rounded-md transition-colors"
                             title="Xoá ca này"
                           >
                             <X size={16} />
@@ -5120,10 +5078,10 @@ export default function App() {
 
       {/* Reference Section */}
       {isExpertMode && (
-        <section className="max-w-7xl mx-auto mt-8 border-t border-white/10 pt-6 px-4">
+        <section className="max-w-7xl mx-auto mt-8 border-t border-slate-800 pt-6 px-4">
           <button 
             onClick={() => setShowRef(!showRef)}
-            className="flex items-center justify-center w-full gap-2 text-zinc-400 hover:text-zinc-200 transition-colors text-sm font-medium"
+            className="flex items-center justify-center w-full gap-2 text-slate-400 hover:text-slate-200 transition-colors text-sm font-medium"
           >
             <ChevronDown size={16} className={`transition-transform ${showRef ? 'rotate-180' : ''}`} />
             Tài liệu tham khảo và Nguyên lí đánh giá
@@ -5137,7 +5095,7 @@ export default function App() {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="mt-4 p-4 bg-zinc-900/50 rounded-xl border border-white/5 space-y-3 text-xs md:text-sm text-zinc-400">
+                <div className="mt-4 p-4 bg-slate-800/60 rounded-xl border border-slate-700/70 space-y-3 text-xs md:text-sm text-slate-400">
                   <p>1. Bunch, P. M., Altes, T. A., McIlhenny, J., Patrie, J., & Gaskin, C. M. (2017). Skeletal development of the hand and wrist: digital bone age companion-a suitable alternative to the Greulich and Pyle atlas for bone age assessment?. Skeletal radiology, 46(6), 785–793.</p>
                   <p>2. Gilsanz V, Ratib O. Hand bone age a digital atlas of skeletal maturity. New York: Springer; 2011; Second Edition.</p>
                   <p>3. Martin, D. D., Wit, J. M., Hochberg, Z., Sävendahl, L., van Rijn, R. R., Fricke, O., Cameron, N., Caliebe, J., Hertel, T., Kiepe, D., Albertsson-Wikland, K., Thodberg, H. H., Binder, G., & Ranke, M. B. (2011). The use of bone age in clinical practice - part 1. Hormone research in paediatrics, 76(1), 1–9. https://doi.org/10.1159/000329372</p>
@@ -5145,7 +5103,7 @@ export default function App() {
                   <p>5. Zhang, Shao-Yan et al. “Automated determination of bone age in a modern chinese population.” ISRN radiology vol. 2013 874570. 25 Feb. 2013, doi:10.5402/2013/874570</p>
                   <p>6. Diméglio, Alain (2005). Accuracy of the Sauvegrain Method in Determining Skeletal Age During Puberty. The Journal of Bone and Joint Surgery (American), 87(8), 1689–. doi:10.2106/JBJS.D.02418</p>
 
-                  <div className="mt-6 space-y-3 text-[11px] md:text-xs text-zinc-500 pt-3 border-t border-white/5">
+                  <div className="mt-6 space-y-3 text-[11px] md:text-xs text-slate-500 pt-3 border-t border-slate-700/60">
                     <p><strong>Atlas tuổi xương của Gilsanz và Ratib ["rượu mới bình mới"]:</strong> Hình ảnh "lý tưởng hóa" (idealized images) tạo ra bằng kĩ thuật số; Dựa trên quần thể trẻ em người da trắng (Caucasian) khỏe mạnh trong bối cảnh hiện đại (đầu những năm 2000). Các trẻ được lựa chọn đều có chỉ số cân nặng bình thường và các giai đoạn phát triển dậy thì (Tanner stage) hoàn toàn bình thường.</p>
                     <p><strong>Atlas tuổi xương của Gaskin ["bình mới rượu cũ"]:</strong> Chỉnh sửa kỹ thuật số từng phần xương (digitally edited standards); Nhóm tác giả của Gaskin đã lấy dữ liệu từ các phim chụp X-quang kỹ thuật số (CR/DR) chất lượng cao của bệnh nhi thời hiện đại (trước 2011). Với tiêu chí kế thừa trực tiếp hệ thống phân loại của G&P, dữ liệu nền tảng của Gaskin vẫn dựa trên tiêu chuẩn cốt hoá của nghiên cứu Brush Foundation (tiến hành từ 1931-1942 trên gần 1.000 trẻ em da trắng, thuộc tầng lớp trung lưu tại Ohio, Mỹ).</p>
                   </div>
@@ -5157,39 +5115,39 @@ export default function App() {
       )}
 
       {showConfirmPopup && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-zinc-700/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-sm w-full relative">
-            <h3 className="text-xl font-bold text-white mb-6 text-center">Xác nhận thông tin</h3>
-            <div className="space-y-4 text-sm sm:text-base text-zinc-300">
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl shadow-xl max-w-sm w-full relative">
+            <h3 className="text-lg font-semibold text-slate-100 mb-5 text-center">Xác nhận thông tin</h3>
+            <div className="space-y-3 text-sm text-slate-300">
+              <div className="flex justify-between border-b border-slate-800 pb-2">
                 <span>Khách hàng:</span>
-                <span className="font-semibold text-white">{patientName || '-'}</span>
+                <span className="font-semibold text-slate-100">{patientName || '-'}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
+              <div className="flex justify-between border-b border-slate-800 pb-2">
                 <span>Mã KH:</span>
-                <span className="font-semibold text-white">{patientId || '-'}</span>
+                <span className="font-semibold text-slate-100 tabular-nums">{patientId || '-'}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
+              <div className="flex justify-between px-3 py-2 bg-slate-800/90 border border-slate-700/80 text-slate-100 rounded-lg">
                 <span>Giới tính:</span>
-                <span className="font-bold">{gender === 'boy' ? 'Nam' : 'Nữ'}</span>
+                <span className="font-semibold text-teal-300">{gender === 'boy' ? 'Nam' : 'Nữ'}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
+              <div className="flex justify-between border-b border-slate-800 pb-2">
                 <span>Ngày sinh:</span>
-                <span className="font-semibold text-white">{dob || '-'}</span>
+                <span className="font-semibold text-slate-100 tabular-nums">{dob || '-'}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2">
+              <div className="flex justify-between border-b border-slate-800 pb-2">
                 <span>Ngày chụp:</span>
-                <span className="font-semibold text-white">{xrayDate || '-'}</span>
+                <span className="font-semibold text-slate-100 tabular-nums">{xrayDate || '-'}</span>
               </div>
-              <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
+              <div className="flex justify-between px-3 py-2 bg-slate-800/90 border border-slate-700/80 text-slate-100 rounded-lg">
                 <span>Tuổi lúc chụp (CA):</span>
-                <span className="font-bold">{realAgeYears} tuổi {realAgeMonths} tháng</span>
+                <span className="font-semibold text-teal-300 tabular-nums">{realAgeYears} tuổi {realAgeMonths} tháng</span>
               </div>
             </div>
-            <div className="flex gap-3 mt-8">
+            <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowConfirmPopup(false)}
-                className="flex-1 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium transition-colors"
+                className="flex-1 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition-colors"
               >
                 Hủy
               </button>
@@ -5201,7 +5159,7 @@ export default function App() {
                     document.getElementById('atlas-target')?.scrollIntoView({ behavior: 'smooth' });
                   }, 200);
                 }}
-                className="flex-1 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors shadow-lg shadow-emerald-900/20"
+                className="flex-1 px-4 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-sm font-semibold transition-colors"
               >
                 Xác nhận
               </button>
@@ -5211,26 +5169,26 @@ export default function App() {
       )}
 
       {showExportConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-zinc-900 border border-zinc-700/50 p-6 md:p-8 rounded-3xl shadow-2xl max-w-sm sm:max-w-md w-full relative">
-            <h3 className="text-xl font-bold text-white mb-6 text-center">Xác nhận thao tác</h3>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="bg-slate-900 border border-slate-700 p-6 rounded-xl shadow-xl max-w-sm sm:max-w-md w-full relative">
+            <h3 className="text-lg font-semibold text-slate-100 mb-5 text-center">Xác nhận thao tác</h3>
             {exportAction === 'reset' ? (
-              <div className="text-center text-zinc-300 py-4">
+              <div className="text-center text-slate-300 text-sm py-3">
                 Bạn có chắc chắn muốn reset để tạo ca mới? Toàn bộ dữ liệu hiện tại sẽ bị xóa.
               </div>
             ) : (
-              <div className="space-y-4 text-sm sm:text-base text-zinc-300">
-                <div className="flex justify-between border-b border-zinc-800 pb-2">
+              <div className="space-y-3 text-sm text-slate-300">
+                <div className="flex justify-between border-b border-slate-800 pb-2">
                   <span>Khách hàng:</span>
-                  <span className="font-semibold text-white truncate max-w-[200px] text-right">{patientName || '-'}</span>
+                  <span className="font-semibold text-slate-100 truncate max-w-[200px] text-right">{patientName || '-'}</span>
                 </div>
-                <div className="flex justify-between border-b border-zinc-800 pb-2 mt-2 -mx-4 px-4 py-2 bg-yellow-500/10 text-yellow-300 rounded animate-pulse">
+                <div className="flex justify-between px-3 py-2 bg-slate-800/90 border border-slate-700/80 text-slate-100 rounded-lg">
                   <span>Tuổi lúc chụp (CA):</span>
-                  <span className="font-bold text-right">{realAgeYears} tuổi {realAgeMonths} tháng</span>
+                  <span className="font-semibold text-teal-300 text-right tabular-nums">{realAgeYears} tuổi {realAgeMonths} tháng</span>
                 </div>
-                <div className="border-b border-zinc-800 pb-2 flex flex-col space-y-1">
-                  <span className="text-zinc-500 text-sm">Kết luận rút gọn:</span>
-                  <span className="font-medium text-white break-words mt-1">
+                <div className="border-b border-slate-800 pb-2 flex flex-col space-y-1">
+                  <span className="text-slate-400 text-xs">Kết luận rút gọn:</span>
+                  <span className="font-medium text-slate-200 break-words mt-1 leading-relaxed">
                     {(() => {
                       const devZ = getDeviationAndZScore();
                       if (!devZ) return '-';
@@ -5252,22 +5210,22 @@ export default function App() {
                 </div>
               </div>
             )}
-            <div className="flex gap-3 mt-8">
+            <div className="flex gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowExportConfirm(false);
                   setExportAction(null);
                 }}
-                className="flex-1 px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white font-medium transition-colors"
+                className="flex-1 px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-sm font-medium transition-colors"
               >
                 Hủy
               </button>
               <button
                 onClick={handleConfirmExportAction}
-                className={`flex-[1.5] px-4 py-2.5 rounded-xl text-white font-bold transition-colors shadow-lg ${
-                  exportAction === 'docx' ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/20' :
-                  exportAction === 'pdf' ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/20' :
-                  'bg-zinc-600 hover:bg-zinc-500 shadow-zinc-900/20'
+                className={`flex-[1.5] px-4 py-2 rounded-lg text-white text-sm font-semibold transition-colors ${
+                  exportAction === 'docx' ? 'bg-slate-700 hover:bg-slate-600 border border-slate-600' :
+                  exportAction === 'pdf' ? 'bg-teal-700 hover:bg-teal-600' :
+                  'bg-rose-700 hover:bg-rose-600'
                 }`}
               >
                 {exportAction === 'docx' ? 'Xuất Word' :
@@ -5407,19 +5365,19 @@ export default function App() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-white/10 py-6 pb-12 mt-12 bg-black/20 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 text-center space-y-1 text-white/50 text-xs font-medium tracking-wide">
+      <footer className="border-t border-slate-800 py-6 pb-12 mt-12 bg-slate-950/40">
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-1 text-slate-500 text-xs font-medium tracking-wide">
           <p>
-            Bản quyền thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-white/70 transition-colors">BS. Đỗ Tiến Sơn</a> &copy; 2026
+            Bản quyền thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition-colors">BS. Đỗ Tiến Sơn</a> &copy; 2026
           </p>
           <p>Mọi quyền đều được bảo vệ</p>
         </div>
       </footer>
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-amber-500 text-white text-[10px] sm:text-xs font-semibold py-1 px-4 overflow-hidden flex items-center w-full shadow-[0_-2px_10px_rgba(0,0,0,0.1)]">
-  <div className="animate-marquee-mobile sm:w-full sm:text-center w-full">
-    KẾT QUẢ DO BÁC SĨ PHÂN TÍCH THỦ CÔNG - KHÔNG PHẢI SẢN PHẨM CỦA TRÍ TUỆ NHÂN TẠO (AI)
-  </div>
-</div>
+      <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 border-t border-slate-800 text-slate-400 text-[10px] sm:text-xs font-medium py-1.5 px-4 overflow-hidden flex items-center w-full">
+        <div className="animate-marquee-mobile sm:w-full sm:text-center w-full tracking-wide">
+          KẾT QUẢ DO BÁC SĨ PHÂN TÍCH THỦ CÔNG - KHÔNG PHẢI SẢN PHẨM CỦA TRÍ TUỆ NHÂN TẠO (AI)
+        </div>
+      </div>
     </div>
   );
 }
