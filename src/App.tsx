@@ -732,7 +732,7 @@ export default function App() {
     const day = now.getDate().toString().padStart(2, '0');
     const month = (now.getMonth() + 1).toString().padStart(2, '0');
     const year = now.getFullYear();
-    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} ProBA.json`;
+    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} TxgCal.json`;
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", fileName);
@@ -1094,7 +1094,7 @@ export default function App() {
       return {
         line1: 'Dr. Do Tien Son, MD, MSc, BA.',
         line2: `Verified at ${hh}:${mm}:${ss} ${dd}/${mo}/${yy} in Hanoi`,
-        line3: 'OmniProBA Expert version 2.1.9'
+        line3: 'TxgCal® Expert version 2.1.9'
       };
     };
 
@@ -2254,6 +2254,64 @@ export default function App() {
               page-break-inside: avoid;
               break-inside: avoid;
             }
+            .footer-bottom-row {
+              display: flex;
+              justify-content: space-between;
+              align-items: flex-end;
+              width: 100%;
+              margin-top: 1.6mm;
+            }
+            .pdf-brand-mark {
+              margin-left: auto;
+              text-align: left;
+              user-select: none;
+              padding-bottom: 0.5mm;
+            }
+            .pdf-brand-grid {
+              display: inline-flex;
+              flex-direction: column;
+              align-items: flex-start;
+            }
+            .pdf-brand-top-row {
+              display: inline-flex;
+              align-items: baseline;
+              gap: 6px;
+              line-height: 1.18;
+            }
+            .pdf-brand-main {
+              display: inline-block;
+              font-size: 28px;
+              font-weight: 800;
+              letter-spacing: -0.025em;
+              color: #059669;
+              line-height: 1.18;
+              white-space: nowrap;
+            }
+            .pdf-brand-by {
+              display: inline-block;
+              font-size: 13.5px;
+              letter-spacing: -0.015em;
+              line-height: 1.1;
+              white-space: nowrap;
+            }
+            .pdf-brand-by-word {
+              font-weight: 400;
+              color: #71717a;
+            }
+            .pdf-brand-dr-word {
+              font-weight: 700;
+              color: #3f3f46;
+            }
+            .pdf-brand-sub {
+              display: inline-block;
+              font-size: 12.6px;
+              font-weight: 400;
+              letter-spacing: -0.02em;
+              color: #71717a;
+              line-height: 1.25;
+              white-space: nowrap;
+              margin-top: 5px;
+            }
             /* Compact mode when many optional sections are active */
             .page-sheet.compact-fit {
               line-height: 1.26;
@@ -2374,16 +2432,24 @@ export default function App() {
                 <div class="mb-1" style="text-align: justify; font-style: italic; font-size: 8.6pt; color: #333;">Lưu ý: Kết quả trên do bác sĩ lâm sàng trực tiếp đánh giá và có thể có sai số nhất định tuỳ thuộc vào người phiên giải cũng như hệ thống tham chiếu được áp dụng. Tuổi xương mang giá trị tham khảo và cần được biện luận kết hợp với diễn tiến lâm sàng của từng bệnh nhân cụ thể.</div>
                 <div class="font-bold" style="font-size: 9.8pt; margin-top: 1mm; text-align: justify;">${doctorSigParts.prefix}</div>
                 <div style="font-size: 8.6pt; font-style: italic; font-weight: normal; margin-top: 0.4mm; text-align: left; white-space: nowrap; color: #222;">${clinicalReferenceNote}</div>
-                ${isSigned && sigDataUrl ? `
-                  <div class="sig-block" style="margin-top: 1.6mm; text-align: left;">
-                    <div style="display: inline-flex; flex-direction: column; align-items: center; text-align: center;">
-                      <img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="display: block; height: 14mm; width: auto; object-fit: contain; margin-bottom: 0.4mm;" />
-                      <div style="font-size: 7.4pt; line-height: 1.15; font-weight: 700; color: #222;">${sigVerify.line1}</div>
-                      <div style="font-size: 7pt; line-height: 1.15; font-style: italic; color: #444;">${sigVerify.line2}</div>
-                      <div style="font-size: 7pt; line-height: 1.15; font-style: italic; color: #444;">${sigVerify.line3}</div>
+                <div class="footer-bottom-row">
+                  ${isSigned && sigDataUrl ? `
+                    <div class="sig-block" style="text-align: left;">
+                      <div style="display: inline-flex; flex-direction: column; align-items: center; text-align: center;">
+                        <img src="${sigDataUrl}" alt="Chữ kí bác sĩ" class="sig-img" style="display: block; height: 14mm; width: auto; object-fit: contain; margin-bottom: 0.4mm;" />
+                        <div style="font-size: 7.4pt; line-height: 1.15; font-weight: 700; color: #222;">${sigVerify.line1}</div>
+                        <div style="font-size: 7pt; line-height: 1.15; font-style: italic; color: #444;">${sigVerify.line2}</div>
+                        <div style="font-size: 7pt; line-height: 1.15; font-style: italic; color: #444;">${sigVerify.line3}</div>
+                      </div>
+                    </div>
+                  ` : '<div></div>'}
+                  <div class="pdf-brand-mark">
+                    <div class="pdf-brand-grid">
+                      <span class="pdf-brand-main">TxgCal<sup style="font-size: 0.38em; font-weight: 600; vertical-align: super; margin-left: 1px;">®</sup></span>
+                      <span class="pdf-brand-sub">Txg = Tuổi Xương</span>
                     </div>
                   </div>
-                ` : ''}
+                </div>
               </div>
             </div>
           </div>
@@ -2482,6 +2548,48 @@ export default function App() {
             sheet.classList.add('compact-fit');
           }
         });
+
+        // Dynamically scale Page 1 bottom-right brand wordmark based on Page 1 content density
+        if (sheets.length > 0) {
+          const page1 = sheets[0];
+          const mainEl = page1.querySelector('.pdf-brand-main') as HTMLElement | null;
+          const subEl = page1.querySelector('.pdf-brand-sub') as HTMLElement | null;
+
+          const fitPdfBrandSizes = (mainFontSize: number) => {
+            if (!mainEl || !subEl) return;
+            mainEl.style.fontSize = `${mainFontSize}px`;
+            subEl.style.marginTop = `${Math.max(4, Math.round(mainFontSize * 0.16))}px`;
+
+            const initialSubSize = mainFontSize * 0.45;
+            subEl.style.fontSize = `${initialSubSize}px`;
+
+            const mainWidth = mainEl.getBoundingClientRect().width;
+            const subWidth = subEl.getBoundingClientRect().width;
+            if (mainWidth > 0 && subWidth > 0) {
+              const matchedSubSize = initialSubSize * (mainWidth / subWidth);
+              subEl.style.fontSize = `${matchedSubSize.toFixed(2)}px`;
+            }
+          };
+
+          if (mainEl && subEl) {
+            const isCompact = page1.classList.contains('compact-fit');
+            const h1 = page1.scrollHeight;
+            const sparePx = Math.max(0, 1105 - h1);
+
+            let mainFontSize = 23;
+            if (!isCompact) {
+              const tRatio = Math.min(1, Math.max(0, (sparePx - 20) / 240));
+              mainFontSize = Math.round(25 + tRatio * 17); // 25px (dense) -> 42px (spacious)
+            }
+
+            fitPdfBrandSizes(mainFontSize);
+
+            // Re-check if scaling pushed page1 over 1105px when unsigned
+            if (!isCompact && page1.scrollHeight > 1105) {
+              fitPdfBrandSizes(24);
+            }
+          }
+        }
 
         const pdf = new jsPDF({
           orientation: 'portrait',
@@ -3133,7 +3241,7 @@ export default function App() {
   };
 
   const t = {
-    title: 'DualGP Dr. Son 2.0',
+    title: 'TxgCal®',
     realAge: 'Tuổi thực',
     finalBoneAge: 'Tuổi xương kết luận',
     years: 'Năm',
@@ -3243,14 +3351,44 @@ export default function App() {
 
   const isStacked = isMobile || isPortrait;
 
+  const syncBrandWordmarkNode = (container: HTMLElement | null) => {
+    if (!container) return;
+    const applyFit = () => {
+      const mainEl = container.querySelector('[data-brand-main]') as HTMLElement | null;
+      const subEl = container.querySelector('[data-brand-sub]') as HTMLElement | null;
+      if (!mainEl || !subEl) return;
+      const mainWidth = mainEl.getBoundingClientRect().width;
+      if (mainWidth <= 0) return;
+      const computedMainSize = parseFloat(window.getComputedStyle(mainEl).fontSize) || 28;
+      const baseSubSize = computedMainSize * 0.45;
+      subEl.style.fontSize = `${baseSubSize}px`;
+      const subWidth = subEl.getBoundingClientRect().width;
+      if (subWidth > 0) {
+        const matchedSize = baseSubSize * (mainWidth / subWidth);
+        subEl.style.fontSize = `${matchedSize.toFixed(2)}px`;
+      }
+    };
+    applyFit();
+    requestAnimationFrame(applyFit);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(applyFit).catch(() => {});
+    }
+  };
+
   return (
     <div className={`min-h-screen transition-colors duration-500 font-sans selection:bg-emerald-500/30 ${gender === 'boy' ? 'bg-blue-900' : 'bg-pink-900'}`}>
       {!isAuthenticated && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-white/60 backdrop-blur-xl">
           <div className="bg-white p-8 rounded-3xl shadow-2xl border border-zinc-100 max-w-md w-full mx-4 space-y-6">
             <div className="text-center flex flex-col items-center">
-              <img src="/logo.png" alt="Logo" className="h-24 sm:h-32 w-auto object-contain mb-1" onError={(e) => e.currentTarget.style.display = 'none'} />
-              <p className="text-zinc-500 text-sm mt-2">Vui lòng đăng nhập để sử dụng ứng dụng</p>
+              <div ref={syncBrandWordmarkNode} className="inline-flex flex-col items-start text-left">
+                <span data-brand-main className="inline-block text-[38px] sm:text-[44px] font-extrabold tracking-tight text-emerald-600 leading-[1.15]">
+                  TxgCal<sup className="text-[0.38em] font-semibold align-super ml-[1px]">®</sup>
+                </span>
+                <span data-brand-sub className="inline-block text-[17px] sm:text-[19.8px] font-normal tracking-tight text-zinc-500 leading-tight whitespace-nowrap mt-1">
+                  Txg = Tuổi Xương
+                </span>
+              </div>
             </div>
             
             <div className="flex p-1 bg-zinc-100 rounded-xl border border-zinc-200 mb-6">
@@ -3295,19 +3433,23 @@ export default function App() {
 
       {/* Header */}
       <header className="border-b border-zinc-200 bg-white/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-0 flex items-center justify-between w-full">
+        <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
-            <div className="flex flex-col">
-              <h1 className="text-lg font-bold tracking-tight text-emerald-600 flex items-center">
-                <img src="/logo.png" alt="Logo" className="h-auto w-auto max-h-12 sm:max-h-16 max-w-[65vw] sm:max-w-[300px] mr-2 object-contain py-1" onError={(e) => { e.currentTarget.style.display = 'none'; if (e.currentTarget.nextElementSibling) e.currentTarget.nextElementSibling.classList.remove('hidden'); }} />
-                <Dog size={32} className="mr-2 hidden" />
+            <h1 ref={syncBrandWordmarkNode} className="inline-flex flex-col items-start">
+              <div className="inline-flex items-center gap-2 leading-[1.15]">
+                <span data-brand-main className="inline-block text-[26px] sm:text-[30px] font-extrabold tracking-tight text-emerald-600 leading-[1.15]">
+                  TxgCal<sup className="text-[0.38em] font-semibold align-super ml-[1px]">®</sup>
+                </span>
                 {isAuthenticated && (
-                  <span className={`hidden sm:inline-block ml-2 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                  <span className={`hidden sm:inline-block px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExpertMode ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
                     {isExpertMode ? 'PRO' : 'LITE'}
                   </span>
                 )}
-              </h1>
-            </div>
+              </div>
+              <span data-brand-sub className="inline-block text-[11.8px] sm:text-[13.6px] font-normal tracking-tight text-zinc-500 leading-tight whitespace-nowrap mt-0.5">
+                Txg = Tuổi Xương
+              </span>
+            </h1>
           </div>
           <div className="flex gap-2">
             {isAuthenticated && (
