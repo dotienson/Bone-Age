@@ -1,27 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="20" fill="#E8F4F8"/>
-  <g transform="translate(10, 15)">
-    <!-- Ears -->
-    <path d="M 20 40 Q 5 20 15 5 Q 30 -5 35 25" fill="#8B5A2B"/>
-    <path d="M 60 40 Q 75 20 65 5 Q 50 -5 45 25" fill="#8B5A2B"/>
-    
-    <!-- Face base -->
-    <ellipse cx="40" cy="45" rx="35" ry="30" fill="#D2B48C"/>
-    
-    <!-- Snout area -->
-    <ellipse cx="40" cy="55" rx="20" ry="15" fill="#FFF8DC"/>
-    
-    <!-- Nose -->
-    <ellipse cx="40" cy="50" rx="8" ry="5" fill="#3E2723"/>
-    
-    <!-- Eyes -->
-    <circle cx="25" cy="35" r="4" fill="#3E2723"/>
-    <circle cx="55" cy="35" r="4" fill="#3E2723"/>
-    
-    <!-- Mouth -->
-    <path d="M 35 55 Q 40 60 45 55" fill="none" stroke="#3E2723" stroke-width="2" stroke-linecap="round"/>
-    
-    <!-- Tongue -->
-    <path d="M 37 57 Q 40 67 43 57" fill="#FF7F50"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="96" fill="#ffffff" />
+  <rect x="6" y="6" width="500" height="500" rx="90" fill="none" stroke="#e2e8f0" stroke-width="6" />
+  <text
+    x="256"
+    y="238"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans Display', 'Noto Sans', Helvetica, Arial, sans-serif"
+    font-size="110"
+    font-weight="800"
+    letter-spacing="-2"
+    fill="#0f766e"
+  >TxgCalc</text>
+  <text
+    x="256"
+    y="344"
+    text-anchor="middle"
+    font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans Display', 'Noto Sans', Helvetica, Arial, sans-serif"
+    font-size="58"
+    font-weight="500"
+    letter-spacing="1.5"
+    fill="#64748b"
+  >by Dr. Son</text>
 </svg>
