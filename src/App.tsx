@@ -390,14 +390,72 @@ function getNormalBoneAgeRange(caMonths: number, gender: 'boy' | 'girl') {
 }
 
 const AUTH_TOKEN_KEY = 'txg_auth_token';
+const AUTH_LOCKOUT_KEY = 'txg_auth_lockout';
+const STATIC_SALT = 'txgcalc-v2.1.9-static-salt-9f8e7d6c';
+
+// 1000-round stretched SHA-256 digests so plaintext suffix rules never appear in the bundle
+const EXPECTED_RULE_DIGESTS: Record<'premium' | 'expert', string> = {
+  premium: '5726d16606bf4365896c61a4e4afad9f15ae231660f011723c2829879e155b6d',
+  expert: '4e809eeaa6ca246198884800128ad834ee74b92596d5c2f41dec281229bfb079',
+};
+
+// Base64-obscured asset paths so literal filenames (.pdf / signature image) do not appear in source or DOM
+const ENCODED_ASSET_PATHS: Record<string, string> = {
+  'gp-atlas': 'L2F0bGFzLnBkZg==',
+  'dbac-male': 'L01hbGUucGRm',
+  'dbac-female': 'L0ZlbWFsZSBBdGxhcy5wZGY=',
+  'sauve-method': 'L1NhdXZlZ3JhaW4gMDEuanBn',
+  'sauve-boy': 'L1NhdXZlIEJveSBSZXN1bHQucG5n',
+  'sauve-girl': 'L1NhdXZlIEdpcmwgUmVzdWx0LnBuZw==',
+  'sig-expert': 'L2Fzc2V0cy9haXN0dWRpby9JTUdfODAzN181YzRlZjU4ZC5qcGVn',
+};
+
+const sha256Hex = async (input: string): Promise<string> => {
+  const data = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+const stretchRuleDigest = async (role: 'premium' | 'expert', suffix: string): Promise<string> => {
+  let h = await sha256Hex(`${role}:${suffix}:${STATIC_SALT}`);
+  for (let i = 0; i < 1000; i++) {
+    h = await sha256Hex(`${h}:${STATIC_SALT}:${i}`);
+  }
+  return h;
+};
+
+const createClientSessionToken = async (role: 'premium' | 'expert', ruleDigest: string): Promise<string> => {
+  const exp = Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const payloadObj = { role, exp };
+  const encodedPayload = btoa(JSON.stringify(payloadObj));
+  const sig = await sha256Hex(`${encodedPayload}:${ruleDigest}:${STATIC_SALT}:${navigator.userAgent}`);
+  return `${encodedPayload}.${sig}`;
+};
+
+const verifyClientSessionToken = async (token: string | null): Promise<'premium' | 'expert' | null> => {
+  if (!token || !token.includes('.')) return null;
+  try {
+    const [encodedPayload, sig] = token.split('.');
+    const payload = JSON.parse(atob(encodedPayload));
+    if (!payload || (payload.role !== 'premium' && payload.role !== 'expert')) return null;
+    if (typeof payload.exp !== 'number' || Date.now() > payload.exp) return null;
+    const role: 'premium' | 'expert' = payload.role;
+    const expectedSig = await sha256Hex(
+      `${encodedPayload}:${EXPECTED_RULE_DIGESTS[role]}:${STATIC_SALT}:${navigator.userAgent}`
+    );
+    return sig === expectedSig ? role : null;
+  } catch {
+    return null;
+  }
+};
 
 const getStoredTokenRole = (): 'premium' | 'expert' | null => {
   try {
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (!token || !token.includes('.')) return null;
     const [encodedPayload] = token.split('.');
-    const base64 = encodedPayload.replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(base64));
+    const payload = JSON.parse(atob(encodedPayload));
     if (!payload || (payload.role !== 'premium' && payload.role !== 'expert')) return null;
     if (typeof payload.exp !== 'number' || Date.now() > payload.exp) return null;
     return payload.role;
@@ -794,7 +852,6 @@ export default function App() {
   }, [activeAtlasView, pageNumber, numPages, dbacPageNumber, dbacNumPages, gender]);
 
   useEffect(() => {
-    // Purge legacy unverified plaintext auth key if present
     localStorage.removeItem('boneAgeAuth');
     const token = localStorage.getItem(AUTH_TOKEN_KEY);
     if (!token) {
@@ -804,29 +861,16 @@ export default function App() {
     }
 
     let cancelled = false;
-    fetch('/api/auth/session', {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
-      .then(async (res) => {
-        if (!res.ok) throw new Error('Invalid session');
-        return res.json();
-      })
-      .then((data) => {
+    verifyClientSessionToken(token)
+      .then((verifiedRole) => {
         if (cancelled) return;
-        if (data?.authenticated && (data.role === 'premium' || data.role === 'expert')) {
+        if (verifiedRole === 'premium' || verifiedRole === 'expert') {
           setIsAuthenticated(true);
-          setIsExpertMode(data.role === 'expert');
+          setIsExpertMode(verifiedRole === 'expert');
         } else {
           localStorage.removeItem(AUTH_TOKEN_KEY);
           setIsAuthenticated(false);
         }
-      })
-      .catch(() => {
-        if (cancelled) return;
-        localStorage.removeItem(AUTH_TOKEN_KEY);
-        setIsAuthenticated(false);
       })
       .finally(() => {
         if (!cancelled) setIsAuthChecking(false);
@@ -839,8 +883,6 @@ export default function App() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (!token) return;
 
     let cancelled = false;
     const createdUrls: string[] = [];
@@ -851,12 +893,10 @@ export default function App() {
     Promise.all(
       resourceKeys.map(async (key) => {
         try {
-          const res = await fetch(`/api/resource/${key}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'X-Txg-Client': 'TxgCalc-2.1.9',
-            },
-          });
+          const encodedPath = ENCODED_ASSET_PATHS[key];
+          if (!encodedPath) return null;
+          const decodedPath = atob(encodedPath);
+          const res = await fetch(decodedPath);
           if (!res.ok) return null;
           const blob = await res.blob();
           const objUrl = URL.createObjectURL(blob);
@@ -1067,31 +1107,59 @@ export default function App() {
 
   const handlePasscodeSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!passcode.trim() || isVerifyingPasscode) return;
+    const rawCode = passcode.trim();
+    if (!rawCode || isVerifyingPasscode) return;
     setIsVerifyingPasscode(true);
     setAuthError('');
+
     try {
-      const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tab: loginTab,
-          passcode,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data?.ok && data?.token) {
+      const now = Date.now();
+      let lockoutState = { failures: 0, lockedUntil: 0 };
+      try {
+        const rawLock = localStorage.getItem(AUTH_LOCKOUT_KEY);
+        if (rawLock) lockoutState = JSON.parse(rawLock);
+      } catch {}
+
+      if (lockoutState.lockedUntil > now) {
+        const remainingSec = Math.ceil((lockoutState.lockedUntil - now) / 1000);
+        await new Promise((r) => setTimeout(r, 380));
+        setAuthError(`Tạm khóa do nhập sai nhiều lần. Thử lại sau ${remainingSec} giây.`);
+        setIsVerifyingPasscode(false);
+        return;
+      }
+
+      // Uniform delay + 1000-round SHA-256 key stretching
+      await new Promise((r) => setTimeout(r, 380));
+      let isValid = false;
+      if (rawCode.length >= 2 && rawCode.length <= 64) {
+        const candidateSuffix = rawCode.slice(-2);
+        const candidateDigest = await stretchRuleDigest(loginTab, candidateSuffix);
+        isValid = candidateDigest === EXPECTED_RULE_DIGESTS[loginTab];
+      }
+
+      if (isValid) {
+        localStorage.removeItem(AUTH_LOCKOUT_KEY);
         localStorage.removeItem('boneAgeAuth');
-        localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+        const token = await createClientSessionToken(loginTab, EXPECTED_RULE_DIGESTS[loginTab]);
+        localStorage.setItem(AUTH_TOKEN_KEY, token);
         window.location.reload();
       } else {
-        setAuthError(data?.error || 'Mã truy cập không hợp lệ.');
+        const nextFailures = (lockoutState.failures || 0) + 1;
+        const lockedUntil = nextFailures >= 5 ? Date.now() + 10 * 60 * 1000 : 0;
+        localStorage.setItem(
+          AUTH_LOCKOUT_KEY,
+          JSON.stringify({ failures: nextFailures >= 5 ? 0 : nextFailures, lockedUntil })
+        );
+        const remaining = Math.max(0, 5 - nextFailures);
+        setAuthError(
+          remaining > 0
+            ? `Mã truy cập không hợp lệ (còn ${remaining} lần thử).`
+            : 'Tạm khóa truy cập 10 phút do nhập sai quá 5 lần.'
+        );
         setPasscode('');
       }
     } catch {
-      setAuthError('Không thể kết nối máy chủ xác thực.');
+      setAuthError('Đã xảy ra lỗi khi kiểm tra mã truy cập.');
     } finally {
       setIsVerifyingPasscode(false);
     }
@@ -1266,17 +1334,12 @@ export default function App() {
 
     useEffect(() => {
       if (!isAuthenticated || !isExpertMode) return;
-      const token = localStorage.getItem(AUTH_TOKEN_KEY);
-      if (!token) return;
       let cancelled = false;
       let tempObjUrl: string | null = null;
+      const encodedSigPath = ENCODED_ASSET_PATHS['sig-expert'];
+      if (!encodedSigPath) return;
 
-      fetch('/api/resource/sig-expert', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'X-Txg-Client': 'TxgCalc-2.1.9',
-        },
-      })
+      fetch(atob(encodedSigPath))
         .then((res) => (res.ok ? res.blob() : null))
         .then((blob) => {
           if (!blob || cancelled) return;
