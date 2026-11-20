@@ -3,22 +3,12 @@
   <rect x="6" y="6" width="500" height="500" rx="90" fill="none" stroke="#e2e8f0" stroke-width="6" />
   <text
     x="256"
-    y="238"
+    y="312"
     text-anchor="middle"
     font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans Display', 'Noto Sans', Helvetica, Arial, sans-serif"
-    font-size="110"
+    font-size="224"
     font-weight="800"
-    letter-spacing="-2"
+    letter-spacing="-6"
     fill="#0f766e"
-  >TxgCalc</text>
-  <text
-    x="256"
-    y="344"
-    text-anchor="middle"
-    font-family="system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans Display', 'Noto Sans', Helvetica, Arial, sans-serif"
-    font-size="58"
-    font-weight="500"
-    letter-spacing="1.5"
-    fill="#64748b"
-  >by Dr. Son</text>
+  >Txg</text>
 </svg>
