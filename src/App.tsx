@@ -4442,6 +4442,8 @@ export default function App() {
                     yesCount: number;
                     maybeCount: number;
                     noCount: number;
+                    checkedCount: number;
+                    uncheckedCount: number;
                     totalFeatures: number;
                     achievedPoints: number;
                     ratio: number;
@@ -4458,7 +4460,9 @@ export default function App() {
                     const maybeOnly = items.filter(x => x.val === 'maybe').length;
                     const noOnly = items.filter(x => x.val === 'no').length;
                     const yesCount = yesOnly + maybeOnly;
+                    const checkedCount = items.length;
                     const totalCount = milestone.features.length;
+                    const uncheckedCount = Math.max(0, totalCount - checkedCount);
                     summaryParts.push(`${yesCount}/${totalCount} tiêu chuẩn mốc ${milestone.label}`);
 
                     const achievedPoints = items.reduce((acc, item) => {
@@ -4474,6 +4478,8 @@ export default function App() {
                       yesCount,
                       maybeCount: maybeOnly,
                       noCount: noOnly,
+                      checkedCount,
+                      uncheckedCount,
                       totalFeatures: totalCount,
                       achievedPoints,
                       ratio,
@@ -4483,76 +4489,197 @@ export default function App() {
 
                   const summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
 
-                  // Unweighted Gaskin bone age estimation based purely on yes/maybe/no feature ratios
+                  // 1. Clinical Logic & Biological Monotonicity Validation
+                  interface LogicWarning {
+                    severity: 'high' | 'medium';
+                    title: string;
+                    detail: string;
+                    targetMilestoneIdx?: number;
+                    targetMilestoneLabel?: string;
+                  }
+                  const logicWarnings: LogicWarning[] = [];
+
+                  for (let i = 0; i < mStats.length; i++) {
+                    const earlier = mStats[i];
+                    for (let j = i + 1; j < mStats.length; j++) {
+                      const later = mStats[j];
+                      // Rule A: Prior milestone < 50% while later milestone > 30%
+                      if (earlier.ratio < 0.5 && later.ratio > 0.3) {
+                        const incompleteNote =
+                          earlier.uncheckedCount > 0
+                            ? ` (Mốc ${earlier.label} còn ${earlier.uncheckedCount}/${earlier.totalFeatures} tiêu chuẩn chưa chấm — có thể làm tỷ lệ mốc trước bị thấp giả tạo).`
+                            : ' — cần kiểm tra lại dấu hiệu đã chọn hoặc lưu ý tình trạng cốt hoá phân ly/không đồng bộ giữa các nhóm xương.';
+                        logicWarnings.push({
+                          severity: 'high',
+                          title: `Bất tương xứng trình tự cốt hoá (${earlier.label} → ${later.label})`,
+                          detail: `Mốc trước (${earlier.label}) chỉ đạt ${earlier.percent}% (<50%) nhưng mốc sau (${later.label}) lại đạt ${later.percent}% (>30%)${incompleteNote}`,
+                          targetMilestoneIdx: earlier.uncheckedCount > 0 ? earlier.mIdx : undefined,
+                          targetMilestoneLabel: earlier.uncheckedCount > 0 ? earlier.label : undefined,
+                        });
+                      } else if (later.ratio > earlier.ratio + 0.1) {
+                        // Rule B: Later milestone has higher completion percentage than earlier milestone
+                        logicWarnings.push({
+                          severity: 'medium',
+                          title: `Đảo ngược tỷ lệ hoàn thành mốc (${earlier.label} → ${later.label})`,
+                          detail: `Mốc sau (${later.label} đạt ${later.percent}%) có tỷ lệ tiêu chuẩn cao hơn mốc trước (${earlier.label} đạt ${earlier.percent}%). Thuật toán đã tự động trích điểm mốc sau để bù thiếu hụt cho mốc trước.`,
+                          targetMilestoneIdx: earlier.uncheckedCount > 0 ? earlier.mIdx : undefined,
+                          targetMilestoneLabel: earlier.uncheckedCount > 0 ? earlier.label : undefined,
+                        });
+                      }
+                    }
+
+                    // Rule C: Skipped intermediate milestone between two adjacent evaluated milestones
+                    if (i < mStats.length - 1) {
+                      const nextEval = mStats[i + 1];
+                      if (nextEval.mIdx - earlier.mIdx > 1 && earlier.ratio < 0.9 && nextEval.ratio > 0) {
+                        const skippedM = currentDbacData[earlier.mIdx + 1];
+                        if (skippedM) {
+                          logicWarnings.push({
+                            severity: 'medium',
+                            title: `Bỏ qua mốc trung gian (${skippedM.label})`,
+                            detail: `Đang chấm mốc ${earlier.label} và mốc ${nextEval.label} nhưng bỏ qua mốc ${skippedM.label} ở giữa. Nên kiểm tra thêm mốc ${skippedM.label} để nội suy chính xác hơn.`,
+                            targetMilestoneIdx: earlier.mIdx + 1,
+                            targetMilestoneLabel: skippedM.label,
+                          });
+                        }
+                      }
+                    }
+                  }
+
+                  // 2. Sequential Prerequisite-Gated & Deficit-Compensated Bone Age Estimation
+                  // Ensures that when neither prior nor later milestones are 100% complete,
+                  // positive signs at later milestones first compensate for the deficit of earlier milestones
+                  // (dampened by a prerequisite gate weight) before advancing bone age past the earlier milestone.
                   let estimatedAgeMonths: number | null = null;
                   let explanationText = '';
+                  const gateWeights: Record<number, number> = {};
 
                   if (mStats.length === 1) {
                     const s = mStats[0];
+                    gateWeights[s.mIdx] = 1.0;
+                    const prevAge = s.mIdx > 0 ? currentDbacData[s.mIdx - 1].ageMonths : 0;
+                    const prevLabel = s.mIdx > 0 ? currentDbacData[s.mIdx - 1].label : '0 tháng';
+
                     if (s.ratio >= 0.85) {
                       estimatedAgeMonths = s.ageMonths;
                       explanationText = `Đạt ${s.percent}% tiêu chuẩn tại mốc ${s.label}. Phù hợp với tuổi xương mốc ${s.label}.`;
                     } else if (s.ratio >= 0.4) {
                       if (s.mIdx > 0) {
-                        const prevM = currentDbacData[s.mIdx - 1];
-                        const span = s.ageMonths - prevM.ageMonths;
-                        estimatedAgeMonths = Math.round(prevM.ageMonths + s.ratio * span);
-                        explanationText = `Đạt một phần (${s.percent}%) tiêu chuẩn tại mốc ${s.label}. Nội suy giữa mốc ${prevM.label} và ${s.label}.`;
+                        const span = s.ageMonths - prevAge;
+                        estimatedAgeMonths = Math.round(prevAge + s.ratio * span);
+                        explanationText = `Đạt một phần (${s.percent}%) tiêu chuẩn tại mốc ${s.label}. Nội suy giữa mốc ${prevLabel} và ${s.label}.`;
                       } else {
-                        estimatedAgeMonths = Math.round(s.ageMonths * s.ratio);
+                        estimatedAgeMonths = Math.max(1, Math.round(s.ageMonths * s.ratio));
                         explanationText = `Đạt ${s.percent}% tiêu chuẩn tại mốc đầu tiên (${s.label}).`;
                       }
                     } else {
                       if (s.mIdx > 0) {
-                        const prevM = currentDbacData[s.mIdx - 1];
-                        const span = s.ageMonths - prevM.ageMonths;
-                        estimatedAgeMonths = Math.round(prevM.ageMonths + s.ratio * span * 0.8);
-                        explanationText = `Chỉ đạt ${s.percent}% tiêu chuẩn tại mốc ${s.label}. Tuổi xương nghiêng về mốc thấp hơn (${prevM.label}) — khuyến nghị kiểm tra thêm mốc ${prevM.label}.`;
+                        const span = s.ageMonths - prevAge;
+                        estimatedAgeMonths = Math.round(prevAge + s.ratio * span * 0.85);
+                        explanationText = `Chỉ đạt ${s.percent}% tiêu chuẩn tại mốc ${s.label}. Tuổi xương nghiêng về mốc thấp hơn (${prevLabel}) — khuyến nghị kiểm tra thêm mốc ${prevLabel}.`;
                       } else {
-                        estimatedAgeMonths = Math.max(1, Math.round(s.ageMonths * s.ratio));
+                        estimatedAgeMonths = Math.max(1, Math.round(s.ageMonths * Math.max(0.25, s.ratio)));
                         explanationText = `Chỉ đạt ${s.percent}% tiêu chuẩn tại mốc ${s.label}. Tuổi xương thấp hơn mốc ${s.label}.`;
                       }
                     }
                   } else if (mStats.length > 1) {
-                    const passedMilestones = mStats.filter(s => s.ratio >= 0.7);
-                    const highestPassed = passedMilestones.length > 0 ? passedMilestones[passedMilestones.length - 1] : null;
-                    const higherPartial = mStats.filter(s => (highestPassed ? s.mIdx > highestPassed.mIdx : true) && s.ratio < 0.7);
-                    const nextPartial = higherPartial.length > 0 ? higherPartial[0] : null;
+                    const totalSignal = mStats.reduce((acc, s) => acc + s.ratio, 0);
+                    const first = mStats[0];
+                    const basePrevAge = first.mIdx > 0 ? currentDbacData[first.mIdx - 1].ageMonths : 0;
+                    const basePrevLabel = first.mIdx > 0 ? currentDbacData[first.mIdx - 1].label : '0 tháng';
 
-                    if (highestPassed && nextPartial) {
-                      const span = nextPartial.ageMonths - highestPassed.ageMonths;
-                      const boostFromHighest = ((highestPassed.ratio - 0.7) / 0.3) * 0.25;
-                      const contributionFromNext = (nextPartial.ratio / 0.7) * 0.75;
-                      const blend = Math.min(0.95, Math.max(0.05, boostFromHighest + contributionFromNext));
-                      estimatedAgeMonths = Math.round(highestPassed.ageMonths + blend * span);
-                      explanationText = `Đạt tốt mốc ${highestPassed.label} (${highestPassed.percent}%) và đạt một phần mốc ${nextPartial.label} (${nextPartial.percent}%). Nội suy tuyến tính giữa hai mốc.`;
-                    } else if (highestPassed && !nextPartial) {
-                      estimatedAgeMonths = highestPassed.ageMonths;
-                      explanationText = `Đạt ${highestPassed.percent}% tiêu chuẩn tại mốc cao nhất đã chấm (${highestPassed.label}).`;
-                    } else {
-                      const lowestEval = mStats[0];
-                      const totalRatio = mStats.reduce((acc, s) => acc + s.ratio, 0);
-                      if (totalRatio > 0) {
-                        const weightedCenter = mStats.reduce((acc, s) => acc + s.ageMonths * s.ratio, 0) / totalRatio;
-                        if (lowestEval.mIdx > 0) {
-                          const prevM = currentDbacData[lowestEval.mIdx - 1];
-                          const maxRatio = Math.max(...mStats.map(s => s.ratio));
-                          estimatedAgeMonths = Math.round(prevM.ageMonths + maxRatio * (weightedCenter - prevM.ageMonths));
-                          explanationText = `Các mốc đang chọn đều đạt dưới 70% tiêu chuẩn. Nội suy lùi về giữa mốc ${prevM.label} và ${lowestEval.label}.`;
-                        } else {
-                          estimatedAgeMonths = Math.max(1, Math.round(lowestEval.ageMonths * lowestEval.ratio));
-                          explanationText = `Chưa đạt ngưỡng chuẩn tại mốc ${lowestEval.label} (${lowestEval.percent}%).`;
-                        }
+                    if (totalSignal === 0) {
+                      // All evaluated milestones have 0% (all 'Không')
+                      gateWeights[first.mIdx] = 1.0;
+                      if (first.mIdx > 0) {
+                        estimatedAgeMonths = basePrevAge;
+                        explanationText = `Không có tiêu chuẩn nào đạt tại các mốc đã chọn (0%). Đề xuất lùi về mốc ${basePrevLabel}.`;
                       } else {
-                        if (lowestEval.mIdx > 0) {
-                          const prevM = currentDbacData[lowestEval.mIdx - 1];
-                          estimatedAgeMonths = prevM.ageMonths;
-                          explanationText = `Không có tiêu chuẩn nào đạt tại các mốc đã chọn (0%). Đề xuất lùi về mốc ${prevM.label}.`;
+                        estimatedAgeMonths = Math.max(1, Math.round(first.ageMonths * 0.5));
+                        explanationText = `Không đạt tiêu chuẩn nào tại mốc đầu tiên (${first.label}).`;
+                      }
+                    } else {
+                      // Sequential Deficit-Compensation Chain across evaluated milestones
+                      // Start at the interval below the lowest evaluated milestone: [basePrevAge, first.ageMonths]
+                      let anchorIdx = 0;
+                      let effAnchorRatio = first.ratio;
+                      gateWeights[first.mIdx] = 1.0;
+                      let compensationNotes: string[] = [];
+
+                      for (let i = 1; i < mStats.length; i++) {
+                        const nextM = mStats[i];
+                        // Prerequisite gate factor: later milestone features are discounted if the prior anchor milestone is weak
+                        const rawGate = Math.min(1.0, Math.max(0.25, effAnchorRatio / 0.75));
+                        const gateFactor = Number(Math.pow(rawGate, 1.1).toFixed(2));
+                        gateWeights[nextM.mIdx] = gateFactor;
+
+                        const gatedContribution = nextM.ratio * gateFactor;
+                        if (gatedContribution <= 0) continue;
+
+                        if (effAnchorRatio < 0.55) {
+                          // Prior milestone is below foundation threshold (<55%):
+                          // Later milestone points are absorbed to compensate the prior milestone's deficit
+                          const boost = gatedContribution * 0.75;
+                          const prevEff = effAnchorRatio;
+                          effAnchorRatio = Math.min(0.92, effAnchorRatio + boost);
+                          compensationNotes.push(
+                            `Mốc ${mStats[anchorIdx].label} đạt thấp (${Math.round(prevEff * 100)}%) nên dấu hiệu tại mốc ${nextM.label} (${nextM.percent}%, hệ số tiên quyết ×${gateFactor}) được dùng để bù thiếu hụt cho mốc ${mStats[anchorIdx].label} (nâng hiệu dụng lên ${Math.round(effAnchorRatio * 100)}%)`
+                          );
                         } else {
-                          estimatedAgeMonths = Math.max(1, Math.round(lowestEval.ageMonths * 0.5));
-                          explanationText = `Không đạt tiêu chuẩn nào tại mốc đầu tiên (${lowestEval.label}).`;
+                          // Prior milestone is >= 55%: absorb part of nextM's contribution to close remaining deficit (1 - effAnchorRatio),
+                          // and use the net surplus to advance into [anchor.ageMonths, nextM.ageMonths]
+                          const deficit = Math.max(0, 1.0 - effAnchorRatio);
+                          const absorbed = Math.min(gatedContribution, deficit * 0.55);
+                          const netAdvance = Math.max(0, gatedContribution - absorbed);
+                          const anchorBonus = Math.max(0, (effAnchorRatio - 0.75) * 0.25);
+                          const progressInNextSpan = Math.min(0.96, netAdvance + anchorBonus);
+
+                          if (progressInNextSpan > 0.03) {
+                            const prevLabel = mStats[anchorIdx].label;
+                            anchorIdx = i;
+                            effAnchorRatio = progressInNextSpan;
+                            if (deficit > 0.05) {
+                              compensationNotes.push(
+                                `Đã trích một phần điểm của mốc ${nextM.label} (hệ số ×${gateFactor}) để bù ${Math.round(deficit * 100)}% tiêu chuẩn còn thiếu ở mốc ${prevLabel}, phần dư (${Math.round(progressInNextSpan * 100)}%) được nội suy tiến lên mốc ${nextM.label}`
+                              );
+                            } else {
+                              compensationNotes.push(
+                                `Mốc ${prevLabel} đã hoàn thiện tốt (${mStats[i - 1].percent}%), nội suy tiến lên mốc ${nextM.label} theo tỷ lệ ${Math.round(progressInNextSpan * 100)}%`
+                              );
+                            }
+                          } else {
+                            effAnchorRatio = Math.min(0.98, effAnchorRatio + gatedContribution * 0.5);
+                            compensationNotes.push(
+                              `Điểm tại mốc ${nextM.label} được dùng để hoàn thiện nốt mức thiếu hụt tại mốc ${mStats[anchorIdx].label}`
+                            );
+                          }
                         }
                       }
+
+                      // Compute final age from the resolved interval
+                      const targetM = mStats[anchorIdx];
+                      const lowerAge =
+                        anchorIdx === 0
+                          ? basePrevAge
+                          : mStats[anchorIdx - 1].ageMonths;
+                      const lowerLabel =
+                        anchorIdx === 0
+                          ? basePrevLabel
+                          : mStats[anchorIdx - 1].label;
+
+                      if (anchorIdx === 0 && effAnchorRatio >= 0.85) {
+                        estimatedAgeMonths = targetM.ageMonths;
+                      } else if (lowerAge > 0) {
+                        const span = targetM.ageMonths - lowerAge;
+                        estimatedAgeMonths = Math.round(lowerAge + effAnchorRatio * span);
+                      } else {
+                        estimatedAgeMonths = Math.max(1, Math.round(targetM.ageMonths * effAnchorRatio));
+                      }
+
+                      explanationText =
+                        compensationNotes.length > 0
+                          ? `${compensationNotes.join('. ')}. Kết quả nằm trong khoảng ${lowerLabel} – ${targetM.label}.`
+                          : `Nội suy tích luỹ theo trình tự cốt hoá giữa mốc ${lowerLabel} và ${targetM.label}.`;
                     }
                   }
 
@@ -4566,32 +4693,110 @@ export default function App() {
                         <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-3">
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
                             <span className="text-xs font-semibold tracking-wide text-teal-400">
-                              Tự động đề xuất tuổi xương (Gaskin)
+                              Tự động đề xuất tuổi xương (Gaskin — Nội suy bù trừ trình tự)
                             </span>
                             <span className="text-[11px] text-slate-400">
-                              Tính theo tỷ lệ tiêu chuẩn đạt được (Có = 1, Nghi ngờ = 0.5, Không = 0)
+                              Ưu tiên bù thiếu hụt mốc trước trước khi tiến lên mốc sau
                             </span>
                           </div>
 
+                          {logicWarnings.length > 0 && (
+                            <div className="space-y-2">
+                              {logicWarnings.map((w, wIdx) => (
+                                <div
+                                  key={wIdx}
+                                  className={`p-3 rounded-lg border text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                                    w.severity === 'high'
+                                      ? 'bg-rose-950/50 border-rose-800/70 text-rose-200'
+                                      : 'bg-amber-950/40 border-amber-800/60 text-amber-200'
+                                  }`}
+                                >
+                                  <div className="space-y-0.5">
+                                    <div className="font-semibold flex items-center gap-1.5">
+                                      <span
+                                        className={`inline-block w-2 h-2 rounded-full shrink-0 ${
+                                          w.severity === 'high' ? 'bg-rose-400' : 'bg-amber-400'
+                                        }`}
+                                      />
+                                      <span>{w.title}</span>
+                                    </div>
+                                    <p className="text-[11.5px] opacity-90 leading-relaxed pl-3.5">
+                                      {w.detail}
+                                    </p>
+                                  </div>
+                                  {typeof w.targetMilestoneIdx === 'number' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const idx = w.targetMilestoneIdx!;
+                                        setDbacIndex(idx);
+                                        setDbacPageNumber(idx + 1);
+                                      }}
+                                      className="shrink-0 self-start sm:self-center px-2.5 py-1.5 rounded-md bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700 text-[11px] font-medium transition-colors cursor-pointer"
+                                    >
+                                      Kiểm tra mốc {w.targetMilestoneLabel}
+                                    </button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                            {mStats.map(s => (
-                              <div key={s.mIdx} className="bg-slate-800/80 border border-slate-700/70 rounded-lg p-2.5 space-y-1.5">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="font-semibold text-slate-200">Mốc {s.label}</span>
-                                  <span className={`font-semibold ${s.percent >= 70 ? 'text-teal-400' : s.percent >= 40 ? 'text-amber-400' : 'text-rose-400'}`}>
-                                    {s.yesCount}/{s.totalFeatures} ({s.percent}%)
-                                  </span>
+                            {mStats.map(s => {
+                              const gFactor = gateWeights[s.mIdx] ?? 1;
+                              return (
+                                <div key={s.mIdx} className="bg-slate-800/80 border border-slate-700/70 rounded-lg p-2.5 space-y-1.5">
+                                  <div className="flex items-center justify-between text-xs gap-1">
+                                    <span className="font-semibold text-slate-200">Mốc {s.label}</span>
+                                    <div className="flex items-center gap-1.5">
+                                      {gFactor < 1 && (
+                                        <span
+                                          className="text-[10px] px-1.5 py-0.5 rounded bg-slate-900 text-slate-400 border border-slate-700/80"
+                                          title="Hệ số giảm chấn do mốc trước chưa đạt đủ tiêu chuẩn"
+                                        >
+                                          ×{gFactor}
+                                        </span>
+                                      )}
+                                      <span className={`font-semibold ${s.percent >= 70 ? 'text-teal-400' : s.percent >= 40 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                        {s.yesCount}/{s.totalFeatures} ({s.percent}%)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all duration-300 ${
+                                        s.percent >= 70 ? 'bg-teal-500' : s.percent >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                                      }`}
+                                      style={{ width: `${Math.min(100, Math.max(4, s.percent))}%` }}
+                                    />
+                                  </div>
+                                  {s.uncheckedCount > 0 && (
+                                    <div className="text-[10.5px] text-slate-400 flex items-center justify-between pt-0.5">
+                                      <span>Chưa chấm: {s.uncheckedCount} mục</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const m = currentDbacData[s.mIdx];
+                                          if (!m) return;
+                                          setDbacSelections(prev => {
+                                            const next = { ...prev };
+                                            m.features.forEach((_, fIdx) => {
+                                              const k = `${s.mIdx}-${fIdx}`;
+                                              if (!next[k]) next[k] = 'no';
+                                            });
+                                            return next;
+                                          });
+                                        }}
+                                        className="text-teal-400 hover:text-teal-300 underline cursor-pointer"
+                                      >
+                                        Điền Không phần còn lại
+                                      </button>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full transition-all duration-300 ${
-                                      s.percent >= 70 ? 'bg-teal-500' : s.percent >= 40 ? 'bg-amber-500' : 'bg-rose-500'
-                                    }`}
-                                    style={{ width: `${Math.min(100, Math.max(4, s.percent))}%` }}
-                                  />
-                                </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
 
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
