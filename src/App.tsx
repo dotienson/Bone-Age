@@ -4433,23 +4433,199 @@ export default function App() {
                   });
                   
                   const summaryParts: string[] = [];
-                  Object.entries(grouped).forEach(([mIdxStr, items]) => {
-                    const mIdx = Number(mIdxStr);
+                  const sortedMilestoneIndices = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+                  interface MilestoneEvalStat {
+                    mIdx: number;
+                    label: string;
+                    ageMonths: number;
+                    yesCount: number;
+                    maybeCount: number;
+                    noCount: number;
+                    totalFeatures: number;
+                    achievedPoints: number;
+                    ratio: number;
+                    percent: number;
+                  }
+
+                  const mStats: MilestoneEvalStat[] = [];
+
+                  sortedMilestoneIndices.forEach((mIdx) => {
+                    const items = grouped[mIdx];
                     const milestone = currentDbacData[mIdx];
-                    const yesCount = items.filter(x => x.val === 'yes' || x.val === 'maybe').length;
+                    if (!milestone) return;
+                    const yesOnly = items.filter(x => x.val === 'yes').length;
+                    const maybeOnly = items.filter(x => x.val === 'maybe').length;
+                    const noOnly = items.filter(x => x.val === 'no').length;
+                    const yesCount = yesOnly + maybeOnly;
                     const totalCount = milestone.features.length;
                     summaryParts.push(`${yesCount}/${totalCount} tiêu chuẩn mốc ${milestone.label}`);
+
+                    const achievedPoints = items.reduce((acc, item) => {
+                      const mult = item.val === 'yes' ? 1 : item.val === 'maybe' ? 0.5 : 0;
+                      return acc + mult;
+                    }, 0);
+
+                    const ratio = totalCount > 0 ? achievedPoints / totalCount : 0;
+                    mStats.push({
+                      mIdx,
+                      label: milestone.label,
+                      ageMonths: milestone.ageMonths,
+                      yesCount,
+                      maybeCount: maybeOnly,
+                      noCount: noOnly,
+                      totalFeatures: totalCount,
+                      achievedPoints,
+                      ratio,
+                      percent: Math.round(ratio * 100)
+                    });
                   });
+
                   const summaryText = `Phim tuổi xương của trẻ có ${summaryParts.join('; ')}.`;
+
+                  // Unweighted Gaskin bone age estimation based purely on yes/maybe/no feature ratios
+                  let estimatedAgeMonths: number | null = null;
+                  let explanationText = '';
+
+                  if (mStats.length === 1) {
+                    const s = mStats[0];
+                    if (s.ratio >= 0.85) {
+                      estimatedAgeMonths = s.ageMonths;
+                      explanationText = `Đạt ${s.percent}% tiêu chuẩn tại mốc ${s.label}. Phù hợp với tuổi xương mốc ${s.label}.`;
+                    } else if (s.ratio >= 0.4) {
+                      if (s.mIdx > 0) {
+                        const prevM = currentDbacData[s.mIdx - 1];
+                        const span = s.ageMonths - prevM.ageMonths;
+                        estimatedAgeMonths = Math.round(prevM.ageMonths + s.ratio * span);
+                        explanationText = `Đạt một phần (${s.percent}%) tiêu chuẩn tại mốc ${s.label}. Nội suy giữa mốc ${prevM.label} và ${s.label}.`;
+                      } else {
+                        estimatedAgeMonths = Math.round(s.ageMonths * s.ratio);
+                        explanationText = `Đạt ${s.percent}% tiêu chuẩn tại mốc đầu tiên (${s.label}).`;
+                      }
+                    } else {
+                      if (s.mIdx > 0) {
+                        const prevM = currentDbacData[s.mIdx - 1];
+                        const span = s.ageMonths - prevM.ageMonths;
+                        estimatedAgeMonths = Math.round(prevM.ageMonths + s.ratio * span * 0.8);
+                        explanationText = `Chỉ đạt ${s.percent}% tiêu chuẩn tại mốc ${s.label}. Tuổi xương nghiêng về mốc thấp hơn (${prevM.label}) — khuyến nghị kiểm tra thêm mốc ${prevM.label}.`;
+                      } else {
+                        estimatedAgeMonths = Math.max(1, Math.round(s.ageMonths * s.ratio));
+                        explanationText = `Chỉ đạt ${s.percent}% tiêu chuẩn tại mốc ${s.label}. Tuổi xương thấp hơn mốc ${s.label}.`;
+                      }
+                    }
+                  } else if (mStats.length > 1) {
+                    const passedMilestones = mStats.filter(s => s.ratio >= 0.7);
+                    const highestPassed = passedMilestones.length > 0 ? passedMilestones[passedMilestones.length - 1] : null;
+                    const higherPartial = mStats.filter(s => (highestPassed ? s.mIdx > highestPassed.mIdx : true) && s.ratio < 0.7);
+                    const nextPartial = higherPartial.length > 0 ? higherPartial[0] : null;
+
+                    if (highestPassed && nextPartial) {
+                      const span = nextPartial.ageMonths - highestPassed.ageMonths;
+                      const boostFromHighest = ((highestPassed.ratio - 0.7) / 0.3) * 0.25;
+                      const contributionFromNext = (nextPartial.ratio / 0.7) * 0.75;
+                      const blend = Math.min(0.95, Math.max(0.05, boostFromHighest + contributionFromNext));
+                      estimatedAgeMonths = Math.round(highestPassed.ageMonths + blend * span);
+                      explanationText = `Đạt tốt mốc ${highestPassed.label} (${highestPassed.percent}%) và đạt một phần mốc ${nextPartial.label} (${nextPartial.percent}%). Nội suy tuyến tính giữa hai mốc.`;
+                    } else if (highestPassed && !nextPartial) {
+                      estimatedAgeMonths = highestPassed.ageMonths;
+                      explanationText = `Đạt ${highestPassed.percent}% tiêu chuẩn tại mốc cao nhất đã chấm (${highestPassed.label}).`;
+                    } else {
+                      const lowestEval = mStats[0];
+                      const totalRatio = mStats.reduce((acc, s) => acc + s.ratio, 0);
+                      if (totalRatio > 0) {
+                        const weightedCenter = mStats.reduce((acc, s) => acc + s.ageMonths * s.ratio, 0) / totalRatio;
+                        if (lowestEval.mIdx > 0) {
+                          const prevM = currentDbacData[lowestEval.mIdx - 1];
+                          const maxRatio = Math.max(...mStats.map(s => s.ratio));
+                          estimatedAgeMonths = Math.round(prevM.ageMonths + maxRatio * (weightedCenter - prevM.ageMonths));
+                          explanationText = `Các mốc đang chọn đều đạt dưới 70% tiêu chuẩn. Nội suy lùi về giữa mốc ${prevM.label} và ${lowestEval.label}.`;
+                        } else {
+                          estimatedAgeMonths = Math.max(1, Math.round(lowestEval.ageMonths * lowestEval.ratio));
+                          explanationText = `Chưa đạt ngưỡng chuẩn tại mốc ${lowestEval.label} (${lowestEval.percent}%).`;
+                        }
+                      } else {
+                        if (lowestEval.mIdx > 0) {
+                          const prevM = currentDbacData[lowestEval.mIdx - 1];
+                          estimatedAgeMonths = prevM.ageMonths;
+                          explanationText = `Không có tiêu chuẩn nào đạt tại các mốc đã chọn (0%). Đề xuất lùi về mốc ${prevM.label}.`;
+                        } else {
+                          estimatedAgeMonths = Math.max(1, Math.round(lowestEval.ageMonths * 0.5));
+                          explanationText = `Không đạt tiêu chuẩn nào tại mốc đầu tiên (${lowestEval.label}).`;
+                        }
+                      }
+                    }
+                  }
+
+                  const estYears = estimatedAgeMonths !== null ? Math.floor(estimatedAgeMonths / 12) : null;
+                  const estMonths = estimatedAgeMonths !== null ? estimatedAgeMonths % 12 : null;
+                  const estDecimal = estimatedAgeMonths !== null ? (estimatedAgeMonths / 12).toFixed(2) : null;
 
                   return (
                     <div className="space-y-4">
+                      {estimatedAgeMonths !== null && estYears !== null && estMonths !== null && (
+                        <div className="p-4 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800">
+                            <span className="text-xs font-semibold tracking-wide text-teal-400">
+                              Tự động đề xuất tuổi xương (Gaskin)
+                            </span>
+                            <span className="text-[11px] text-slate-400">
+                              Tính theo tỷ lệ tiêu chuẩn đạt được (Có = 1, Nghi ngờ = 0.5, Không = 0)
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                            {mStats.map(s => (
+                              <div key={s.mIdx} className="bg-slate-800/80 border border-slate-700/70 rounded-lg p-2.5 space-y-1.5">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-semibold text-slate-200">Mốc {s.label}</span>
+                                  <span className={`font-semibold ${s.percent >= 70 ? 'text-teal-400' : s.percent >= 40 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                    {s.yesCount}/{s.totalFeatures} ({s.percent}%)
+                                  </span>
+                                </div>
+                                <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                      s.percent >= 70 ? 'bg-teal-500' : s.percent >= 40 ? 'bg-amber-500' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${Math.min(100, Math.max(4, s.percent))}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                            <div className="space-y-0.5">
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="text-xs text-slate-400">Tuổi xương ước tính:</span>
+                                <span className="text-lg font-bold text-teal-300">
+                                  {estYears} tuổi {estMonths} tháng
+                                </span>
+                                <span className="text-xs text-slate-400">({estDecimal} tuổi)</span>
+                              </div>
+                              <p className="text-xs text-slate-400 leading-relaxed">{explanationText}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDbacBoneAgeYears(estYears);
+                                setDbacBoneAgeMonths(estMonths);
+                              }}
+                              className="shrink-0 flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg bg-teal-700 hover:bg-teal-600 text-white text-xs font-semibold transition-colors cursor-pointer"
+                            >
+                              <CheckCheck size={14} />
+                              <span>Áp dụng kết quả này</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-sm text-slate-300 italic">{summaryText}</p>
-                      {Object.keys(grouped).map(mIdxStr => {
-                        const mIdx = Number(mIdxStr);
+                      {sortedMilestoneIndices.map(mIdx => {
                         const milestone = currentDbacData[mIdx];
+                        if (!milestone) return null;
                         return (
-                          <div key={mIdxStr} className="space-y-2.5">
+                          <div key={mIdx} className="space-y-2.5">
                             <h4 className="text-xs font-semibold text-slate-200 bg-slate-900/80 inline-block px-2.5 py-1 rounded-md border border-slate-700">Mốc {milestone.label}</h4>
                             <div className="space-y-1.5 pl-1">
                               {grouped[mIdx].map(({ fIdx, val }) => (
