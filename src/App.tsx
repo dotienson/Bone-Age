@@ -3625,25 +3625,15 @@ export default function App() {
 
       {/* Header */}
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between w-full">
+        <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between w-full relative">
           <div className="flex items-center gap-3">
             <h1 ref={syncBrandWordmarkNode} className="inline-flex flex-col items-start">
-              <div className="inline-flex items-baseline gap-2 leading-[1.15]">
+              <div className="inline-flex items-center gap-2 leading-[1.15]">
                 <span data-brand-main className="inline-block text-[23px] sm:text-[26px] font-extrabold tracking-tight text-teal-700 leading-[1.15]">
                   TxgCalc<sup className="text-[0.36em] font-semibold align-super ml-[1px]">®</sup>
                 </span>
-                <a
-                  href="https://zcore.io.vn"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Truy cập zCore.io.vn"
-                  className="inline-flex items-baseline gap-1.5 text-xs sm:text-[13px] font-medium text-slate-500 hover:opacity-80 transition-opacity"
-                >
-                  <span>từ</span>
-                  <ZCoreWordmark className="text-[23px] sm:text-[26px]" />
-                </a>
                 {isAuthenticated && (
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-slate-100 text-slate-600 border border-slate-200 self-center">
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
                     {isExpertMode ? 'PRO' : 'LITE'}
                   </span>
                 )}
@@ -3653,6 +3643,15 @@ export default function App() {
               </span>
             </h1>
           </div>
+          <a
+            href="https://zcore.io.vn"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Truy cập zCore.io.vn"
+            className="hidden sm:inline-flex absolute left-1/2 -translate-x-1/2 items-center hover:opacity-80 transition-opacity"
+          >
+            <ZCoreWordmark className="text-[26px]" />
+          </a>
           <div className="flex gap-1.5">
             {isAuthenticated && (
               <>
