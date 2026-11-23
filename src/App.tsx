@@ -610,6 +610,21 @@ const NormalDistributionChart = ({ zScores }: { zScores: { name: string, z: numb
   );
 };
 
+const ZCoreWordmark = ({ dark = false, className = '' }: { dark?: boolean; className?: string }) => (
+  <span className={`inline-flex items-baseline font-bold tracking-[-0.02em] leading-none select-none ${className}`}>
+    <span className="italic font-extrabold text-[#0172E3] pr-[0.04em]">z</span>
+    <span className={dark ? 'text-white' : 'text-[#1F1F21]'}>Core</span>
+  </span>
+);
+
+const buildExportFileName = (ext: string, examDateStr?: string) => {
+  const now = new Date();
+  const hhmm = `${now.getHours().toString().padStart(2, '0')}${now.getMinutes().toString().padStart(2, '0')}`;
+  const todayStr = `${now.getDate().toString().padStart(2, '0')}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getFullYear()}`;
+  const ngayKham = (examDateStr || '').replace(/\D/g, '') || todayStr;
+  return `TxgCalc zCore ${hhmm} ${ngayKham} BS Do Tien Son.${ext}`;
+};
+
 // We get the draft once per component mount
 export default function App() {
   const initialDraft = useMemo(() => getInitialDraft(), []);
@@ -750,13 +765,7 @@ export default function App() {
 
   const handleExportRecords = () => {
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(patientRecords, null, 2));
-    const now = new Date();
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    const day = now.getDate().toString().padStart(2, '0');
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const year = now.getFullYear();
-    const fileName = `Du lieu Tuoi xuong ${hours}h${minutes} ${day}-${month}-${year} TxgCalc.json`;
+    const fileName = buildExportFileName('json', examDate);
     const downloadAnchorNode = document.createElement('a');
     downloadAnchorNode.setAttribute("href", dataStr);
     downloadAnchorNode.setAttribute("download", fileName);
@@ -2053,14 +2062,7 @@ export default function App() {
     });
 
     Packer.toBlob(doc).then(blob => {
-      const namePart = patientName.trim() || 'Ten KH';
-      const idPart = patientId.trim() || 'ID';
-      const dobPart = dob.trim().replace(/\//g, '') || 'NgaySinh';
-      const agePart = `${realAgeYears}y${realAgeMonths}m`;
-      const datePart = (xrayDate || '').replace(/\//g, '');
-      const d = new Date();
-      const timePart = `${d.getHours().toString().padStart(2, '0')}h${d.getMinutes().toString().padStart(2, '0')}`;
-      saveAs(blob, `${namePart} ${idPart} ${dobPart} ${agePart} ${datePart} ${timePart} Dr Son.docx`);
+      saveAs(blob, buildExportFileName('docx', examDate));
     });
   };
 
@@ -2790,15 +2792,8 @@ export default function App() {
           pdf.addImage(imgData, 'JPEG', xOffsetMm, 0, renderWidthMm, renderHeightMm, undefined, 'FAST');
         }
 
-        const namePart = patientName.trim() || 'Ten KH';
-        const idPart = patientId.trim() || 'ID';
-        const dobPart = dob.trim().replace(/\//g, '') || 'NgaySinh';
-        const agePart = `${realAgeYears}y${realAgeMonths}m`;
-        const datePart = (xrayDate || '').replace(/\//g, '');
-        const d = new Date();
-        const timePart = `${d.getHours().toString().padStart(2, '0')}h${d.getMinutes().toString().padStart(2, '0')}`;
         const pdfBlob = pdf.output('blob');
-        saveAs(pdfBlob, `${namePart} ${idPart} ${dobPart} ${agePart} ${datePart} ${timePart} Dr Son.pdf`);
+        saveAs(pdfBlob, buildExportFileName('pdf', examDate));
       } finally {
         document.body.removeChild(iframe);
       }
@@ -3408,7 +3403,7 @@ export default function App() {
   };
 
   const t = {
-    title: 'TxgCalc®',
+    title: 'TxgCalc® từ zCore',
     realAge: 'Tuổi thực',
     finalBoneAge: 'Tuổi xương kết luận',
     years: 'Năm',
@@ -3633,12 +3628,22 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between w-full">
           <div className="flex items-center gap-3">
             <h1 ref={syncBrandWordmarkNode} className="inline-flex flex-col items-start">
-              <div className="inline-flex items-center gap-2 leading-[1.15]">
+              <div className="inline-flex items-baseline gap-2 leading-[1.15]">
                 <span data-brand-main className="inline-block text-[23px] sm:text-[26px] font-extrabold tracking-tight text-teal-700 leading-[1.15]">
                   TxgCalc<sup className="text-[0.36em] font-semibold align-super ml-[1px]">®</sup>
                 </span>
+                <a
+                  href="https://zcore.io.vn"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Truy cập zCore.io.vn"
+                  className="inline-flex items-baseline gap-1.5 text-xs sm:text-[13px] font-medium text-slate-500 hover:opacity-80 transition-opacity"
+                >
+                  <span>từ</span>
+                  <ZCoreWordmark className="text-[23px] sm:text-[26px]" />
+                </a>
                 {isAuthenticated && (
-                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-slate-100 text-slate-600 border border-slate-200">
+                  <span className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wider bg-slate-100 text-slate-600 border border-slate-200 self-center">
                     {isExpertMode ? 'PRO' : 'LITE'}
                   </span>
                 )}
@@ -5809,12 +5814,23 @@ export default function App() {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-slate-800 py-6 pb-12 mt-12 bg-slate-950/40">
-        <div className="max-w-7xl mx-auto px-4 text-center space-y-1 text-slate-500 text-xs font-medium tracking-wide">
-          <p>
-            Bản quyền thuộc về <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition-colors">BS. Đỗ Tiến Sơn</a> &copy; 2026
-          </p>
-          <p>Mọi quyền đều được bảo vệ</p>
+      <footer className="border-t border-slate-800 py-7 pb-14 mt-12 bg-slate-950/40">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col items-center text-center gap-3">
+          <a
+            href="https://zcore.io.vn"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Truy cập zCore.io.vn"
+            className="inline-flex items-center justify-center px-3.5 py-1.5 rounded-lg bg-white/95 hover:bg-white border border-slate-200/80 shadow-sm transition-all hover:scale-[1.02]"
+          >
+            <ZCoreWordmark className="text-xl sm:text-2xl" />
+          </a>
+          <div className="text-slate-500 text-xs font-medium tracking-wide">
+            <p>
+              Bản quyền ý tưởng và kĩ thuật thuộc về{' '}
+              <a href="https://tamanhhospital.vn/chuyen-gia/do-tien-son/" target="_blank" rel="noreferrer" className="hover:text-slate-300 transition-colors">BS. Đỗ Tiến Sơn</a>
+            </p>
+          </div>
         </div>
       </footer>
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 border-t border-slate-800 text-slate-400 text-[10px] sm:text-xs font-medium py-1.5 px-4 overflow-hidden flex items-center w-full">

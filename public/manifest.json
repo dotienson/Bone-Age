@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "TxgCalc® — Txg = Tuổi Xương",
+  "name": "TxgCalc® từ zCore — Txg = Tuổi Xương",
   "short_name": "TxgCalc®",
-  "description": "Phần mềm đánh giá và phân tích tuổi xương lâm sàng TxgCalc® by Dr. Son.",
+  "description": "Phần mềm đánh giá và phân tích tuổi xương lâm sàng TxgCalc® từ zCore.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
