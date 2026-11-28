@@ -30,3 +30,51 @@ input, textarea {
     animation: marquee 15s linear infinite;
   }
 }
+
+@keyframes circuit-wave-opacity {
+  0%, 100% {
+    opacity: 0;
+  }
+  22% {
+    opacity: 0.95;
+  }
+  52% {
+    opacity: 0.15;
+  }
+  65% {
+    opacity: 0;
+  }
+}
+
+@keyframes ai-core-ring {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.55;
+  }
+  65% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.ai-circuit-wave {
+  will-change: opacity;
+  animation: circuit-wave-opacity 3.6s ease-in-out infinite;
+}
+
+.ai-core-ring-anim {
+  will-change: transform, opacity;
+  animation: ai-core-ring 3.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-circuit-wave,
+  .ai-core-ring-anim {
+    animation: none;
+  }
+}
+

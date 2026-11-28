@@ -625,6 +625,133 @@ const buildExportFileName = (ext: string, examDateStr?: string) => {
   return `TxgCalc zCore ${hhmm} ${ngayKham} BS Do Tien Son.${ext}`;
 };
 
+interface ParsedTxgAiData {
+  genderLabel: 'nam' | 'nữ' | null;
+  baText: string | null;
+  caText: string | null;
+  ciText: string | null;
+  zScoreText: string | null;
+  hasHighUncertainty: boolean;
+  bodyText: string;
+  plainLine: string;
+}
+
+const escapeHtml = (str: string) =>
+  str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+const extractYearsMonthsText = (rawVal: string): string | null => {
+  const cleaned = rawVal.replace(/\([^)]*\)/g, '').trim();
+  const ymMatch = cleaned.match(/(\d+(?:[.,]\d+)?)\s*(?:năm|tuổi)(?:\s+(\d+(?:[.,]\d+)?)\s*tháng)?/i);
+  if (ymMatch) {
+    const years = ymMatch[1];
+    const months = ymMatch[2];
+    return months !== undefined ? `${years} tuổi ${months} tháng` : `${years} tuổi`;
+  }
+  const mOnlyMatch = cleaned.match(/(\d+(?:[.,]\d+)?)\s*tháng/i);
+  if (mOnlyMatch) {
+    return `${mOnlyMatch[1]} tháng`;
+  }
+  return cleaned ? cleaned.replace(/\bnăm\b/gi, 'tuổi') : null;
+};
+
+const parseTxgAiReport = (raw: string): ParsedTxgAiData | null => {
+  if (!raw || !raw.trim()) return null;
+
+  const genderMatch = raw.match(/giới(?:\s+tính)?\s*[:\-]\s*(nam|nữ)/i);
+  const genderLabel: 'nam' | 'nữ' | null = genderMatch
+    ? (genderMatch[1].toLowerCase() === 'nam' ? 'nam' : 'nữ')
+    : null;
+
+  const baLineMatch = raw.match(/tuổi\s*xương(?:\s*\(\s*BA\s*\))?\s*[:\-]\s*([^\n\r]+)/i);
+  const baText = baLineMatch ? extractYearsMonthsText(baLineMatch[1]) : null;
+
+  const caLineMatch = raw.match(/tuổi\s*thực(?:\s*\(\s*CA\s*\))?\s*[:\-]\s*([^\n\r]+)/i);
+  const caText = caLineMatch ? extractYearsMonthsText(caLineMatch[1]) : null;
+
+  let ciText: string | null = null;
+  const ciLineMatch = raw.match(/khoảng\s*tin\s*cậy\s*95%\s*[:\-]\s*([^\n\r]+)/i);
+  if (ciLineMatch) {
+    const ciVal = ciLineMatch[1].trim();
+    const numRangeMatch = ciVal.match(
+      /(\d+(?:[.,]\d+)?)\s*(?:tháng)?\s*(?:–|—|-|đến|to)\s*(\d+(?:[.,]\d+)?)\s*(?:tháng)?/i
+    );
+    if (numRangeMatch) {
+      ciText = `${numRangeMatch[1]} đến ${numRangeMatch[2]} tháng`;
+    } else {
+      const genericRange = ciVal.split(/\s*(?:–|—|-|đến)\s*/i).filter(Boolean);
+      if (genericRange.length >= 2) {
+        ciText = `${genericRange[0].trim()} đến ${genericRange[1].trim()}`;
+      } else if (ciVal) {
+        ciText = ciVal;
+      }
+    }
+  }
+
+  let zScoreText: string | null = null;
+  const zMatch = raw.match(/z[\s-]*score\s*[:\-]\s*([+\-−±]?\s*\d+(?:[.,]\d+)?(?:\s*SD)?)/i);
+  if (zMatch) {
+    zScoreText = zMatch[1]
+      .replace(/−/g, '-')
+      .replace(/^([+\-±])\s+/, '$1')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  const hasHighUncertainty = /độ\s*bất\s*định\s*cao/i.test(raw);
+
+  if (!genderLabel && !baText && !caText && !ciText && !zScoreText && !hasHighUncertainty) {
+    return null;
+  }
+
+  let body = '';
+  const formattedCaText = caText
+    ? (/tuổi/i.test(caText) ? caText : `${caText} tuổi`)
+    : null;
+  const subjectParts: string[] = [];
+  if (genderLabel) {
+    subjectParts.push(formattedCaText ? genderLabel : `(${genderLabel})`);
+  }
+  if (formattedCaText) subjectParts.push(formattedCaText);
+  const subject = subjectParts.length > 0 ? `của trẻ ${subjectParts.join(' ')}` : '';
+
+  if (baText) {
+    body = `Tuổi xương hiện tại${subject ? ` ${subject}` : ''} là ${baText}`;
+  } else if (subject) {
+    body = `Trẻ ${subjectParts.join(' ')}`;
+  }
+
+  if (ciText) {
+    body += body ? ` với khoảng tin cậy 95% ${ciText}` : `Khoảng tin cậy 95% ${ciText}`;
+  }
+
+  if (zScoreText) {
+    body += body ? `; z-score ${zScoreText}` : `z-score ${zScoreText}`;
+  }
+
+  if (hasHighUncertainty) {
+    body += body ? ' (lưu ý: độ bất định cao)' : 'Lưu ý: độ bất định cao';
+  }
+
+  const bodyText = `${body}.`;
+  const plainLine = `- Kết quả tham khảo từ TxgAI® zCore (ConvNeXtV2): ${bodyText}`;
+
+  return {
+    genderLabel,
+    baText,
+    caText,
+    ciText,
+    zScoreText,
+    hasHighUncertainty,
+    bodyText,
+    plainLine,
+  };
+};
+
 // We get the draft once per component mount
 export default function App() {
   const initialDraft = useMemo(() => getInitialDraft(), []);
@@ -942,6 +1069,9 @@ export default function App() {
   const [sauvegrainAgeYears, setSauvegrainAgeYears] = useState<number | ''>(initialDraft.sauvegrainAgeYears ?? '');
   const [sauvegrainAgeMonths, setSauvegrainAgeMonths] = useState<number | ''>(initialDraft.sauvegrainAgeMonths ?? '');
   const [isSauvegrainVisible, setIsSauvegrainVisible] = useState<boolean>(false);
+  const [txgAiRawText, setTxgAiRawText] = useState<string>(initialDraft.txgAiRawText ?? '');
+  const [isTxgAiVisible, setIsTxgAiVisible] = useState<boolean>(true);
+  const parsedTxgAi = useMemo(() => parseTxgAiReport(txgAiRawText), [txgAiRawText]);
   const [xrayDate, setXrayDate] = useState<string>(() => {
     if (initialDraft.xrayDate) return initialDraft.xrayDate;
     const d = new Date();
@@ -971,6 +1101,7 @@ export default function App() {
       setSauvegrainScore4('');
       setSauvegrainAgeYears('');
       setSauvegrainAgeMonths('');
+      setTxgAiRawText('');
       setMorphologyEnabled(false);
       setMorphologyStates({});
       setPendingAdminChange(null);
@@ -982,7 +1113,7 @@ export default function App() {
   };
 
   const handleAdminChangeAttempt = (newValue: any, updater: Function) => {
-    const hasResults = expertBoneAgeYears !== '' || Object.keys(dbacSelections).length > 0 || (typeof dbacBoneAgeYears === 'number' && dbacBoneAgeYears >= 0) || dbacBoneAgeYears !== '' || sauvegrainAgeYears !== '';
+    const hasResults = expertBoneAgeYears !== '' || Object.keys(dbacSelections).length > 0 || (typeof dbacBoneAgeYears === 'number' && dbacBoneAgeYears >= 0) || dbacBoneAgeYears !== '' || sauvegrainAgeYears !== '' || txgAiRawText.trim() !== '';
     if (hasResults) {
       setPendingAdminChange({ updater, newValue });
     } else {
@@ -1049,7 +1180,8 @@ export default function App() {
       isHideAppendix,
       isSigned,
       morphologyEnabled,
-      morphologyStates
+      morphologyStates,
+      txgAiRawText
     };
     if (isAuthenticated) {
       const key = isExpertMode ? 'dualGP_draft_state_expert' : 'dualGP_draft_state_premium';
@@ -1091,6 +1223,7 @@ export default function App() {
     isSigned,
     morphologyEnabled,
     morphologyStates,
+    txgAiRawText,
     isAuthenticated,
     isExpertMode
   ]);
@@ -1840,7 +1973,7 @@ export default function App() {
             children: [
               new TextRun({ text: "- Tuổi xương ước tính: ", size: 21, font: wordFont }),
               new TextRun({ text: expertBoneAgeYears !== '' ? `${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng` : '-', size: 21, font: wordFont, bold: true, color: "800020" }),
-              new TextRun({ text: " ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).", size: 21, font: wordFont })
+              new TextRun({ text: " ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer).", size: 21, font: wordFont })
             ],
             spacing: { after: 50 }
           }),
@@ -1850,7 +1983,7 @@ export default function App() {
               children: [
                 new TextRun({ text: "- Tuổi xương ước tính: ", size: 21, font: wordFont }),
                 new TextRun({ text: `${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng`, size: 21, font: wordFont, bold: true, color: "800020" }),
-                new TextRun({ text: ` ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}`, size: 21, font: wordFont })
+                new TextRun({ text: ` ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}`, size: 21, font: wordFont })
               ],
               spacing: { after: 50 }
             }),
@@ -1870,6 +2003,19 @@ export default function App() {
                 spacing: { after: 50 }
               });
             })()
+          ] : []),
+          ...(parsedTxgAi ? [
+            new Paragraph({
+              alignment: AlignmentType.JUSTIFIED,
+              children: [
+                new TextRun({ text: "- Kết quả ", size: 21, font: wordFont }),
+                new TextRun({ text: "tham khảo", size: 21, font: wordFont, italics: true }),
+                new TextRun({ text: " từ ", size: 21, font: wordFont }),
+                new TextRun({ text: "TxgAI® zCore", size: 21, font: wordFont, bold: true }),
+                new TextRun({ text: ` (ConvNeXtV2): ${parsedTxgAi.bodyText}`, size: 21, font: wordFont })
+              ],
+              spacing: { after: 50 }
+            })
           ] : []),
           ...(() => {
             const morphData = getMorphologyConclusionData();
@@ -1982,7 +2128,7 @@ export default function App() {
               alignment: AlignmentType.JUSTIFIED,
               children: [
                 new TextRun({
-                  text: `Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText || 'Phim tuổi xương của trẻ đã được đối chiếu chi tiết theo các mốc chuẩn.'}`,
+                  text: `Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP. ${summaryText || 'Phim tuổi xương của trẻ đã được đối chiếu chi tiết theo các mốc chuẩn.'}`,
                   size: 21,
                   font: wordFont
                 })
@@ -2561,10 +2707,10 @@ export default function App() {
               ` : ''}
               <div class="mb-2">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</div>
               
-              <div class="mb-1">- Tuổi xương ước tính: ${expertBoneAgeYears !== '' ? `<span class="text-red">${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng</span>` : '-'} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</div>
+              <div class="mb-1">- Tuổi xương ước tính: ${expertBoneAgeYears !== '' ? `<span class="text-red">${expertBoneAgeYears} tuổi ${expertBoneAgeMonths || 0} tháng</span>` : '-'} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer).</div>
               
               ${dbacPopulated ? `
-              <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}</div>
+              <div class="mb-1">- Tuổi xương ước tính: <span class="text-red">${dbacBoneAgeYears} tuổi ${dbacBoneAgeMonths || 0} tháng</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}</div>
               ${(() => {
                 const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
                 const bxAge = getBxChina05Age(baDecimal, gender);
@@ -2573,6 +2719,10 @@ export default function App() {
                 const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
                 return `<div class="mb-1">- Quy đổi cho trẻ em gốc Á (tham khảo): <span class="text-red">${bxFormatted}</span> (Zhang, Thodberg et al. 2013)</div>`;
               })()}
+              ` : ''}
+
+              ${parsedTxgAi ? `
+              <div class="mb-1">- Kết quả <em>tham khảo</em> từ <strong>TxgAI® zCore</strong> (ConvNeXtV2): ${escapeHtml(parsedTxgAi.bodyText)}</div>
               ` : ''}
 
               ${(() => {
@@ -2622,7 +2772,7 @@ export default function App() {
           <div class="page-sheet page-break">
             <div class="page-content">
               <h2 class="appendix-title">Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin</h2>
-              <div class="mb-2" style="text-align: justify;">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText || 'Phim tuổi xương của trẻ đã được đối chiếu chi tiết theo các mốc chuẩn.'}</div>
+              <div class="mb-2" style="text-align: justify;">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP. ${summaryText || 'Phim tuổi xương của trẻ đã được đối chiếu chi tiết theo các mốc chuẩn.'}</div>
 
               ${yesFeatures.length > 0 ? `
                 <div class="mb-2" style="text-align: justify;"><span class="font-bold">+ Các dấu hiệu được ghi nhận:</span> ${yesFeatures.join('; ')}</div>
@@ -2859,6 +3009,7 @@ export default function App() {
     setAbnormalityDetails('');
     setMorphologyEnabled(false);
     setMorphologyStates({});
+    setTxgAiRawText('');
     setDbacPageNumber(1);
     setCopied(false);
     
@@ -3135,7 +3286,7 @@ export default function App() {
       ? `THS.BS. ĐỖ TIẾN SƠN\nBệnh viện Đa khoa Tâm Anh Hà Nội\n108 Hoàng Như Tiếp, Bồ Đề, Hà Nội\nTel: 024 3872 3872\n\nTHƯ DIỄN GIẢI KẾT QUẢ TUỔI XƯƠNG\n\nKính gửi Quý khách hàng,\n${boneAgeIntro}`
       : `THƯ DIỄN GIẢI KẾT QUẢ TUỔI XƯƠNG\nBằng phương pháp Greulich & Pyle với 2 Atlas\nGilsanz & Ratib (Springer, 2004, 2011) và Gaskin (Oxford, 2011)`;
 
-    let vText = `${headerBlock}\nTên khách hàng: ${nameText}        Giới: ${gender === 'boy' ? 'Nam' : 'Nữ'}\nTuổi theo ngày sinh tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)\nNgày tư vấn: ${consultDateText}        Phim chụp tại: ${locationText}        Chất lượng phim: ${qualityText}\nKẾT QUẢ:${!isLetterMode ? `\n${boneAgeIntro}` : ''}\nÁp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:\n- Tuổi xương ước tính: ${formattedBoneAge} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).`;
+    let vText = `${headerBlock}\nTên khách hàng: ${nameText}        Giới: ${gender === 'boy' ? 'Nam' : 'Nữ'}\nTuổi theo ngày sinh tại ngày chụp: ${realAgeYears} tuổi ${realAgeMonths} tháng (${(realAgeYears + realAgeMonths / 12).toFixed(2)} tuổi)\nNgày tư vấn: ${consultDateText}        Phim chụp tại: ${locationText}        Chất lượng phim: ${qualityText}\nKẾT QUẢ:${!isLetterMode ? `\n${boneAgeIntro}` : ''}\nÁp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:\n- Tuổi xương ước tính: ${formattedBoneAge} ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer).`;
 
     const dbacPopulated = dbacBoneAgeYears !== '';
     const { yesFeatures, noFeatures, summaryText } = getDbacParsedData();
@@ -3150,8 +3301,12 @@ export default function App() {
       const bxFormatted = bxMonths === 12 ? `${bxYears + 1} tuổi 0 tháng` : `${bxYears} tuổi ${bxMonths} tháng`;
       const bxText = `\n- Quy đổi cho trẻ em gốc Á (tham khảo): ${bxFormatted} (Zhang, Thodberg et al. 2013)`;
       
-      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}`.trimEnd() + bxText;
+      const vDbac = `\n- Tuổi xương ước tính: ${dbacFormatted} ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP).${hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}`.trimEnd() + bxText;
       vText += vDbac;
+    }
+
+    if (parsedTxgAi) {
+      vText += `\n${parsedTxgAi.plainLine}`;
     }
 
     const morphData = getMorphologyConclusionData();
@@ -3169,7 +3324,7 @@ export default function App() {
     vText += disclaimerVi + `\n${getDoctorSignatureLine()}\n${clinicalReferenceNote}${isSigned ? `\n${sigVerify.line1}\n${sigVerify.line2}\n${sigVerify.line3}` : ''}`;
 
     if (showAppendix) {
-      vText += `\n\n--- Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin ---\nKhi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). ${summaryText}`;
+      vText += `\n\n--- Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin ---\nKhi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP. ${summaryText}`;
       if (yesFeatures.length > 0) {
         vText += `\n+ Các dấu hiệu được ghi nhận: ${yesFeatures.join('; ')}`;
       }
@@ -3278,11 +3433,11 @@ export default function App() {
           <p className="italic text-justify">Tuổi xương (bone age, BA) phản ánh độ trưởng thành sinh học của hệ xương thông qua quá trình cốt hóa (sự chuyển đổi dần từ mô sụn thành xương cứng). Chỉ số này giúp bác sĩ đánh giá tiềm năng tăng trưởng còn lại, chẩn đoán các rối loạn phát triển và dự đoán chiều cao lúc trưởng thành.</p>
         )}
         <p className="whitespace-pre-wrap text-justify">Áp dụng phương pháp Greulich - Pyle, bác sĩ lâm sàng so sánh và đánh giá thấy mức độ cốt hoá trung bình của các xương cổ - bàn - ngón tay phù hợp với kết quả sau:</p>
-        <p className="whitespace-pre-wrap text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{formattedBoneAge}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer, ISBN-13: 978-3642237621).</p>
+        <p className="whitespace-pre-wrap text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{formattedBoneAge}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Kỹ thuật số của V.Gilsanz và O.Ratib, Springer).</p>
         
         {dbacPopulated && (
           <>
-            <p className="whitespace-pre-wrap mt-2 text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059).{hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}</p>
+            <p className="whitespace-pre-wrap mt-2 text-justify">- Tuổi xương ước tính: <span className="font-bold text-[#800020]">{dbacFormatted}</span> ± 0.5 tuổi (Tham chiếu theo: Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP).{hasDbacDetails ? `${summaryText ? ` ${summaryText}` : ''}${!isHideAppendix ? ' Chi tiết ở Trang Phụ lục A.' : ''}` : ''}</p>
             {(() => {
               const baDecimal = Number(dbacBoneAgeYears) + Number(dbacBoneAgeMonths || 0) / 12;
               const bxAge = getBxChina05Age(baDecimal, gender);
@@ -3292,6 +3447,12 @@ export default function App() {
               return <p className="whitespace-pre-wrap mt-2 text-justify">- Quy đổi cho trẻ em gốc Á (tham khảo): <span className="font-bold text-[#800020]">{bxFormatted}</span> (Zhang, Thodberg et al. 2013)</p>;
             })()}
           </>
+        )}
+
+        {parsedTxgAi && (
+          <p className="whitespace-pre-wrap mt-2 text-justify">
+            - Kết quả <em className="italic">tham khảo</em> từ <strong className="font-bold">TxgAI® zCore</strong> (ConvNeXtV2): {parsedTxgAi.bodyText}
+          </p>
         )}
 
         {(() => {
@@ -3361,7 +3522,7 @@ export default function App() {
         {showAppendix && (
           <div className="mt-6 pt-6 border-t border-slate-200 space-y-2 text-justify">
             <p className="font-bold text-[#800020] text-center">Phụ lục A: Chi tiết đánh giá theo Atlas Cree M. Gaskin</p>
-            <p className="whitespace-pre-wrap text-sm text-justify">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP, ISBN-10: 0199782059). {summaryText}</p>
+            <p className="whitespace-pre-wrap text-sm text-justify">Khi so với Atlas Thực tế chuẩn hoá của C.M. Gaskin et al., sử dụng mốc cốt hoá cổ điển của Brush Foundation, OUP. {summaryText}</p>
             {yesFeatures.length > 0 && (
               <p className="whitespace-pre-wrap text-sm text-justify">
                 <span className="font-semibold">+ Các dấu hiệu được ghi nhận:</span> {yesFeatures.join('; ')}
@@ -4967,6 +5128,103 @@ export default function App() {
           </section>
         )}
 
+        {/* Đối chiếu TxgAI® by zCore (Level 3) */}
+        {isExpertMode && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <h2 className="text-base sm:text-lg font-semibold text-slate-100 flex items-baseline gap-1.5 flex-wrap">
+                <span>Đối chiếu TxgAI® by</span>
+                <ZCoreWordmark dark className="text-base sm:text-lg" />
+              </h2>
+              <div className="flex items-center gap-2">
+                {txgAiRawText.trim() !== '' && (
+                  <button
+                    type="button"
+                    onClick={() => setTxgAiRawText('')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-slate-800 border-slate-700 hover:bg-rose-950/60 hover:border-rose-800/70 hover:text-rose-200 text-slate-300"
+                  >
+                    <X size={14} />
+                    <span>Xoá</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsTxgAiVisible(!isTxgAiVisible)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-slate-800 border-slate-700 hover:bg-slate-700 text-slate-200"
+                >
+                  {isTxgAiVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+                  <span>{isTxgAiVisible ? 'Ẩn' : 'Hiện'}</span>
+                </button>
+              </div>
+            </div>
+
+            <AnimatePresence>
+              {isTxgAiVisible && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-slate-800/90 p-3.5 sm:p-4 rounded-xl border border-slate-700/80 space-y-3">
+                    <textarea
+                      rows={2}
+                      aria-label="Nhập kết quả đối chiếu TxgAI"
+                      value={txgAiRawText}
+                      onChange={e => setTxgAiRawText(e.target.value)}
+                      className="w-full max-w-xl bg-slate-900 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 text-xs sm:text-sm leading-snug focus:outline-none focus:border-teal-500 transition-colors resize-y font-mono"
+                    />
+
+                    {txgAiRawText.trim() !== '' && (
+                      parsedTxgAi ? (
+                        <div className="p-3.5 rounded-lg bg-slate-900/90 border border-slate-700/80 space-y-2.5">
+                          <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                            <span className="font-semibold text-teal-400">Dữ liệu đã lọc tự động:</span>
+                            {parsedTxgAi.genderLabel && (
+                              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">
+                                Giới: {parsedTxgAi.genderLabel}
+                              </span>
+                            )}
+                            {parsedTxgAi.caText && (
+                              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">
+                                Tuổi thực: {parsedTxgAi.caText}
+                              </span>
+                            )}
+                            {parsedTxgAi.baText && (
+                              <span className="px-2 py-0.5 rounded bg-teal-950/70 border border-teal-800/70 text-teal-300 font-medium">
+                                Tuổi xương: {parsedTxgAi.baText}
+                              </span>
+                            )}
+                            {parsedTxgAi.ciText && (
+                              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">
+                                95% CI: {parsedTxgAi.ciText}
+                              </span>
+                            )}
+                            {parsedTxgAi.zScoreText && (
+                              <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-200">
+                                Z-score: {parsedTxgAi.zScoreText}
+                              </span>
+                            )}
+                            {parsedTxgAi.hasHighUncertainty && (
+                              <span className="px-2 py-0.5 rounded bg-amber-950/60 border border-amber-800/70 text-amber-300 font-medium">
+                                Lưu ý: độ bất định cao
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-400">
+                          Chưa nhận diện được trường dữ liệu hợp lệ từ nội dung đã dán. Vui lòng kiểm tra lại định dạng mẫu TxgAI®.
+                        </p>
+                      )
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </section>
+        )}
+
         {/* Sauvegrain Module */}
         {isExpertMode && ((realAgeYears >= 9 && realAgeYears <= 13 && gender === 'girl') || (realAgeYears >= 11 && realAgeYears <= 15 && gender === 'boy')) && (
           <section className="space-y-4">
@@ -5832,6 +6090,116 @@ export default function App() {
           </div>
         </div>
       </footer>
+      <div className="fixed bottom-11 right-4 sm:bottom-12 sm:right-5 z-40 w-11 h-11 sm:w-12 sm:h-12 group [contain:layout_style]">
+        {/* Lightweight GPU-only PCB Circuit Traces (no SVG blur filter, no stroke-dashoffset repaint) */}
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 180 180"
+          className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[176px] h-[176px] sm:w-[192px] sm:h-[192px] overflow-visible select-none"
+        >
+          {/* Base dim etched traces (static) */}
+          <g fill="none" stroke="#14b8a6" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" opacity="0.22">
+            <path d="M 74 74 L 54 54 L 30 54" />
+            <path d="M 80 68 L 68 56 L 68 32 L 54 18" />
+            <path d="M 90 66 L 90 42 L 100 32 L 100 18" />
+            <path d="M 66 90 L 42 90 L 30 78 L 16 78" />
+            <path d="M 69 101 L 52 101 L 40 113 L 26 113" />
+            <path d="M 106 74 L 116 64 L 116 46" />
+            <path d="M 114 90 L 122 90 L 127 85" />
+            <path d="M 82 112 L 74 120 L 58 120" />
+          </g>
+
+          {/* Wave Stage 1: Inner segments near AI icon (opacity-only GPU layer) */}
+          <g fill="none" strokeLinecap="round" strokeLinejoin="round" className="ai-circuit-wave [animation-delay:0s]">
+            <g stroke="#2dd4bf" strokeWidth="4" opacity="0.22">
+              <path d="M 74 74 L 54 54" />
+              <path d="M 80 68 L 68 56 L 68 42" />
+              <path d="M 90 66 L 90 42" />
+              <path d="M 66 90 L 42 90" />
+              <path d="M 69 101 L 52 101" />
+              <path d="M 106 74 L 116 64" />
+              <path d="M 114 90 L 122 90" />
+              <path d="M 82 112 L 74 120" />
+            </g>
+            <g stroke="#5eead4" strokeWidth="1.7">
+              <path d="M 74 74 L 54 54" />
+              <path d="M 80 68 L 68 56 L 68 42" />
+              <path d="M 90 66 L 90 42" />
+              <path d="M 66 90 L 42 90" />
+              <path d="M 69 101 L 52 101" />
+              <path d="M 106 74 L 116 64" />
+              <path d="M 114 90 L 122 90" />
+              <path d="M 82 112 L 74 120" />
+            </g>
+          </g>
+
+          {/* Wave Stage 2: Outer trace branches (opacity-only GPU layer) */}
+          <g fill="none" strokeLinecap="round" strokeLinejoin="round" className="ai-circuit-wave [animation-delay:0.35s]">
+            <g stroke="#2dd4bf" strokeWidth="4" opacity="0.22">
+              <path d="M 54 54 L 30 54" />
+              <path d="M 68 42 L 68 32 L 54 18" />
+              <path d="M 90 42 L 100 32 L 100 18" />
+              <path d="M 42 90 L 30 78 L 16 78" />
+              <path d="M 52 101 L 40 113 L 26 113" />
+              <path d="M 116 64 L 116 46" />
+              <path d="M 122 90 L 127 85" />
+              <path d="M 74 120 L 58 120" />
+            </g>
+            <g stroke="#5eead4" strokeWidth="1.7">
+              <path d="M 54 54 L 30 54" />
+              <path d="M 68 42 L 68 32 L 54 18" />
+              <path d="M 90 42 L 100 32 L 100 18" />
+              <path d="M 42 90 L 30 78 L 16 78" />
+              <path d="M 52 101 L 40 113 L 26 113" />
+              <path d="M 116 64 L 116 46" />
+              <path d="M 122 90 L 127 85" />
+              <path d="M 74 120 L 58 120" />
+            </g>
+          </g>
+
+          {/* Wave Stage 3: Endpoint solder pads lighting up (opacity-only GPU layer) */}
+          <g className="ai-circuit-wave [animation-delay:0.65s]">
+            <g fill="#2dd4bf" opacity="0.28">
+              <circle cx="30" cy="54" r="5" />
+              <circle cx="54" cy="18" r="4.8" />
+              <circle cx="100" cy="18" r="4.8" />
+              <circle cx="16" cy="78" r="5" />
+              <circle cx="26" cy="113" r="4.6" />
+              <circle cx="116" cy="46" r="4.5" />
+              <circle cx="127" cy="85" r="4.4" />
+              <circle cx="58" cy="120" r="4.5" />
+            </g>
+            <g fill="#0f766e" stroke="#5eead4" strokeWidth="1.4">
+              <circle cx="30" cy="54" r="2.6" />
+              <circle cx="54" cy="18" r="2.5" />
+              <circle cx="100" cy="18" r="2.5" />
+              <circle cx="16" cy="78" r="2.6" />
+              <circle cx="26" cy="113" r="2.4" />
+              <circle cx="116" cy="46" r="2.3" />
+              <circle cx="127" cy="85" r="2.2" />
+              <circle cx="58" cy="120" r="2.3" />
+            </g>
+          </g>
+        </svg>
+
+        {/* Radiating halo ring */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 rounded-full border border-teal-400/70 ai-core-ring-anim"
+        />
+
+        {/* Core AI floating button */}
+        <a
+          href="https://txgcalc.vercel.app"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Mở TxgAI® (txgcalc.vercel.app)"
+          aria-label="Mở TxgAI tại txgcalc.vercel.app"
+          className="relative z-10 w-full h-full rounded-full bg-teal-700 hover:bg-teal-600 text-white font-extrabold text-sm sm:text-base tracking-tight shadow-[0_0_16px_rgba(20,184,166,0.4)] hover:shadow-[0_0_22px_rgba(45,212,191,0.65)] border border-teal-400/60 flex items-center justify-center transition-transform duration-200 hover:scale-105 active:scale-95"
+        >
+          AI
+        </a>
+      </div>
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 border-t border-slate-800 text-slate-400 text-[10px] sm:text-xs font-medium py-1.5 px-4 overflow-hidden flex items-center w-full">
         <div className="animate-marquee-mobile sm:w-full sm:text-center w-full tracking-wide">
           KẾT QUẢ DO BÁC SĨ PHÂN TÍCH THỦ CÔNG - KHÔNG PHẢI SẢN PHẨM CỦA TRÍ TUỆ NHÂN TẠO (AI)
